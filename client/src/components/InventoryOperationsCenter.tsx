@@ -2,11 +2,12 @@
  * نبض العيادة التنفيذي — لوحات المخزون والفروع.
  * تعرض الأولوية والدليل المتاح، وتسمح بقواعد محلية فوق حد المصدر دون إرسال أو طلب تلقائي.
  */
-import { useState } from "react";
-import { AlertTriangle, ArrowDownToLine, Boxes, Building2, CheckCircle2, Clock3, GitCompareArrows, PackagePlus, SlidersHorizontal } from "lucide-react";
+import { useRef, useState } from "react";
+import { AlertTriangle, ArrowDownToLine, Boxes, Building2, CheckCircle2, Clock3, FileUp, GitCompareArrows, PackagePlus, SlidersHorizontal } from "lucide-react";
 import { formatNumber } from "@/lib/pharmacyEngine";
 import type { InventoryItem, InventoryOperations } from "@/lib/inventoryEngine";
 import type { ReorderRules } from "@/lib/reorderRules";
+import type { ReorderRulesImportResult } from "@/lib/reorderRulesImport";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 function statusMeta(item: InventoryItem) {
@@ -25,18 +26,20 @@ function Metric({ label, value, note, tone }: { label: string; value: number; no
   return <div className={`panel-shadow rounded-2xl border p-4 ${colors[tone]}`}><p className="text-[11px] font-bold">{label}</p><p className="metric-number mt-2 text-[25px] font-bold">{formatNumber(value)}</p><p className="mt-1 text-[10px] opacity-80">{note}</p></div>;
 }
 
-type InventoryPanelProps = { operations: InventoryOperations; rules?: ReorderRules; onSaveRule?: (itemId: string, reorderLevel: number, targetStock?: number) => void; onRemoveRule?: (itemId: string) => void; onExport?: () => void; };
+type InventoryPanelProps = { operations: InventoryOperations; rules?: ReorderRules; onSaveRule?: (itemId: string, reorderLevel: number, targetStock?: number) => void; onRemoveRule?: (itemId: string) => void; onExport?: () => void; onImportRules?: (file: File) => Promise<ReorderRulesImportResult>; };
 
-export function InventoryOperationsCenter({ operations, mode, rules = {}, onSaveRule, onRemoveRule, onExport }: InventoryPanelProps & { mode: "inventory" | "branches" }) {
-  return mode === "branches" ? <BranchComparison operations={operations} /> : <InventoryDashboard operations={operations} rules={rules} onSaveRule={onSaveRule} onRemoveRule={onRemoveRule} onExport={onExport} />;
+export function InventoryOperationsCenter({ operations, mode, rules = {}, onSaveRule, onRemoveRule, onExport, onImportRules }: InventoryPanelProps & { mode: "inventory" | "branches" }) {
+  return mode === "branches" ? <BranchComparison operations={operations} /> : <InventoryDashboard operations={operations} rules={rules} onSaveRule={onSaveRule} onRemoveRule={onRemoveRule} onExport={onExport} onImportRules={onImportRules} />;
 }
 
-function InventoryDashboard({ operations, rules = {}, onSaveRule, onRemoveRule, onExport }: InventoryPanelProps) {
+function InventoryDashboard({ operations, rules = {}, onSaveRule, onRemoveRule, onExport, onImportRules }: InventoryPanelProps) {
   const [editing, setEditing] = useState<InventoryItem | null>(null);
   const [reorderLevel, setReorderLevel] = useState("");
   const [targetStock, setTargetStock] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [importing, setImporting] = useState(false);
+  const ruleFileInput = useRef<HTMLInputElement>(null);
   const maxSuggested = Math.max(...operations.suggestions.map((item) => item.suggestedQuantity ?? 0), 1);
   const alerts = [...operations.nearExpiry, ...operations.lowStock].slice(0, 14);
 
@@ -65,11 +68,19 @@ function InventoryDashboard({ operations, rules = {}, onSaveRule, onRemoveRule, 
     setNotice(`عادت قاعدة «${item.itemName}» إلى حد الملف أو مبيعات الفترة.`);
   };
 
+  const importRules = async (file?: File) => {
+    if (!file || !onImportRules) return;
+    setImporting(true); setError("");
+    try { const result = await onImportRules(file); setNotice(`تمت مراجعة ${formatNumber(result.readRows)} صفًا: اعتمدنا ${formatNumber(result.accepted.length)} قاعدة${result.rejected.length ? ` واستبعدنا ${formatNumber(result.rejected.length)} صفًا غير صالح` : ""}.`); }
+    catch (caught) { setError(caught instanceof Error ? caught.message : "تعذر استيراد قواعد إعادة الطلب."); }
+    finally { setImporting(false); }
+  };
+
   return <>
     <div className="mx-auto max-w-[1350px] space-y-5">
       <header className="entry-rise flex flex-wrap items-end justify-between gap-4">
         <div><div className="mb-2 flex items-center gap-2 text-[11px] font-bold tracking-wide text-[#9a721f]"><span className="h-px w-7 bg-[#d8a345]" />حركة تشغيلية مبنية على بياناتك</div><h2 className="display-font text-[28px] font-semibold tracking-[-.035em] text-[#173f38]">المخزون والطلبات المقترحة</h2><p className="mt-1 max-w-3xl text-xs leading-6 text-[#6e827a]">{operations.note}</p></div>
-        <div className="flex flex-wrap items-center gap-2"><span className="rounded-xl border border-[#c9e4d8] bg-[#eff9f3] px-3 py-2 text-[10px] font-bold text-[#287159]">تحليل محلي · لا إرسال تلقائي للطلبات</span><button type="button" onClick={onExport} disabled={!operations.available} className="inline-flex items-center gap-2 rounded-xl bg-[#123c37] px-3.5 py-2.5 text-[11px] font-bold text-white transition hover:bg-[#17564c] disabled:cursor-not-allowed disabled:opacity-50"><ArrowDownToLine className="size-4 text-[#d8a345]" />تصدير Excel</button></div>
+        <div className="flex flex-wrap items-center gap-2"><span className="rounded-xl border border-[#c9e4d8] bg-[#eff9f3] px-3 py-2 text-[10px] font-bold text-[#287159]">تحليل محلي · لا إرسال تلقائي للطلبات</span><input ref={ruleFileInput} onChange={(event) => { void importRules(event.target.files?.[0]); event.target.value = ""; }} type="file" accept=".xlsx,.xls,.csv" className="hidden" /><button type="button" onClick={() => ruleFileInput.current?.click()} disabled={!operations.available || importing} className="inline-flex items-center gap-2 rounded-xl border border-[#b7d8cb] bg-white px-3.5 py-2.5 text-[11px] font-bold text-[#1d6251] transition hover:bg-[#eff8f3] disabled:cursor-not-allowed disabled:opacity-50"><FileUp className="size-4 text-[#0a6d59]" />{importing ? "نراجع القواعد…" : "استيراد قواعد"}</button><button type="button" onClick={onExport} disabled={!operations.available} className="inline-flex items-center gap-2 rounded-xl bg-[#123c37] px-3.5 py-2.5 text-[11px] font-bold text-white transition hover:bg-[#17564c] disabled:cursor-not-allowed disabled:opacity-50"><ArrowDownToLine className="size-4 text-[#d8a345]" />تصدير Excel</button></div>
       </header>
       {!operations.available ? <EmptyState title="لوحة المخزون تحتاج حقولًا إضافية" description={operations.note} /> : <>
         <div className="grid gap-3 sm:grid-cols-3"><Metric label="أصناف قرب الانتهاء" value={operations.nearExpiry.length} note="تنتهي خلال 90 يومًا أو أقل" tone="rose" /><Metric label="رصيد عند حد الطلب" value={operations.lowStock.length} note="الرصيد عند أو دون الحد المسجل" tone="amber" /><Metric label="طلبات مقترحة" value={operations.suggestions.length} note="كميات محسوبة من الحد أو مبيعات الفترة" tone="green" /></div>
@@ -77,7 +88,7 @@ function InventoryDashboard({ operations, rules = {}, onSaveRule, onRemoveRule, 
           <section className="panel-shadow overflow-hidden rounded-2xl border border-[#e4d7cd] bg-[#fcfcf8]"><div className="border-b border-[#eee3db] px-5 py-5"><div className="flex items-center gap-2"><Clock3 className="size-4 text-[#ba5d49]" /><div><p className="font-bold text-[#274d43]">تنبيهات الانتهاء والمخزون</p><p className="mt-1 text-[11px] text-[#758880]">ترتيب حسب أقرب تاريخ انتهاء ثم أولوية الرصيد.</p></div></div></div><div className="scrollbar-thin max-h-[430px] divide-y divide-[#edf1ed] overflow-auto">{alerts.map((item) => <AlertRow key={`${item.status}-${item.id}`} item={item} />)}{alerts.length === 0 && <div className="p-6"><EmptyState title="لا توجد تنبيهات من الحقول المتاحة" description="لم نجد تاريخ انتهاء قريبًا أو رصيدًا عند حد إعادة الطلب ضمن الملف الحالي." /></div>}</div></section>
           <section className="panel-shadow overflow-hidden rounded-2xl border border-[#d9e7df] bg-[#fcfcf8]"><div className="border-b border-[#e6eee9] px-5 py-5"><div className="flex items-center gap-2"><PackagePlus className="size-4 text-[#0a6d59]" /><div><p className="font-bold text-[#274d43]">قائمة الطلب المقترحة</p><p className="mt-1 text-[11px] text-[#758880]">اقتراح كمية، لا أمر شراء. راجع المورد والحدود قبل الاعتماد.</p></div></div></div><div className="scrollbar-thin max-h-[430px] divide-y divide-[#edf1ed] overflow-auto">{operations.suggestions.slice(0, 12).map((item) => <SuggestionRow key={item.id} item={item} maxSuggested={maxSuggested} />)}{operations.suggestions.length === 0 && <div className="p-6"><EmptyState title="لا توجد كمية طلب مؤكدة" description="تحتاج القائمة إلى رصيد المخزون مع حد إعادة الطلب أو كمية مبيعات في الملف." /></div>}</div></section>
         </div>
-        <section className="panel-shadow overflow-hidden rounded-2xl border border-[#d9e7df] bg-[#fcfcf8]"><div className="flex flex-wrap items-end justify-between gap-4 border-b border-[#e6eee9] px-5 py-5"><div><div className="flex items-center gap-2"><SlidersHorizontal className="size-4 text-[#0a6d59]" /><p className="font-bold text-[#274d43]">قواعد إعادة الطلب لكل صنف</p></div><p className="mt-1 text-[11px] leading-5 text-[#758880]">القاعدة المخصصة تُقدَّم على حد الملف لهذا المتصفح فقط؛ يمكن إزالتها في أي وقت.</p></div><span className="rounded-lg border border-[#cae3d8] bg-[#eff8f3] px-2.5 py-1.5 text-[10px] font-bold text-[#287059]">{formatNumber(Object.keys(rules).length)} قاعدة مفعلة</span></div>{notice && <div className="border-b border-[#dcece3] bg-[#f4faf6] px-5 py-3 text-[11px] font-semibold text-[#287059]">{notice}</div>}<div className="scrollbar-thin max-h-[390px] divide-y divide-[#edf1ed] overflow-auto">{operations.items.map((item) => <RuleRow key={item.id} item={item} hasCustom={Boolean(rules[item.id])} onEdit={() => openRule(item)} onRemove={() => clearRule(item)} />)}{operations.items.length === 0 && <div className="p-6"><EmptyState title="لا توجد أصناف قابلة للتخصيص" description="أضف اسم الصنف ورصيد المخزون إلى الملف ثم أعد القراءة." /></div>}</div></section>
+        <section className="panel-shadow overflow-hidden rounded-2xl border border-[#d9e7df] bg-[#fcfcf8]"><div className="flex flex-wrap items-end justify-between gap-4 border-b border-[#e6eee9] px-5 py-5"><div><div className="flex items-center gap-2"><SlidersHorizontal className="size-4 text-[#0a6d59]" /><p className="font-bold text-[#274d43]">قواعد إعادة الطلب لكل صنف</p></div><p className="mt-1 text-[11px] leading-5 text-[#758880]">القاعدة المخصصة تُقدَّم على حد الملف لهذا المتصفح فقط؛ يمكن إزالتها في أي وقت. للاستيراد الجماعي، استخدم ملف التصدير نفسه أو أعمدة «معرّف الصنف» و«حد إعادة الطلب».</p></div><span className="rounded-lg border border-[#cae3d8] bg-[#eff8f3] px-2.5 py-1.5 text-[10px] font-bold text-[#287059]">{formatNumber(Object.keys(rules).length)} قاعدة مفعلة</span></div>{notice && <div className="border-b border-[#dcece3] bg-[#f4faf6] px-5 py-3 text-[11px] font-semibold text-[#287059]">{notice}</div>}{error && <div className="border-b border-[#f0d9d0] bg-[#fff7f4] px-5 py-3 text-[11px] font-semibold text-[#a04e40]">{error}</div>}<div className="scrollbar-thin max-h-[390px] divide-y divide-[#edf1ed] overflow-auto">{operations.items.map((item) => <RuleRow key={item.id} item={item} hasCustom={Boolean(rules[item.id])} onEdit={() => openRule(item)} onRemove={() => clearRule(item)} />)}{operations.items.length === 0 && <div className="p-6"><EmptyState title="لا توجد أصناف قابلة للتخصيص" description="أضف اسم الصنف ورصيد المخزون إلى الملف ثم أعد القراءة." /></div>}</div></section>
       </>}
     </div>
     <Dialog open={Boolean(editing)} onOpenChange={(open) => { if (!open) setEditing(null); }}><DialogContent className="border-[#d9e7df] bg-[#fcfcf8] text-right" dir="rtl"><DialogHeader className="text-right"><DialogTitle className="display-font text-xl text-[#183f38]">قاعدة إعادة طلب مخصصة</DialogTitle><DialogDescription className="mt-2 text-xs leading-6 text-[#6e827a]">{editing?.itemName} — تُحفظ هذه القاعدة على هذا المتصفح وتُستخدم فوق الحد الوارد من الملف.</DialogDescription></DialogHeader><div className="grid gap-4 py-2 sm:grid-cols-2"><label className="text-xs font-bold text-[#31574d]">حد إعادة الطلب<input autoFocus inputMode="numeric" type="number" min="0" value={reorderLevel} onChange={(event) => setReorderLevel(event.target.value)} className="mt-2 w-full rounded-xl border border-[#cfe0d8] bg-white px-3 py-2.5 text-sm text-[#183f38] outline-none focus:border-[#0b6b5b]" /></label><label className="text-xs font-bold text-[#31574d]">رصيد الهدف <span className="font-normal text-[#81928b]">اختياري</span><input inputMode="numeric" type="number" min="0" value={targetStock} onChange={(event) => setTargetStock(event.target.value)} placeholder="يُحسب تلقائيًا من الحد والمبيعات" className="mt-2 w-full rounded-xl border border-[#cfe0d8] bg-white px-3 py-2.5 text-sm text-[#183f38] outline-none focus:border-[#0b6b5b]" /></label></div>{error && <p className="rounded-lg bg-[#fff0ec] px-3 py-2 text-xs font-semibold text-[#a04e40]">{error}</p>}<p className="text-[10px] leading-5 text-[#74867e]">عند ترك رصيد الهدف فارغًا، يحسب النظام هدفه من ضعف الحد أو مبيعات الفترة المتاحة، أيهما أعلى.</p><DialogFooter className="gap-2 sm:justify-start"><button type="button" onClick={() => setEditing(null)} className="rounded-xl border border-[#d7e5de] bg-white px-4 py-2.5 text-xs font-bold text-[#55736a]">إلغاء</button><button type="button" onClick={saveRule} className="rounded-xl bg-[#123c37] px-4 py-2.5 text-xs font-bold text-white hover:bg-[#17564c]">حفظ القاعدة</button></DialogFooter></DialogContent></Dialog>
