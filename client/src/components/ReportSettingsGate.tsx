@@ -1,0 +1,23 @@
+/** نبض العيادة التنفيذي — بوابة رمز المدير المحلية قبل تحرير تخصيصات التقرير. */
+import { useState, type ReactNode } from "react";
+import { KeyRound, LockKeyhole, ShieldCheck, Unlock } from "lucide-react";
+import type { ReportLockState } from "@/lib/reportLock";
+
+export function ReportSettingsGate({ state, onSet, onVerify, onRemove, children }: { state: ReportLockState; onSet: (code: string) => Promise<void>; onVerify: (code: string) => Promise<boolean>; onRemove: () => void; children: ReactNode }) {
+  const [unlocked, setUnlocked] = useState(!state.configured);
+  const [mode, setMode] = useState<"idle" | "setup" | "unlock">(state.configured ? "unlock" : "idle");
+  const [code, setCode] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const submit = async () => {
+    setError(""); setBusy(true);
+    try {
+      if (mode === "setup") { if (code !== confirm) throw new Error("تأكيد الرمز لا يطابق رمز المرور."); await onSet(code); setUnlocked(true); setMode("idle"); }
+      else if (mode === "unlock") { if (!(await onVerify(code))) throw new Error("رمز المرور غير صحيح."); setUnlocked(true); setMode("idle"); }
+      setCode(""); setConfirm("");
+    } catch (caught) { setError(caught instanceof Error ? caught.message : "تعذر فتح الإعدادات."); } finally { setBusy(false); }
+  };
+  if (unlocked) return <div className="space-y-4"><div className="no-print flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#c7e4d7] bg-[#eff9f3] px-4 py-3 text-xs"><div className="flex items-center gap-2 font-bold text-[#236d56]"><Unlock className="size-4" />إعدادات التقرير مفتوحة محليًا لهذه الجلسة</div>{state.configured && <div className="flex gap-2"><button onClick={() => setUnlocked(false)} className="rounded-lg border border-[#bcdaca] bg-white px-2.5 py-1.5 font-bold text-[#2b6957]">قفل الآن</button><button onClick={onRemove} className="rounded-lg px-2.5 py-1.5 font-bold text-[#8d5047] hover:bg-[#fff1ee]">إزالة الرمز</button></div>}</div>{children}</div>;
+  return <div className="mx-auto max-w-[650px] rounded-[1.5rem] border border-[#d4e5dd] bg-[#fcfcf8] p-6 shadow-[0_18px_45px_rgba(28,69,59,.08)] sm:p-8"><div className="grid size-12 place-items-center rounded-2xl bg-[#eaf5ef] text-[#176852]"><LockKeyhole className="size-5" /></div><p className="mt-5 text-[11px] font-bold tracking-wide text-[#9a721f]">حماية تخصيصات التقرير</p><h2 className="display-font mt-1 text-2xl font-semibold text-[#173f38]">{mode === "setup" ? "ضع رمز المدير المحلي" : "الإعدادات مقفلة"}</h2><p className="mt-2 text-xs leading-6 text-[#6d8179]">{mode === "setup" ? "يُشتق رمز مشفّر داخل هذا المتصفح فقط. لا نرسله أو نخزنه كنص ظاهر." : "أدخل رمز مدير الصيدلية لفتح تعديل هوية التقرير."}</p>{mode === "idle" ? <button onClick={() => setMode("setup")} className="mt-6 inline-flex items-center gap-2 rounded-xl bg-[#123c37] px-4 py-3 text-xs font-bold text-white hover:bg-[#17564c]"><KeyRound className="size-4" />تعيين رمز مرور محلي</button> : <div className="mt-6 space-y-3"><label className="block text-[11px] font-bold text-[#526f65]">رمز المرور<input value={code} onChange={(event) => setCode(event.target.value)} type="password" autoFocus className="mt-1.5 block w-full rounded-xl border border-[#cfdfd8] bg-white px-3 py-3 text-sm text-[#1c4940] outline-none focus:border-[#42947e]" /></label>{mode === "setup" && <label className="block text-[11px] font-bold text-[#526f65]">تأكيد رمز المرور<input value={confirm} onChange={(event) => setConfirm(event.target.value)} type="password" className="mt-1.5 block w-full rounded-xl border border-[#cfdfd8] bg-white px-3 py-3 text-sm text-[#1c4940] outline-none focus:border-[#42947e]" /></label>}{error && <p className="rounded-lg bg-[#fff0ed] px-3 py-2 text-xs font-bold text-[#a34e42]">{error}</p>}<div className="flex gap-2"><button onClick={() => void submit()} disabled={busy} className="rounded-xl bg-[#123c37] px-4 py-2.5 text-xs font-bold text-white disabled:bg-[#66877d]">{busy ? "جارٍ التحقق…" : mode === "setup" ? "تفعيل القفل" : "فتح الإعدادات"}</button><button onClick={() => { setMode(state.configured ? "unlock" : "idle"); setCode(""); setConfirm(""); setError(""); }} className="rounded-xl border border-[#d5e3dc] px-4 py-2.5 text-xs font-bold text-[#55736a]">إلغاء</button></div></div>}<div className="mt-7 flex items-center gap-2 border-t border-[#e2ece6] pt-4 text-[10px] leading-5 text-[#70847d]"><ShieldCheck className="size-4 shrink-0 text-[#27745c]" />هذا القفل يمنع التعديل العرضي على هذا الجهاز؛ ولا يُعد بديلًا عن صلاحيات خادم متعددة المستخدمين.</div></div>;
+}

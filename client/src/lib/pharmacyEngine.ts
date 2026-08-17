@@ -15,6 +15,7 @@ export type CanonicalField =
   | "quantity_sold"
   | "stock_quantity"
   | "reorder_level"
+  | "expiry_date"
   | "sale_price"
   | "sales_total"
   | "sales_quantity"
@@ -120,6 +121,7 @@ const FIELD_DEFINITIONS: Record<CanonicalField, { labels: string[]; keywords: st
   quantity_sold: { labels: ["الكمية المباعة", "الكمية", "عدد الوحدات", "sold quantity", "sales quantity", "qty", "quantity"], keywords: ["كمية", "quantity", "qty", "وحدات"], kind: "number" },
   stock_quantity: { labels: ["رصيد المخزون", "المخزون", "الرصيد", "stock quantity", "stock", "balance"], keywords: ["مخزون", "stock", "رصيد", "balance"], kind: "number" },
   reorder_level: { labels: ["حد إعادة الطلب", "الحد الأدنى", "reorder level", "min stock", "minimum stock"], keywords: ["إعادة الطلب", "حد أدنى", "reorder", "min stock"], kind: "number" },
+  expiry_date: { labels: ["تاريخ الانتهاء", "تاريخ الصلاحية", "انتهاء الصلاحية", "expiry date", "expiration date", "expiry", "exp date"], keywords: ["انتهاء", "صلاحيه", "expiry", "expiration", "exp date"], kind: "date" },
   sale_price: { labels: ["سعر البيع", "سعر", "unit sale price", "sale price", "selling price"], keywords: ["سعر البيع", "selling", "sale price"], kind: "number" },
   sales_total: { labels: ["إجمالي المبيعات", "قيمة المبيعات", "إجمالي البيع", "صافي البيع", "sales total", "total sales", "net sales", "amount sold"], keywords: ["إجمالي المبيعات", "قيمة المبيعات", "total sales", "net sales", "مبيعات"], kind: "number" },
   sales_quantity: { labels: ["كمية البيع", "كمية المبيعات", "sales qty", "sales quantity"], keywords: ["بيع", "sales"], kind: "number" },
@@ -151,7 +153,7 @@ const arabicNumbers: Record<string, string> = { "٠": "0", "١": "1", "٢": "2",
 
 export const fieldArabicName: Record<CanonicalField, string> = {
   item_code: "كود الصنف", item_name: "اسم الصنف", company: "الشركة", category: "التصنيف", item_type: "نوع الصنف", unit: "الوحدة",
-  quantity_sold: "الكمية المباعة", stock_quantity: "رصيد المخزون", reorder_level: "حد إعادة الطلب", sale_price: "سعر البيع", sales_total: "إجمالي المبيعات",
+  quantity_sold: "الكمية المباعة", stock_quantity: "رصيد المخزون", reorder_level: "حد إعادة الطلب", expiry_date: "تاريخ الانتهاء", sale_price: "سعر البيع", sales_total: "إجمالي المبيعات",
   sales_quantity: "كمية المبيعات", invoice_number: "رقم الفاتورة", sale_date: "تاريخ البيع", sale_time: "وقت البيع", customer: "العميل", employee: "الموظف", branch: "الفرع",
   cost_price: "سعر التكلفة", total_cost: "إجمالي التكلفة", profit: "الربح", profit_margin: "هامش الربح", discount: "نسبة الخصم", discount_value: "قيمة الخصم",
   expense_date: "تاريخ المصروف", expense_type: "نوع المصروف", expense_amount: "قيمة المصروف", payment_method: "طريقة الدفع", user: "المستخدم", notes: "ملاحظات",
