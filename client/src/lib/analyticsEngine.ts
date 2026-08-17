@@ -106,6 +106,24 @@ export interface DashboardFilters {
   branch?: string;
 }
 
+export interface ComparisonMetric {
+  id: "sales" | "grossProfit" | "grossMargin" | "invoices" | "averageInvoice";
+  label: string;
+  current?: number;
+  previous?: number;
+  delta?: number;
+  changePercent?: number;
+  isPositive: boolean;
+}
+
+export interface PeriodComparison {
+  available: boolean;
+  currentRange?: { from: Date; to: Date };
+  previousRange?: { from: Date; to: Date };
+  metrics: ComparisonMetric[];
+  note: string;
+}
+
 const canonicalMap = (mappings: ColumnMapping[]): Partial<Record<CanonicalField, string>> =>
   mappings.reduce((acc, mapping) => {
     if (mapping.field !== "unknown" && mapping.confidence !== "منخفضة" && !acc[mapping.field]) acc[mapping.field] = mapping.sourceColumn;
@@ -342,6 +360,59 @@ export function analyzePharmacyData(sheets: SheetInspection[], filters: Dashboar
   };
   const availability = Object.fromEntries(Object.entries(metrics).map(([key, metric]) => [key, metric.confidence]));
   return { sourceSheet: sheet.name, totalRows: records.length, dateRange: dates.length ? { from: dates[0], to: dates[dates.length - 1] } : undefined, metrics, products, companies, trends: buildTrend(records), alerts, focusItems: alerts.slice(0, 8), summary, productQuadrants, availability };
+}
+
+function startOfCalendarMonth(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+function endOfDay(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999);
+}
+
+function shiftDays(date: Date, days: number) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+/**
+ * يقارن أحدث فترة تشغيلية مع فترة سابقة متساوية في المدة.
+ * عند عدم وجود فلاتر، تمثل الفترة الحالية الشهر التقويمي الأحدث المتاح في الملف.
+ */
+export function compareWithPreviousPeriod(sheets: SheetInspection[], filters: DashboardFilters = {}): PeriodComparison {
+  const selected = selectAnalysisSheet(sheets);
+  const dates = selected?.cleanRecords.map((record) => record.__metrics.date).filter((date): date is Date => Boolean(date)).sort((a, b) => a.valueOf() - b.valueOf()) ?? [];
+  if (!dates.length) return { available: false, metrics: [], note: "المقارنة الشهرية تحتاج إلى عمود تاريخ صالح داخل التقرير المصدر." };
+
+  const latest = dates[dates.length - 1];
+  const currentFrom = filters.from ?? startOfCalendarMonth(latest);
+  const currentTo = endOfDay(filters.to ?? latest);
+  if (currentTo < currentFrom) return { available: false, metrics: [], note: "لا يمكن إنشاء مقارنة لأن نطاق التاريخ المختار غير صحيح." };
+
+  const spanDays = Math.floor((endOfDay(currentTo).valueOf() - currentFrom.valueOf()) / 86_400_000) + 1;
+  const previousTo = endOfDay(shiftDays(currentFrom, -1));
+  const previousFrom = new Date(previousTo.getFullYear(), previousTo.getMonth(), previousTo.getDate() - spanDays + 1);
+  const shared = { company: filters.company, item: filters.item, category: filters.category, employee: filters.employee, branch: filters.branch };
+  const current = analyzePharmacyData(sheets, { ...shared, from: currentFrom, to: currentTo });
+  const previous = analyzePharmacyData(sheets, { ...shared, from: previousFrom, to: previousTo });
+  if (!current || !previous || previous.totalRows === 0) return { available: false, currentRange: { from: currentFrom, to: currentTo }, previousRange: { from: previousFrom, to: previousTo }, metrics: [], note: "لا توجد سجلات كافية في الفترة السابقة لإظهار مقارنة موثوقة." };
+
+  const buildMetric = (id: ComparisonMetric["id"], label: string, currentValue?: number, previousValue?: number): ComparisonMetric => {
+    const delta = currentValue !== undefined && previousValue !== undefined ? currentValue - previousValue : undefined;
+    const changePercent = delta !== undefined && previousValue !== undefined && previousValue !== 0 ? (delta / Math.abs(previousValue)) * 100 : undefined;
+    return { id, label, current: currentValue, previous: previousValue, delta, changePercent, isPositive: (delta ?? 0) >= 0 };
+  };
+
+  const metrics = [
+    buildMetric("sales", "المبيعات", current.metrics.sales.value, previous.metrics.sales.value),
+    buildMetric("grossProfit", "الربح الإجمالي", current.metrics.grossProfit.value, previous.metrics.grossProfit.value),
+    buildMetric("grossMargin", "هامش الربح", current.metrics.grossMargin.value, previous.metrics.grossMargin.value),
+    buildMetric("invoices", "عدد الفواتير", current.metrics.invoices.value, previous.metrics.invoices.value),
+    buildMetric("averageInvoice", "متوسط الفاتورة", current.metrics.averageInvoice.value, previous.metrics.averageInvoice.value),
+  ].filter((metric) => metric.current !== undefined || metric.previous !== undefined);
+
+  return { available: metrics.length > 0, currentRange: { from: currentFrom, to: currentTo }, previousRange: { from: previousFrom, to: previousTo }, metrics, note: "تُقارن الفترة الحالية بفترة سابقة مساوية لها في عدد الأيام، مع تطبيق الفلاتر النشطة نفسها." };
 }
 
 export function answerDataQuestion(question: string, analytics: DashboardAnalytics): string {

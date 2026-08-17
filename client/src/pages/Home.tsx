@@ -2,7 +2,7 @@
  * نبض العيادة التنفيذي — الصفحة المركزية.
  * التسلسل المقصود: استيراد ملف واحد → مراجعة الثقة والمطابقة → قرار المدير.
  */
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, DragEvent } from "react";
 import * as XLSX from "xlsx";
 import {
@@ -32,6 +32,7 @@ import {
   Search,
   ShieldCheck,
   SlidersHorizontal,
+  Settings2,
   Sparkles,
   TrendingDown,
   TrendingUp,
@@ -49,6 +50,7 @@ import {
 import {
   analyzePharmacyData,
   answerDataQuestion,
+  compareWithPreviousPeriod,
   type AlertLevel,
   type DashboardAnalytics,
   type DashboardFilters,
@@ -56,9 +58,11 @@ import {
   type ProductInsight,
 } from "@/lib/analyticsEngine";
 import { exportManagerReportPdf } from "@/lib/managerPdf";
+import { loadReportPreferences, saveReportPreferences, type ReportPreferences } from "@/lib/reportSettings";
+import { ManagerReportCenter, ReportPreferencesView } from "@/components/ManagerReportCenter";
 
 type Stage = "welcome" | "review" | "dashboard";
-type DashboardView = "overview" | "sales" | "products" | "companies" | "alerts" | "report";
+type DashboardView = "overview" | "sales" | "products" | "companies" | "alerts" | "report" | "settings";
 
 const ASSET = {
   logo: "/manus-storage/pharmacy-intelligence-symbol_005d34fa.png",
@@ -80,6 +84,7 @@ const navItems: Array<{ id: DashboardView; label: string; icon: typeof LayoutDas
   { id: "companies", label: "الشركات والموردون", icon: Building2 },
   { id: "alerts", label: "مركز التنبيهات", icon: BellRing },
   { id: "report", label: "تقرير المدير", icon: FileBarChart },
+  { id: "settings", label: "إعدادات التقرير", icon: Settings2 },
 ];
 
 function qualityStyle(score: number) {
@@ -120,11 +125,14 @@ export default function Home() {
   const [showFilters, setShowFilters] = useState(false);
   const [pdfStatus, setPdfStatus] = useState<"idle" | "working" | "done" | "failed">("idle");
   const [pdfError, setPdfError] = useState("");
+  const [reportPreferences, setReportPreferences] = useState<ReportPreferences>(() => loadReportPreferences());
   const fileInput = useRef<HTMLInputElement>(null);
   const reportRef = useRef<HTMLElement>(null);
 
   const analytics = useMemo<DashboardAnalytics | undefined>(() => inspection && stage === "dashboard" ? analyzePharmacyData(inspection.sheets, filters) : undefined, [inspection, stage, filters]);
+  const comparison = useMemo(() => inspection && stage === "dashboard" ? compareWithPreviousPeriod(inspection.sheets, filters) : { available: false, metrics: [], note: "لا توجد بيانات مقارنة بعد." }, [inspection, stage, filters]);
   const selectedSheet = inspection?.sheets[selectedSheetIndex];
+  useEffect(() => { saveReportPreferences(reportPreferences); }, [reportPreferences]);
 
   async function beginFile(file?: File) {
     if (!file) return;
@@ -168,7 +176,7 @@ export default function Home() {
     if (!analytics || !reportRef.current) return;
     setPdfStatus("working"); setPdfError("");
     try {
-      await exportManagerReportPdf(reportRef.current, `تقرير_مدير_الصيدلية_${new Date().toISOString().slice(0, 10)}.pdf`);
+      await exportManagerReportPdf(reportRef.current, `تقرير_${reportPreferences.profile.pharmacyName}_${new Date().toISOString().slice(0, 10)}.pdf`, { footerLabel: `${reportPreferences.profile.pharmacyName} · ${reportPreferences.profile.branchName}` });
       setPdfStatus("done");
     } catch (caught) {
       setPdfStatus("failed");
@@ -205,7 +213,7 @@ export default function Home() {
       </header>
 
       {showFilters && <FilterPanel analytics={analytics} filters={filters} companies={availableCompanies} onChange={setFilters} onReset={() => setFilters({})} />}
-      <section className="px-4 py-5 sm:px-7 sm:py-7">{renderDashboardView({ view, analytics, sheet, inspection, tableSearch, setTableSearch, question, setQuestion, answer, askData, exportProducts, exportManagerPdf, pdfStatus, pdfError, reportRef, setView })}</section>
+      <section className="px-4 py-5 sm:px-7 sm:py-7">{renderDashboardView({ view, analytics, sheet, inspection, tableSearch, setTableSearch, question, setQuestion, answer, askData, exportProducts, exportManagerPdf, pdfStatus, pdfError, reportRef, setView, reportPreferences, setReportPreferences, comparison })}</section>
     </main>
   </div>;
 }
@@ -258,13 +266,14 @@ function FilterPanel({ analytics, filters, companies, onChange, onReset }: { ana
   return <div className="no-print border-b border-[#dce8e1] bg-[#f4f8f4] px-4 py-4 sm:px-7"><div className="mx-auto flex max-w-[1350px] flex-wrap items-end gap-3"><div className="ml-auto flex items-center gap-2 text-xs font-bold text-[#31574d]"><Filter className="size-4 text-[#0b6b5b]" />فلاتر التحليل</div>{analytics.dateRange && <><label className="text-[10px] font-semibold text-[#71837c]">من تاريخ<input type="date" value={toInputDate(filters.from)} onChange={(event) => onChange({ ...filters, from: event.target.value ? new Date(event.target.value) : undefined })} className="mt-1 block rounded-lg border border-[#cedfd7] bg-white px-2 py-2 text-xs text-[#285148]" /></label><label className="text-[10px] font-semibold text-[#71837c]">إلى تاريخ<input type="date" value={toInputDate(filters.to)} onChange={(event) => onChange({ ...filters, to: event.target.value ? new Date(`${event.target.value}T23:59:59`) : undefined })} className="mt-1 block rounded-lg border border-[#cedfd7] bg-white px-2 py-2 text-xs text-[#285148]" /></label></>}{companies.length > 0 && <label className="text-[10px] font-semibold text-[#71837c]">الشركة<select value={filters.company ?? "all"} onChange={(event) => onChange({ ...filters, company: event.target.value === "all" ? undefined : event.target.value })} className="mt-1 block min-w-[150px] rounded-lg border border-[#cedfd7] bg-white px-2 py-2 text-xs text-[#285148]"><option value="all">كل الشركات</option>{companies.map((company) => <option key={company} value={company}>{company}</option>)}</select></label>}<button onClick={onReset} className="rounded-lg px-3 py-2 text-xs font-bold text-[#59736a] hover:bg-white">إعادة الضبط</button></div></div>;
 }
 
-function renderDashboardView(props: { view: DashboardView; analytics: DashboardAnalytics; sheet: SheetInspection; inspection: ImportInspection; tableSearch: string; setTableSearch: (value: string) => void; question: string; setQuestion: (value: string) => void; answer: string; askData: () => void; exportProducts: () => void; exportManagerPdf: () => void; pdfStatus: "idle" | "working" | "done" | "failed"; pdfError: string; reportRef: React.RefObject<HTMLElement | null>; setView: (view: DashboardView) => void; }) {
+function renderDashboardView(props: { view: DashboardView; analytics: DashboardAnalytics; sheet: SheetInspection; inspection: ImportInspection; tableSearch: string; setTableSearch: (value: string) => void; question: string; setQuestion: (value: string) => void; answer: string; askData: () => void; exportProducts: () => void; exportManagerPdf: () => void; pdfStatus: "idle" | "working" | "done" | "failed"; pdfError: string; reportRef: React.RefObject<HTMLElement | null>; setView: (view: DashboardView) => void; reportPreferences: ReportPreferences; setReportPreferences: (value: ReportPreferences) => void; comparison: ReturnType<typeof compareWithPreviousPeriod>; }) {
   const { view, analytics } = props;
   if (view === "sales") return <SalesView analytics={analytics} />;
   if (view === "products") return <ProductsView analytics={analytics} search={props.tableSearch} setSearch={props.setTableSearch} exportProducts={props.exportProducts} />;
   if (view === "companies") return <CompaniesView analytics={analytics} />;
   if (view === "alerts") return <AlertsView analytics={analytics} />;
-  if (view === "report") return <ReportView analytics={analytics} inspection={props.inspection} onProducts={() => props.setView("products")} onExport={props.exportManagerPdf} pdfStatus={props.pdfStatus} pdfError={props.pdfError} reportRef={props.reportRef} />;
+  if (view === "report") return <ManagerReportCenter analytics={analytics} inspection={props.inspection} preferences={props.reportPreferences} comparison={props.comparison} onProducts={() => props.setView("products")} onExport={props.exportManagerPdf} pdfStatus={props.pdfStatus} pdfError={props.pdfError} reportRef={props.reportRef} />;
+  if (view === "settings") return <ReportPreferencesView preferences={props.reportPreferences} onChange={props.setReportPreferences} />;
   return <OverviewView analytics={analytics} sheet={props.sheet} question={props.question} setQuestion={props.setQuestion} answer={props.answer} askData={props.askData} setView={props.setView} />;
 }
 

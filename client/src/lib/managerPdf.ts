@@ -6,7 +6,11 @@
 import { toCanvas } from "html-to-image";
 import { jsPDF } from "jspdf";
 
-export async function exportManagerReportPdf(reportElement: HTMLElement, fileName: string) {
+export interface ManagerPdfOptions {
+  footerLabel?: string;
+}
+
+export async function exportManagerReportPdf(reportElement: HTMLElement, fileName: string, options: ManagerPdfOptions = {}) {
   const fontReady = document.fonts?.ready ?? Promise.resolve();
   await Promise.race([fontReady, new Promise<void>((resolve) => window.setTimeout(resolve, 1800))]);
 
@@ -45,7 +49,7 @@ export async function exportManagerReportPdf(reportElement: HTMLElement, fileNam
     pdf.addImage(pageCanvas.toDataURL("image/jpeg", 0.96), "JPEG", margin, margin, printableWidth, pageImageHeight, undefined, "FAST");
     pdf.setFontSize(8);
     pdf.setTextColor(110, 130, 121);
-    pdf.text(`Pharmacy Manager Intelligence  |  ${pageNumber + 1}`, pageWidth / 2, pageHeight - 3, { align: "center" });
+    pdf.text(`${options.footerLabel ?? "Pharmacy Manager Intelligence"}  |  ${pageNumber + 1}`, pageWidth / 2, pageHeight - 3, { align: "center" });
     sourceY += cropHeight;
     pageNumber += 1;
   }
