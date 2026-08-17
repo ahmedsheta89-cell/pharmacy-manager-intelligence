@@ -13,6 +13,8 @@ export interface InventoryItem {
   company?: string;
   stock?: number;
   reorderLevel?: number;
+  reorderSource?: "custom" | "file";
+  targetStock?: number;
   salesQuantity?: number;
   expiryDate?: Date;
   daysToExpiry?: number;
@@ -26,6 +28,8 @@ export interface ReorderSuggestion {
   itemCode?: string;
   currentStock?: number;
   reorderLevel?: number;
+  reorderSource?: "custom" | "file" | "sales";
+  targetStock?: number;
   salesQuantity?: number;
   suggestedQuantity?: number;
   reason: string;
@@ -48,6 +52,13 @@ export interface InventoryOperations {
   suggestions: ReorderSuggestion[];
   branches: BranchPerformance[];
   branchNote: string;
+}
+
+export interface ReorderRule {
+  itemId: string;
+  reorderLevel: number;
+  targetStock?: number;
+  updatedAt: string;
 }
 
 const mapFields = (mappings: ColumnMapping[]): FieldMap => mappings.reduce((result, mapping) => {
@@ -83,7 +94,14 @@ const valueFor = (record: CleanRecord, map: FieldMap, field: CanonicalField) => 
 const textFor = (record: CleanRecord, map: FieldMap, field: CanonicalField) => String(valueFor(record, map, field) ?? "").trim();
 const todayAtMidnight = () => { const now = new Date(); return new Date(now.getFullYear(), now.getMonth(), now.getDate()); };
 
-export function analyzeInventoryOperations(sheets: SheetInspection[]): InventoryOperations {
+function withItemStatus(item: InventoryItem): InventoryItem {
+  if (item.daysToExpiry !== undefined && item.daysToExpiry <= 90) return { ...item, status: "near_expiry", note: item.daysToExpiry < 0 ? "منتهٍ وفق تاريخ الصلاحية المسجل." : `ينتهي خلال ${item.daysToExpiry} يومًا.` };
+  if (item.stock !== undefined && item.reorderLevel !== undefined && item.stock <= item.reorderLevel) return { ...item, status: "low_stock", note: `الرصيد ${item.stock} عند أو دون حد إعادة الطلب ${item.reorderLevel}.` };
+  if (item.stock === undefined) return { ...item, status: "review", note: "رصيد الصنف غير مكتمل." };
+  return { ...item, status: "healthy", note: "لا توجد إشارة خطر من الحقول المتاحة." };
+}
+
+export function analyzeInventoryOperations(sheets: SheetInspection[], rules: Record<string, ReorderRule> = {}): InventoryOperations {
   const stockSheet = [...sheets].sort((a, b) => {
     const score = (sheet: SheetInspection) => {
       const fields = new Set(sheet.quality.recognizedFields);
@@ -133,25 +151,28 @@ export function analyzeInventoryOperations(sheets: SheetInspection[]): Inventory
       company: textFor(record, fields, "company") || undefined,
       stock: stock ?? existing?.stock,
       reorderLevel: reorder ?? existing?.reorderLevel,
+      reorderSource: reorder !== undefined ? "file" : existing?.reorderSource,
       salesQuantity: (existing?.salesQuantity ?? 0) + (salesQuantity ?? 0),
       expiryDate: expiryDate ?? existing?.expiryDate,
       daysToExpiry: daysToExpiry ?? existing?.daysToExpiry,
       status: "healthy",
       note: "",
     };
-    if (next.daysToExpiry !== undefined && next.daysToExpiry <= 90) { next.status = "near_expiry"; next.note = next.daysToExpiry < 0 ? "منتهٍ وفق تاريخ الصلاحية المسجل." : `ينتهي خلال ${next.daysToExpiry} يومًا.`; }
-    else if (next.stock !== undefined && next.reorderLevel !== undefined && next.stock <= next.reorderLevel) { next.status = "low_stock"; next.note = `الرصيد ${next.stock} عند أو دون حد إعادة الطلب ${next.reorderLevel}.`; }
-    else if (next.stock === undefined) { next.status = "review"; next.note = "رصيد الصنف غير مكتمل."; }
-    else next.note = "لا توجد إشارة خطر من الحقول المتاحة.";
-    itemMap.set(key, next);
+    itemMap.set(key, withItemStatus(next));
   }
-  const items = Array.from(itemMap.values());
+  const items = Array.from(itemMap.values()).map((item) => {
+    const rule = rules[item.id];
+    if (!rule) return item;
+    return withItemStatus({ ...item, reorderLevel: rule.reorderLevel, reorderSource: "custom", targetStock: rule.targetStock });
+  });
   const nearExpiry = items.filter((item) => item.status === "near_expiry").sort((a, b) => (a.daysToExpiry ?? Infinity) - (b.daysToExpiry ?? Infinity));
   const lowStock = items.filter((item) => item.status === "low_stock").sort((a, b) => ((a.stock ?? Infinity) - (a.reorderLevel ?? 0)) - ((b.stock ?? Infinity) - (b.reorderLevel ?? 0)));
   const suggestions = items.filter((item) => item.stock !== undefined && (item.reorderLevel !== undefined || item.salesQuantity)).map((item) => {
-    const target = Math.max((item.reorderLevel ?? 0) * 2, item.salesQuantity ?? 0);
+    const target = item.targetStock ?? Math.max((item.reorderLevel ?? 0) * 2, item.salesQuantity ?? 0);
     const suggestedQuantity = Math.max(0, Math.ceil(target - (item.stock ?? 0)));
-    return { id: item.id, itemName: item.itemName, itemCode: item.itemCode, currentStock: item.stock, reorderLevel: item.reorderLevel, salesQuantity: item.salesQuantity, suggestedQuantity, reason: item.reorderLevel !== undefined ? `للوصول إلى تغطية ضعف حد إعادة الطلب (${item.reorderLevel * 2}).` : "للوصول إلى تغطية مبيعات الفترة المتاحة." };
+    const reason = item.targetStock !== undefined ? `للوصول إلى رصيد الهدف المخصص (${item.targetStock}).` : item.reorderLevel !== undefined ? `للوصول إلى تغطية ضعف حد إعادة الطلب (${item.reorderLevel * 2}).` : "للوصول إلى تغطية مبيعات الفترة المتاحة.";
+    const reorderSource: ReorderSuggestion["reorderSource"] = item.reorderSource ?? (item.salesQuantity ? "sales" : undefined);
+    return { id: item.id, itemName: item.itemName, itemCode: item.itemCode, currentStock: item.stock, reorderLevel: item.reorderLevel, reorderSource, targetStock: item.targetStock, salesQuantity: item.salesQuantity, suggestedQuantity, reason };
   }).filter((item) => (item.suggestedQuantity ?? 0) > 0).sort((a, b) => (b.suggestedQuantity ?? 0) - (a.suggestedQuantity ?? 0));
   return { available: true, note: `مبني على شيت «${stockSheet.name}» والحقول التي تعرف عليها النظام بثقة.`, items, nearExpiry, lowStock, suggestions, branches, branchNote: branches.length > 1 ? "المبيعات والأرباح المقارنة تحسب من سجلات كل فرع داخل الملف، دون دمج تقديري." : "أضف عمود «الفرع» لسجلين أو أكثر لإظهار مقارنة الأداء بين الفروع." };
 }
