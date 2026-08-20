@@ -11,7 +11,7 @@ OUTPUT = Path("/home/ubuntu/pharmacy-manager-intelligence/scripts/6-8_analysis.j
 
 
 def number(series: pd.Series) -> pd.Series:
-    return pd.to_numeric(series, errors="coerce").fillna(0.0)
+    return pd.to_numeric(series, errors="coerce")
 
 
 def main() -> None:
@@ -63,6 +63,7 @@ def main() -> None:
         "available_columns": list(frame.columns[:10]),
         "summary": {
             "zero_balance_count": int(len(zero_balance)),
+            "missing_balance_count": int(frame["_stock"].isna().sum()),
             "negative_balance_count": int(len(negative_balance)),
             "zero_balance_sales_value": round(float(zero_balance["_sales"].sum()), 2),
             "zero_balance_units_moved": round(float(zero_balance["_quantity"].sum()), 2),

@@ -10,6 +10,9 @@ function sheet(name: string, rows: Array<Record<string, unknown>>): SheetInspect
       { sourceColumn: "الرصيد", field: "stock_quantity", confidence: "عالية", score: 100, reason: "اختبار", sample: "" },
       { sourceColumn: "إجمالي البيع", field: "sales_total", confidence: "عالية", score: 100, reason: "اختبار", sample: "" },
       { sourceColumn: "الكمية", field: "quantity_sold", confidence: "عالية", score: 100, reason: "اختبار", sample: "" },
+      { sourceColumn: "سعر الشراء", field: "cost_price", confidence: "عالية", score: 100, reason: "اختبار", sample: "" },
+      { sourceColumn: "سعر البيع", field: "sale_price", confidence: "عالية", score: 100, reason: "اختبار", sample: "" },
+      { sourceColumn: "الهامش", field: "profit_margin", confidence: "عالية", score: 100, reason: "اختبار", sample: "" },
     ],
     cleanRecords: rows.map((row) => ({ ...row, __metrics: {} })),
   } as unknown as SheetInspection;
@@ -18,15 +21,24 @@ function sheet(name: string, rows: Array<Record<string, unknown>>): SheetInspect
 describe("analyzeProductMovement", () => {
   it("يحدد توقف الصنف بعد شهر البداية ويحسب فجوة تغطية الرصيد من متوسط الكمية السابقة", () => {
     const result = analyzeProductMovement([
-      sheet("6", [{ "الصنف": "مضاد حيوي", "الرصيد": 5, "إجمالي البيع": 250, "الكمية": 5 }]),
-      sheet("7", [{ "الصنف": "مضاد حيوي", "الرصيد": 3, "إجمالي البيع": 0, "الكمية": 3 }]),
-      sheet("8", [{ "الصنف": "مضاد حيوي", "الرصيد": 2, "إجمالي البيع": 0, "الكمية": 0 }]),
+      sheet("6", [
+        { "الصنف": "مضاد حيوي", "الرصيد": 5, "إجمالي البيع": 250, "الكمية": 5 },
+        { "الصنف": "مكمل مستمر", "الرصيد": 5, "إجمالي البيع": 100, "الكمية": 5 },
+      ]),
+      sheet("7", [
+        { "الصنف": "مضاد حيوي", "الرصيد": 3, "إجمالي البيع": 0, "الكمية": 0 },
+        { "الصنف": "مكمل مستمر", "الرصيد": 3, "إجمالي البيع": 90, "الكمية": 3 },
+      ]),
+      sheet("8", [
+        { "الصنف": "مضاد حيوي", "الرصيد": 2, "إجمالي البيع": 0, "الكمية": 0 },
+        { "الصنف": "مكمل مستمر", "الرصيد": 2, "إجمالي البيع": 0, "الكمية": 0 },
+      ]),
     ]);
 
     expect(result.periods.map((period) => period.label)).toEqual(["الشهر 6", "الشهر 7", "الشهر 8"]);
     expect(result.stoppedAfterBaseline).toHaveLength(1);
     expect(result.stoppedAfterBaseline[0]).toMatchObject({ itemName: "مضاد حيوي", baselineSales: 250, followUpSales: 0 });
-    expect(result.coverageGaps[0]).toMatchObject({ itemName: "مضاد حيوي", stock: 2, averageHistoricalDemand: 4, requiredQuantity: 4, gap: 2 });
+    expect(result.coverageGaps[0]).toMatchObject({ itemName: "مكمل مستمر", stock: 2, averageHistoricalDemand: 4, requiredQuantity: 4, gap: 2, monthsOfCoverage: 0.5, priority: "مرتفع" });
   });
 
   it("لا يدّعي توافر مبيعات أو فترات عندما لا يقدمها المصدر", () => {
@@ -37,5 +49,22 @@ describe("analyzeProductMovement", () => {
     expect(result.metrics.zeroBalanceCount).toBe(1);
     expect(result.metrics.zeroSalesCount).toBeUndefined();
     expect(result.dataGaps.some((gap) => gap.includes("قيمة مبيعات"))).toBe(true);
+  });
+
+  it("يفصل الحركة الصفرية عن الرصيد الصفري ويحسب قيمة المخزون فقط من الأسعار الموجودة فعليًا", () => {
+    const result = analyzeProductMovement([
+      sheet("لقطة حالية", [{ "الصنف": "مكمل غذائي", "الرصيد": 12, "إجمالي البيع": 0, "الكمية": 0, "سعر الشراء": 20, "سعر البيع": 30, "الهامش": 33.33 }]),
+    ]);
+
+    expect(result.metrics.zeroBalanceCount).toBe(0);
+    expect(result.metrics.zeroMovementCount).toBe(1);
+    expect(result.zeroMovement[0]).toMatchObject({
+      itemName: "مكمل غذائي",
+      purchaseValue: 240,
+      publicValue: 360,
+      potentialGrossProfit: 120,
+      purchasePriceSource: "source",
+      publicPriceSource: "source",
+    });
   });
 });

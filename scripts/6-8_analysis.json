@@ -14,7 +14,8 @@
     "_sales"
   ],
   "summary": {
-    "zero_balance_count": 443,
+    "zero_balance_count": 442,
+    "missing_balance_count": 1,
     "negative_balance_count": 0,
     "zero_balance_sales_value": 217836.69,
     "zero_balance_units_moved": 1238.33,

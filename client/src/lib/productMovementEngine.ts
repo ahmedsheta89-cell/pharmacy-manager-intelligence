@@ -17,8 +17,12 @@ export type ProductMovementItem = {
   sales?: number;
   quantity?: number;
   purchasePrice?: number;
+  purchasePriceSource?: "source" | "derived";
   publicPrice?: number;
+  publicPriceSource?: "source" | "derived";
   margin?: number;
+  marginSource?: "source" | "derived";
+  sourceRecordCount: number;
   periods: Record<string, { sales?: number; quantity?: number; stock?: number }>;
 };
 
@@ -27,9 +31,17 @@ export type ZeroBalanceItem = ProductMovementItem & {
   publicValue?: number;
 };
 
+export type ZeroMovementItem = ProductMovementItem & {
+  purchaseValue?: number;
+  publicValue?: number;
+  potentialGrossProfit?: number;
+};
+
 export type StoppedProduct = ProductMovementItem & {
   baselineSales: number;
   followUpSales: number;
+  baselineQuantity?: number;
+  followUpQuantity?: number;
   baselinePeriod: string;
   followUpPeriod: string;
 };
@@ -38,6 +50,8 @@ export type CoverageGapItem = ProductMovementItem & {
   averageHistoricalDemand: number;
   requiredQuantity: number;
   gap: number;
+  monthsOfCoverage: number;
+  priority: "عاجل" | "مرتفع" | "متوسط";
 };
 
 export interface ProductMovementAnalysis {
@@ -47,16 +61,25 @@ export interface ProductMovementAnalysis {
   dataGaps: string[];
   items: ProductMovementItem[];
   zeroBalance: ZeroBalanceItem[];
+  zeroMovement: ZeroMovementItem[];
   zeroSales: ProductMovementItem[];
   stoppedAfterBaseline: StoppedProduct[];
   coverageGaps: CoverageGapItem[];
   metrics: {
     zeroBalanceCount: number;
+    zeroBalanceRecordCount: number;
+    zeroBalanceRawRecordCount: number;
+    zeroBalanceUnidentifiedRecordCount: number;
+    zeroMovementCount?: number;
+    zeroMovementRecordCount?: number;
     zeroSalesCount?: number;
     stoppedCount?: number;
     coverageGapCount?: number;
     knownPurchaseValue?: number;
     knownPublicValue?: number;
+    knownZeroMovementPurchaseValue?: number;
+    knownZeroMovementPublicValue?: number;
+    knownZeroMovementPotentialProfit?: number;
   };
 }
 
@@ -117,11 +140,17 @@ export function analyzeProductMovement(sheets: SheetInspection[]): ProductMoveme
   let hasPurchasePrice = false;
   let hasPublicPrice = false;
   let hasMargin = false;
+  let hasDirectPurchasePrice = false;
+  let hasDirectPublicPrice = false;
+  let hasDirectMargin = false;
+  let zeroBalanceRawRecordCount = 0;
 
   for (const sheet of sheets) {
     const fields = mapFields(sheet.mappings);
     if (!fields.item_name) continue;
     for (const record of sheet.cleanRecords) {
+      const stock = numberFor(record, fields, "stock_quantity");
+      if (stock !== undefined && stock <= 0) zeroBalanceRawRecordCount += 1;
       const itemName = textFor(record, fields, "item_name");
       if (!itemName) continue;
       const itemCode = textFor(record, fields, "item_code") || undefined;
@@ -129,18 +158,23 @@ export function analyzeProductMovement(sheets: SheetInspection[]): ProductMoveme
       const period = resolvePeriod(sheet, record);
       if (period) periodMap.set(period.key, period);
 
-      const stock = numberFor(record, fields, "stock_quantity");
       const sales = record.__metrics.sales ?? numberFor(record, fields, "sales_total");
       const quantity = record.__metrics.quantity ?? numberFor(record, fields, "quantity_sold") ?? numberFor(record, fields, "sales_quantity");
-      const purchasePrice = numberFor(record, fields, "cost_price");
-      const publicPrice = numberFor(record, fields, "sale_price");
-      const margin = numberFor(record, fields, "profit_margin");
+      const directPurchasePrice = numberFor(record, fields, "cost_price");
+      const directPublicPrice = numberFor(record, fields, "sale_price");
+      const directMargin = numberFor(record, fields, "profit_margin");
+      const purchasePrice = directPurchasePrice ?? record.__metrics.unitCost;
+      const publicPrice = directPublicPrice ?? record.__metrics.unitSalePrice;
+      const margin = directMargin ?? record.__metrics.profitMargin;
       hasStock ||= stock !== undefined;
       hasSales ||= sales !== undefined;
       hasQuantity ||= quantity !== undefined;
       hasPurchasePrice ||= purchasePrice !== undefined;
       hasPublicPrice ||= publicPrice !== undefined;
       hasMargin ||= margin !== undefined;
+      hasDirectPurchasePrice ||= directPurchasePrice !== undefined;
+      hasDirectPublicPrice ||= directPublicPrice !== undefined;
+      hasDirectMargin ||= directMargin !== undefined;
 
       const existing = itemMap.get(id);
       const next: ProductMovementItem = existing ?? {
@@ -148,6 +182,7 @@ export function analyzeProductMovement(sheets: SheetInspection[]): ProductMoveme
         itemName,
         itemCode,
         company: textFor(record, fields, "company") || undefined,
+        sourceRecordCount: 0,
         periods: {},
       };
       next.itemName = next.itemName || itemName;
@@ -157,8 +192,12 @@ export function analyzeProductMovement(sheets: SheetInspection[]): ProductMoveme
       next.sales = sumKnown(next.sales, sales);
       next.quantity = sumKnown(next.quantity, quantity);
       next.purchasePrice = purchasePrice ?? next.purchasePrice;
+      next.purchasePriceSource ??= directPurchasePrice !== undefined ? "source" : purchasePrice !== undefined ? "derived" : undefined;
       next.publicPrice = publicPrice ?? next.publicPrice;
+      next.publicPriceSource ??= directPublicPrice !== undefined ? "source" : publicPrice !== undefined ? "derived" : undefined;
       next.margin = margin ?? next.margin;
+      next.marginSource ??= directMargin !== undefined ? "source" : margin !== undefined ? "derived" : undefined;
+      next.sourceRecordCount += 1;
       if (period) {
         const prior = next.periods[period.key] ?? {};
         next.periods[period.key] = {
@@ -178,9 +217,12 @@ export function analyzeProductMovement(sheets: SheetInspection[]): ProductMoveme
   if (!hasSales) dataGaps.push("لا يحتوي الملف على قيمة مبيعات صالحة، لذلك لا يمكن تصنيف أصناف صفر المبيعات أو الأصناف التي توقفت مبيعاتها.");
   if (periods.length < 2) dataGaps.push("لا توجد فترتان زمنيتان قابلتان للمقارنة. أضف عمود «تاريخ البيع» أو شيتًا مستقلًا لكل شهر بعنوان الشهر فقط (مثل 6، 7، 8). ");
   if (!hasQuantity) dataGaps.push("لا توجد كمية حركة صالحة عبر فترات متعددة، لذلك لا يمكن تقدير الاحتياج للوصول إلى معدل الطلب السابق.");
-  if (!hasPurchasePrice) dataGaps.push("سعر الشراء غير موجود في الملف؛ ستظهر قيمته وهامش الربح كغير متاحين بدل تقديرهما.");
+  if (!hasPurchasePrice) dataGaps.push("سعر الشراء غير موجود في الملف؛ ستظهر قيمته وقيمة المخزون بالتكلفة وهامش الربح كغير متاحين بدل تقديرها.");
+  else if (!hasDirectPurchasePrice) dataGaps.push("سعر الشراء المعروض مشتق من إجمالي تكلفة مقسومًا على الكمية؛ لا يوجد عمود سعر شراء مباشر في المصدر.");
   if (!hasPublicPrice) dataGaps.push("سعر الجمهور/البيع غير موجود في الملف؛ ستظهر قيمته كغير متاحة بدل تقديرها.");
+  else if (!hasDirectPublicPrice) dataGaps.push("لا يوجد عمود مستقل لسعر الجمهور؛ سعر الوحدة المعروض مشتق من إجمالي البيع ÷ كمية الحركة، وليس سعر قائمة رسميًا.");
   if (!hasMargin) dataGaps.push("نسبة الربح غير موجودة في الملف؛ لا يمكن احتسابها دون سعر شراء وسعر بيع موثوقين.");
+  else if (!hasDirectMargin) dataGaps.push("نسبة الربح المعروضة مشتقة من القيم المتاحة في المصدر وليست حقل هامش مباشرًا.");
 
   const zeroBalance = hasStock ? items
     .filter((item) => item.stock !== undefined && item.stock <= 0)
@@ -191,6 +233,21 @@ export function analyzeProductMovement(sheets: SheetInspection[]): ProductMoveme
     }))
     .sort((a, b) => (b.sales ?? 0) - (a.sales ?? 0)) : [];
 
+  const zeroMovement = hasQuantity ? items
+    .filter((item) => item.quantity !== undefined && item.quantity <= 0)
+    .map<ZeroMovementItem>((item) => {
+      const stock = Math.max(item.stock ?? 0, 0);
+      const purchaseValue = item.purchasePrice !== undefined ? item.purchasePrice * stock : undefined;
+      const publicValue = item.publicPrice !== undefined ? item.publicPrice * stock : undefined;
+      return {
+        ...item,
+        purchaseValue,
+        publicValue,
+        potentialGrossProfit: purchaseValue !== undefined && publicValue !== undefined ? publicValue - purchaseValue : undefined,
+      };
+    })
+    .sort((a, b) => (b.publicValue ?? b.sales ?? 0) - (a.publicValue ?? a.sales ?? 0)) : [];
+
   const currentPeriod = periods.at(-1);
   const baselinePeriod = periods.at(0);
   const zeroSales = hasSales && currentPeriod ? items.filter((item) => (item.periods[currentPeriod.key]?.sales ?? 0) === 0) : [];
@@ -198,8 +255,13 @@ export function analyzeProductMovement(sheets: SheetInspection[]): ProductMoveme
     .map<StoppedProduct | undefined>((item) => {
       const baselineSales = item.periods[baselinePeriod.key]?.sales ?? 0;
       const followUpSales = periods.slice(1).reduce((sum, period) => sum + (item.periods[period.key]?.sales ?? 0), 0);
-      return baselineSales > 0 && followUpSales === 0 ? {
-        ...item, baselineSales, followUpSales, baselinePeriod: baselinePeriod.label, followUpPeriod: currentPeriod.label,
+      const baselineQuantity = item.periods[baselinePeriod.key]?.quantity;
+      const followUpQuantity = periods.slice(1).reduce<number | undefined>((sum, period) => sumKnown(sum, item.periods[period.key]?.quantity), undefined);
+      const observedInEveryPeriod = periods.every((period) => Boolean(item.periods[period.key]));
+      const hadBaselineMovement = baselineSales > 0 || (baselineQuantity ?? 0) > 0;
+      const hadNoFollowUpMovement = followUpSales === 0 && (followUpQuantity === undefined || followUpQuantity === 0);
+      return observedInEveryPeriod && hadBaselineMovement && hadNoFollowUpMovement ? {
+        ...item, baselineSales, followUpSales, baselineQuantity, followUpQuantity, baselinePeriod: baselinePeriod.label, followUpPeriod: currentPeriod.label,
       } : undefined;
     })
     .filter((item): item is StoppedProduct => Boolean(item))
@@ -214,13 +276,20 @@ export function analyzeProductMovement(sheets: SheetInspection[]): ProductMoveme
       const averageHistoricalDemand = quantities.reduce((sum, value) => sum + value, 0) / quantities.length;
       const requiredQuantity = Math.ceil(averageHistoricalDemand);
       const gap = Math.max(0, requiredQuantity - stock);
-      return gap > 0 ? { ...item, stock, averageHistoricalDemand, requiredQuantity, gap } : undefined;
+      const monthsOfCoverage = averageHistoricalDemand > 0 ? stock / averageHistoricalDemand : Infinity;
+      const priority = stock <= 0 || monthsOfCoverage < 0.5 ? "عاجل" : monthsOfCoverage < 1 ? "مرتفع" : "متوسط";
+      return gap > 0 ? { ...item, stock, averageHistoricalDemand, requiredQuantity, gap, monthsOfCoverage, priority } : undefined;
     })
     .filter((item): item is CoverageGapItem => Boolean(item))
-    .sort((a, b) => b.gap - a.gap) : [];
+    .sort((a, b) => (a.priority === b.priority ? b.gap - a.gap : a.priority === "عاجل" ? -1 : b.priority === "عاجل" ? 1 : a.priority === "مرتفع" ? -1 : 1)) : [];
 
   const knownPurchaseValue = zeroBalance.reduce<number | undefined>((sum, item) => sumKnown(sum, item.purchaseValue), undefined);
   const knownPublicValue = zeroBalance.reduce<number | undefined>((sum, item) => sumKnown(sum, item.publicValue), undefined);
+  const zeroBalanceRecordCount = zeroBalance.reduce((sum, item) => sum + item.sourceRecordCount, 0);
+  const zeroMovementRecordCount = zeroMovement.reduce((sum, item) => sum + item.sourceRecordCount, 0);
+  const knownZeroMovementPurchaseValue = zeroMovement.reduce<number | undefined>((sum, item) => sumKnown(sum, item.purchaseValue), undefined);
+  const knownZeroMovementPublicValue = zeroMovement.reduce<number | undefined>((sum, item) => sumKnown(sum, item.publicValue), undefined);
+  const knownZeroMovementPotentialProfit = zeroMovement.reduce<number | undefined>((sum, item) => sumKnown(sum, item.potentialGrossProfit), undefined);
   const sourceNote = periods.length >= 2
     ? `المقارنة مبنية على ${periods.length} فترات مكتشفة من تاريخ السجل أو عنوان الشيت، دون دمج أو افتراض لفترات مفقودة.`
     : "هذه لقطة تشغيلية من الملف الحالي؛ تُعرض أرصدة الأصناف والقيم المتاحة فقط دون اختراع تاريخ حركة غير موجود.";
@@ -232,16 +301,25 @@ export function analyzeProductMovement(sheets: SheetInspection[]): ProductMoveme
     dataGaps,
     items,
     zeroBalance,
+    zeroMovement,
     zeroSales,
     stoppedAfterBaseline,
     coverageGaps,
     metrics: {
       zeroBalanceCount: zeroBalance.length,
+      zeroBalanceRecordCount,
+      zeroBalanceRawRecordCount,
+      zeroBalanceUnidentifiedRecordCount: Math.max(0, zeroBalanceRawRecordCount - zeroBalanceRecordCount),
+      zeroMovementCount: hasQuantity ? zeroMovement.length : undefined,
+      zeroMovementRecordCount: hasQuantity ? zeroMovementRecordCount : undefined,
       zeroSalesCount: hasSales && currentPeriod ? zeroSales.length : undefined,
       stoppedCount: periods.length >= 2 && hasSales ? stoppedAfterBaseline.length : undefined,
       coverageGapCount: coverageGaps.length || (hasStock && hasQuantity && periods.length >= 2 ? 0 : undefined),
       knownPurchaseValue,
       knownPublicValue,
+      knownZeroMovementPurchaseValue,
+      knownZeroMovementPublicValue,
+      knownZeroMovementPotentialProfit,
     },
   };
 }

@@ -1,0 +1,4841 @@
+{
+  "source": "6-8.xlsx",
+  "sheet_names": [
+    "Sheet1"
+  ],
+  "sheets": [
+    {
+      "title": "Sheet1",
+      "visibility": "visible",
+      "dimensions": {
+        "max_row": 2762,
+        "max_column": 9
+      },
+      "hidden_columns": [],
+      "hidden_rows": [],
+      "merged_ranges": [],
+      "freeze_panes": null,
+      "first_meaningful_rows": [
+        {
+          "row": 1,
+          "cells": [
+            {
+              "cell": "A1",
+              "value": "الموظف"
+            },
+            {
+              "cell": "B1",
+              "value": "إجمالى س.بيع"
+            },
+            {
+              "cell": "C1",
+              "value": "الرصيد"
+            },
+            {
+              "cell": "D1",
+              "value": "الوحدة"
+            },
+            {
+              "cell": "E1",
+              "value": "الكمية"
+            },
+            {
+              "cell": "F1",
+              "value": "المنشأ"
+            },
+            {
+              "cell": "G1",
+              "value": "الشركة"
+            },
+            {
+              "cell": "H1",
+              "value": "الإسم"
+            },
+            {
+              "cell": "I1",
+              "value": "الكود"
+            }
+          ]
+        },
+        {
+          "row": 2,
+          "cells": [
+            {
+              "cell": "A2",
+              "value": 39.0
+            },
+            {
+              "cell": "B2",
+              "value": 1.67
+            },
+            {
+              "cell": "C2",
+              "value": "علبة"
+            },
+            {
+              "cell": "D2",
+              "value": 1.0
+            },
+            {
+              "cell": "E2",
+              "value": "محلى"
+            },
+            {
+              "cell": "F2",
+              "value": "SCOPE PHARMA"
+            },
+            {
+              "cell": "G2",
+              "value": "(C6) conviban 25mg30tab"
+            },
+            {
+              "cell": "H2",
+              "value": "61986"
+            }
+          ]
+        },
+        {
+          "row": 3,
+          "cells": [
+            {
+              "cell": "A3",
+              "value": 208.0
+            },
+            {
+              "cell": "B3",
+              "value": 2.33
+            },
+            {
+              "cell": "C3",
+              "value": "علبة"
+            },
+            {
+              "cell": "D3",
+              "value": 1.3333
+            },
+            {
+              "cell": "E3",
+              "value": "إستثمارى"
+            },
+            {
+              "cell": "F3",
+              "value": "دلتا فارم"
+            },
+            {
+              "cell": "G3",
+              "value": "(G1)جابتين 400مجم30كبسول"
+            },
+            {
+              "cell": "H3",
+              "value": "47575"
+            }
+          ]
+        },
+        {
+          "row": 4,
+          "cells": [
+            {
+              "cell": "A4",
+              "value": 252.0
+            },
+            {
+              "cell": "B4",
+              "value": 9.0
+            },
+            {
+              "cell": "C4",
+              "value": "علبة"
+            },
+            {
+              "cell": "D4",
+              "value": 4.5
+            },
+            {
+              "cell": "E4",
+              "value": "إستثمارى"
+            },
+            {
+              "cell": "F4",
+              "value": "هاى فارم"
+            },
+            {
+              "cell": "G4",
+              "value": "(S3) ستيرونات نور اقراص"
+            },
+            {
+              "cell": "H4",
+              "value": "23132"
+            }
+          ]
+        },
+        {
+          "row": 5,
+          "cells": [
+            {
+              "cell": "A5",
+              "value": 559.0
+            },
+            {
+              "cell": "B5",
+              "value": 1.0
+            },
+            {
+              "cell": "C5",
+              "value": "One Unit"
+            },
+            {
+              "cell": "D5",
+              "value": 1.0
+            },
+            {
+              "cell": "E5",
+              "value": "محلى"
+            },
+            {
+              "cell": "F5",
+              "value": "SCOPE PHARMA"
+            },
+            {
+              "cell": "G5",
+              "value": "ACM MEDISUN MATTIFYING GEL 40ML"
+            },
+            {
+              "cell": "H5",
+              "value": "64841"
+            }
+          ]
+        },
+        {
+          "row": 6,
+          "cells": [
+            {
+              "cell": "A6",
+              "value": 7842.0
+            },
+            {
+              "cell": "B6",
+              "value": 3.0
+            },
+            {
+              "cell": "C6",
+              "value": "علبة"
+            },
+            {
+              "cell": "D6",
+              "value": 6.0
+            },
+            {
+              "cell": "E6",
+              "value": "محلى"
+            },
+            {
+              "cell": "F6",
+              "value": "SCOPE PHARMA"
+            },
+            {
+              "cell": "G6",
+              "value": "Adport 0.5 mg 100 cap"
+            },
+            {
+              "cell": "H6",
+              "value": "65197"
+            }
+          ]
+        },
+        {
+          "row": 7,
+          "cells": [
+            {
+              "cell": "A7",
+              "value": 304.0
+            },
+            {
+              "cell": "B7",
+              "value": 2.0
+            },
+            {
+              "cell": "C7",
+              "value": "One Unit"
+            },
+            {
+              "cell": "D7",
+              "value": 2.0
+            },
+            {
+              "cell": "E7",
+              "value": "محلى"
+            },
+            {
+              "cell": "F7",
+              "value": "SCOPE PHARMA"
+            },
+            {
+              "cell": "G7",
+              "value": "alfacareno oral drops 10ml"
+            },
+            {
+              "cell": "H7",
+              "value": "61899"
+            }
+          ]
+        },
+        {
+          "row": 8,
+          "cells": [
+            {
+              "cell": "A8",
+              "value": 260.0
+            },
+            {
+              "cell": "B8",
+              "value": 7.33
+            },
+            {
+              "cell": "C8",
+              "value": "علبة"
+            },
+            {
+              "cell": "D8",
+              "value": 3.3333
+            },
+            {
+              "cell": "E8",
+              "value": "محلى"
+            },
+            {
+              "cell": "F8",
+              "value": "SCOPE PHARMA"
+            },
+            {
+              "cell": "G8",
+              "value": "antodine 20mg 6amp"
+            },
+            {
+              "cell": "H8",
+              "value": "64505"
+            }
+          ]
+        },
+        {
+          "row": 9,
+          "cells": [
+            {
+              "cell": "A9",
+              "value": 463.0
+            },
+            {
+              "cell": "B9",
+              "value": 0.0
+            },
+            {
+              "cell": "C9",
+              "value": "علبة"
+            },
+            {
+              "cell": "D9",
+              "value": 1.0
+            },
+            {
+              "cell": "E9",
+              "value": "مستورد"
+            },
+            {
+              "cell": "F9",
+              "value": "ميلوبا"
+            },
+            {
+              "cell": "G9",
+              "value": "APTAMIL MILK 1 COMFORT"
+            },
+            {
+              "cell": "H9",
+              "value": "32040"
+            }
+          ]
+        },
+        {
+          "row": 10,
+          "cells": [
+            {
+              "cell": "A10",
+              "value": 1350.0
+            },
+            {
+              "cell": "B10",
+              "value": 0.0
+            },
+            {
+              "cell": "C10",
+              "value": "علبة"
+            },
+            {
+              "cell": "D10",
+              "value": 3.0
+            },
+            {
+              "cell": "E10",
+              "value": "محلى"
+            },
+            {
+              "cell": "F10",
+              "value": "SCOPE PHARMA"
+            },
+            {
+              "cell": "G10",
+              "value": "APTAMIL PROSYNEO MILK 400 GM"
+            },
+            {
+              "cell": "H10",
+              "value": "62762"
+            }
+          ]
+        },
+        {
+          "row": 11,
+          "cells": [
+            {
+              "cell": "A11",
+              "value": 411.0
+            },
+            {
+              "cell": "B11",
+              "value": 2.0
+            },
+            {
+              "cell": "C11",
+              "value": "علبة"
+            },
+            {
+              "cell": "D11",
+              "value": 3.0
+            },
+            {
+              "cell": "E11",
+              "value": "محلى"
+            },
+            {
+              "cell": "F11",
+              "value": "SCOPE PHARMA"
+            },
+            {
+              "cell": "G11",
+              "value": "arcoxia 120mg 7tab/A5/"
+            },
+            {
+              "cell": "H11",
+              "value": "62016"
+            }
+          ]
+        },
+        {
+          "row": 12,
+          "cells": [
+            {
+              "cell": "A12",
+              "value": 219.0
+            },
+            {
+              "cell": "B12",
+              "value": 1.0
+            },
+            {
+              "cell": "C12",
+              "value": "فردة شراب"
+            },
+            {
+              "cell": "D12",
+              "value": 1.0
+            },
+            {
+              "cell": "E12",
+              "value": "محلى"
+            },
+            {
+              "cell": "F12",
+              "value": "SCOPE PHARMA"
+            },
+            {
+              "cell": "G12",
+              "value": "argento cleanser 200 ml"
+            },
+            {
+              "cell": "H12",
+              "value": "62826"
+            }
+          ]
+        },
+        {
+          "row": 13,
+          "cells": [
+            {
+              "cell": "A13",
+              "value": 966.0
+            },
+            {
+              "cell": "B13",
+              "value": 1.0
+            },
+            {
+              "cell": "C13",
+              "value": "One Unit"
+            },
+            {
+              "cell": "D13",
+              "value": 2.0
+            },
+            {
+              "cell": "E13",
+              "value": "محلى"
+            },
+            {
+              "cell": "F13",
+              "value": "SCOPE PHARMA"
+            },
+            {
+              "cell": "G13",
+              "value": "avara 20mg 30tab"
+            },
+            {
+              "cell": "H13",
+              "value": "61779"
+            }
+          ]
+        },
+        {
+          "row": 14,
+          "cells": [
+            {
+              "cell": "A14",
+              "value": 280.0
+            },
+            {
+              "cell": "B14",
+              "value": 1.0
+            },
+            {
+              "cell": "C14",
+              "value": "One Unit"
+            },
+            {
+              "cell": "D14",
+              "value": 1.0
+            },
+            {
+              "cell": "E14",
+              "value": "محلى"
+            },
+            {
+              "cell": "F14",
+              "value": "SCOPE PHARMA"
+            },
+            {
+              "cell": "G14",
+              "value": "BELLAVERA SERUM"
+            },
+            {
+              "cell": "H14",
+              "value": "65379"
+            }
+          ]
+        },
+        {
+          "row": 15,
+          "cells": [
+            {
+              "cell": "A15",
+              "value": 220.0
+            },
+            {
+              "cell": "B15",
+              "value": 1.0
+            },
+            {
+              "cell": "C15",
+              "value": "علبة"
+            },
+            {
+              "cell": "D15",
+              "value": 1.0
+            },
+            {
+              "cell": "E15",
+              "value": "محلى"
+            },
+            {
+              "cell": "F15",
+              "value": "SCOPE PHARMA"
+            },
+            {
+              "cell": "G15",
+              "value": "Benogen 10sachets"
+            },
+            {
+              "cell": "H15",
+              "value": "65693"
+            }
+          ]
+        },
+        {
+          "row": 16,
+          "cells": [
+            {
+              "cell": "A16",
+              "value": 81.0
+            },
+            {
+              "cell": "B16",
+              "value": 13.0
+            },
+            {
+              "cell": "C16",
+              "value": "علبة"
+            },
+            {
+              "cell": "D16",
+              "value": 3.0
+            },
+            {
+              "cell": "E16",
+              "value": "إستثمارى"
+            },
+            {
+              "cell": "F16",
+              "value": "غير معرفة"
+            },
+            {
+              "cell": "G16",
+              "value": "B-FRESH MOUTH 500ML"
+            },
+            {
+              "cell": "H16",
+              "value": "38016"
+            }
+          ]
+        },
+        {
+          "row": 17,
+          "cells": [
+            {
+              "cell": "A17",
+              "value": 250.0
+            },
+            {
+              "cell": "B17",
+              "value": 2.0
+            },
+            {
+              "cell": "C17",
+              "value": "علبة"
+            },
+            {
+              "cell": "D17",
+              "value": 1.0
+            },
+            {
+              "cell": "E17",
+              "value": "محلى"
+            },
+            {
+              "cell": "F17",
+              "value": "SCOPE PHARMA"
+            },
+            {
+              "cell": "G17",
+              "value": "Biofreeze gel 118ml"
+            },
+            {
+              "cell": "H17",
+              "value": "65786"
+            }
+          ]
+        },
+        {
+          "row": 18,
+          "cells": [
+            {
+              "cell": "A18",
+              "value": 90.0
+            },
+            {
+              "cell": "B18",
+              "value": 1.0
+            },
+            {
+              "cell": "C18",
+              "value": "One Unit"
+            },
+            {
+              "cell": "D18",
+              "value": 1.0
+            },
+            {
+              "cell": "E18",
+              "value": "محلى"
+            },
+            {
+              "cell": "F18",
+              "value": "SCOPE PHARMA"
+            },
+            {
+              "cell": "G18",
+              "value": "BION GOLD 10000MG 30TAB"
+            },
+            {
+              "cell": "H18",
+              "value": "65097"
+            }
+          ]
+        },
+        {
+          "row": 19,
+          "cells": [
+            {
+              "cell": "A19",
+              "value": 200.0
+            },
+            {
+              "cell": "B19",
+              "value": 0.0
+            },
+            {
+              "cell": "C19",
+              "value": "علبة"
+            },
+            {
+              "cell": "D19",
+              "value": 4.0
+            },
+            {
+              "cell": "E19",
+              "value": "محلى"
+            },
+            {
+              "cell": "F19",
+              "value": "SCOPE PHARMA"
+            },
+            {
+              "cell": "G19",
+              "value": "BLESS HOLD HAIR GEL 250ML"
+            },
+            {
+              "cell": "H19",
+              "value": "65057"
+            }
+          ]
+        },
+        {
+          "row": 20,
+          "cells": [
+            {
+              "cell": "A20",
+              "value": 180.0
+            },
+            {
+              "cell": "B20",
+              "value": 1.0
+            },
+            {
+              "cell": "C20",
+              "value": "One Unit"
+            },
+            {
+              "cell": "D20",
+              "value": 2.0
+            },
+            {
+              "cell": "E20",
+              "value": "محلى"
+            },
+            {
+              "cell": "F20",
+              "value": "SCOPE PHARMA"
+            },
+            {
+              "cell": "G20",
+              "value": "BLESS LEAVE CREAM ARGAN 250ML"
+            },
+            {
+              "cell": "H20",
+              "value": "65352"
+            }
+          ]
+        },
+        {
+          "row": 21,
+          "cells": [
+            {
+              "cell": "A21",
+              "value": 90.0
+            },
+            {
+              "cell": "B21",
+              "value": 0.0
+            },
+            {
+              "cell": "C21",
+              "value": "علبة"
+            },
+            {
+              "cell": "D21",
+              "value": 1.0
+            },
+            {
+              "cell": "E21",
+              "value": "محلى"
+            },
+            {
+              "cell": "F21",
+              "value": "SCOPE PHARMA"
+            },
+            {
+              "cell": "G21",
+              "value": "BLESS LEAVE IN CREAM 250ML"
+            },
+            {
+              "cell": "H21",
+              "value": "65058"
+            }
+          ]
+        },
+        {
+          "row": 22,
+          "cells": [
+            {
+              "cell": "A22",
+              "value": 135.0
+            },
+            {
+              "cell": "B22",
+              "value": 1.0
+            },
+            {
+              "cell": "C22",
+              "value": "علبة"
+            },
+            {
+              "cell": "D22",
+              "value": 1.0
+            },
+            {
+              "cell": "E22",
+              "value": "محلى"
+            },
+            {
+              "cell": "F22",
+              "value": "SCOPE PHARMA"
+            },
+            {
+              "cell": "G22",
+              "value": "BLESS SHAMPOO WITH coconut oil 500ml"
+            },
+            {
+              "cell": "H22",
+              "value": "65833"
+            }
+          ]
+        },
+        {
+          "row": 23,
+          "cells": [
+            {
+              "cell": "A23",
+              "value": 218.0
+            },
+            {
+              "cell": "B23",
+              "value": 1.0
+            },
+            {
+              "cell": "C23",
+              "value": "علبة"
+            },
+            {
+              "cell": "D23",
+              "value": 1.0
+            },
+            {
+              "cell": "E23",
+              "value": "محلى"
+            },
+            {
+              "cell": "F23",
+              "value": "SCOPE PHARMA"
+            },
+            {
+              "cell": "G23",
+              "value": "Blokatens HCT 10\\160\\25mg 28tab"
+            },
+            {
+              "cell": "H23",
+              "value": "65584"
+            }
+          ]
+        },
+        {
+          "row": 24,
+          "cells": [
+            {
+              "cell": "A24",
+              "value": 32.0
+            },
+            {
+              "cell": "B24",
+              "value": 1.0
+            },
+            {
+              "cell": "C24",
+              "value": "One Unit"
+            },
+            {
+              "cell": "D24",
+              "value": 2.0
+            },
+            {
+              "cell": "E24",
+              "value": "محلى"
+            },
+            {
+              "cell": "F24",
+              "value": "SCOPE PHARMA"
+            },
+            {
+              "cell": "G24",
+              "value": "Bowel care oral drops 15ml"
+            },
+            {
+              "cell": "H24",
+              "value": "63097"
+            }
+          ]
+        },
+        {
+          "row": 25,
+          "cells": [
+            {
+              "cell": "A25",
+              "value": 281.0
+            },
+            {
+              "cell": "B25",
+              "value": 1.0
+            },
+            {
+              "cell": "C25",
+              "value": "علبة"
+            },
+            {
+              "cell": "D25",
+              "value": 1.0
+            },
+            {
+              "cell": "E25",
+              "value": "محلى"
+            },
+            {
+              "cell": "F25",
+              "value": "SCOPE PHARMA"
+            },
+            {
+              "cell": "G25",
+              "value": "BRONCHOPYONAIR 50MG 30TAB"
+            },
+            {
+              "cell": "H25",
+              "value": "65410"
+            }
+          ]
+        },
+        {
+          "row": 26,
+          "cells": [
+            {
+              "cell": "A26",
+              "value": 46.0
+            },
+            {
+              "cell": "B26",
+              "value": 2.0
+            },
+            {
+              "cell": "C26",
+              "value": "One Unit"
+            },
+            {
+              "cell": "D26",
+              "value": 2.0
+            },
+            {
+              "cell": "E26",
+              "value": "محلى"
+            },
+            {
+              "cell": "F26",
+              "value": "SCOPE PHARMA"
+            },
+            {
+              "cell": "G26",
+              "value": "butaximark 1% 15gm cream"
+            },
+            {
+              "cell": "H26",
+              "value": "61774"
+            }
+          ]
+        },
+        {
+          "row": 27,
+          "cells": [
+            {
+              "cell": "A27",
+              "value": 495.0
+            },
+            {
+              "cell": "B27",
+              "value": 2.34
+            },
+            {
+              "cell": "C27",
+              "value": "علبة"
+            },
+            {
+              "cell": "D27",
+              "value": 3.0
+            },
+            {
+              "cell": "E27",
+              "value": "محلى"
+            },
+            {
+              "cell": "F27",
+              "value": "SCOPE PHARMA"
+            },
+            {
+              "cell": "G27",
+              "value": "CAL MAG D 30TAB"
+            },
+            {
+              "cell": "H27",
+              "value": "65257"
+            }
+          ]
+        },
+        {
+          "row": 28,
+          "cells": [
+            {
+              "cell": "A28",
+              "value": 109.5
+            },
+            {
+              "cell": "B28",
+              "value": 0.0
+            },
+            {
+              "cell": "C28",
+              "value": "One Unit"
+            },
+            {
+              "cell": "D28",
+              "value": 1.5
+            },
+            {
+              "cell": "E28",
+              "value": "محلى"
+            },
+            {
+              "cell": "F28",
+              "value": "SCOPE PHARMA"
+            },
+            {
+              "cell": "G28",
+              "value": "CANDY HONEY & LEMON 24قطعة"
+            },
+            {
+              "cell": "H28",
+              "value": "63370"
+            }
+          ]
+        },
+        {
+          "row": 29,
+          "cells": [
+            {
+              "cell": "A29",
+              "value": 1720.0
+            },
+            {
+              "cell": "B29",
+              "value": 1.0
+            },
+            {
+              "cell": "C29",
+              "value": "علبة"
+            },
+            {
+              "cell": "D29",
+              "value": 4.0
+            },
+            {
+              "cell": "E29",
+              "value": "محلى"
+            },
+            {
+              "cell": "F29",
+              "value": "SCOPE PHARMA"
+            },
+            {
+              "cell": "G29",
+              "value": "carnivita advance for men 30sachets"
+            },
+            {
+              "cell": "H29",
+              "value": "61651"
+            }
+          ]
+        },
+        {
+          "row": 30,
+          "cells": [
+            {
+              "cell": "A30",
+              "value": 350.0
+            },
+            {
+              "cell": "B30",
+              "value": 1.0
+            },
+            {
+              "cell": "C30",
+              "value": "علبة"
+            },
+            {
+              "cell": "D30",
+              "value": 1.0
+            },
+            {
+              "cell": "E30",
+              "value": "محلى"
+            },
+            {
+              "cell": "F30",
+              "value": "SCOPE PHARMA"
+            },
+            {
+              "cell": "G30",
+              "value": "carnivita advance for women 30sach"
+            },
+            {
+              "cell": "H30",
+              "value": "61650"
+            }
+          ]
+        },
+        {
+          "row": 31,
+          "cells": [
+            {
+              "cell": "A31",
+              "value": 63.0
+            },
+            {
+              "cell": "B31",
+              "value": 0.0
+            },
+            {
+              "cell": "C31",
+              "value": "وحدة"
+            },
+            {
+              "cell": "D31",
+              "value": 1.0
+            },
+            {
+              "cell": "E31",
+              "value": "محلى"
+            },
+            {
+              "cell": "F31",
+              "value": "SCOPE PHARMA"
+            },
+            {
+              "cell": "G31",
+              "value": "cefixime 60ml susp"
+            },
+            {
+              "cell": "H31",
+              "value": "61621"
+            }
+          ]
+        },
+        {
+          "row": 32,
+          "cells": [
+            {
+              "cell": "A32",
+              "value": 560.0
+            },
+            {
+              "cell": "B32",
+              "value": 0.0
+            },
+            {
+              "cell": "C32",
+              "value": "علبة"
+            },
+            {
+              "cell": "D32",
+              "value": 1.0
+            },
+            {
+              "cell": "E32",
+              "value": "محلى"
+            },
+            {
+              "cell": "F32",
+              "value": "SCOPE PHARMA"
+            },
+            {
+              "cell": "G32",
+              "value": "Centrum women 30tab 2boxes"
+            },
+            {
+              "cell": "H32",
+              "value": "65940"
+            }
+          ]
+        },
+        {
+          "row": 33,
+          "cells": [
+            {
+              "cell": "A33",
+              "value": 1127.0
+            },
+            {
+              "cell": "B33",
+              "value": 0.0
+            },
+            {
+              "cell": "C33",
+              "value": "حقنة"
+            },
+            {
+              "cell": "D33",
+              "value": 0.1429
+            },
+            {
+              "cell": "E33",
+              "value": "محلى"
+            },
+            {
+              "cell": "F33",
+              "value": "SCOPE PHARMA"
+            },
+            {
+              "cell": "G33",
+              "value": "CETROTIDE 0.25 MG 7 SYRING"
+            },
+            {
+              "cell": "H33",
+              "value": "63964"
+            }
+          ]
+        },
+        {
+          "row": 34,
+          "cells": [
+            {
+              "cell": "A34",
+              "value": 190.0
+            },
+            {
+              "cell": "B34",
+              "value": 0.0
+            },
+            {
+              "cell": "C34",
+              "value": "علبة"
+            },
+            {
+              "cell": "D34",
+              "value": 1.0
+            },
+            {
+              "cell": "E34",
+              "value": "محلى"
+            },
+            {
+              "cell": "F34",
+              "value": "SCOPE PHARMA"
+            },
+            {
+              "cell": "G34",
+              "value": "charnozam 30cap"
+            },
+            {
+              "cell": "H34",
+              "value": "65620"
+            }
+          ]
+        },
+        {
+          "row": 35,
+          "cells": [
+            {
+              "cell": "A35",
+              "value": 158.0
+            },
+            {
+              "cell": "B35",
+              "value": 2.0
+            },
+            {
+              "cell": "C35",
+              "value": "علبة"
+            },
+            {
+              "cell": "D35",
+              "value": 1.0
+            },
+            {
+              "cell": "E35",
+              "value": "محلى"
+            },
+            {
+              "cell": "F35",
+              "value": "SCOPE PHARMA"
+            },
+            {
+              "cell": "G35",
+              "value": "Chartoreg plus 80\\25mg 28tab"
+            },
+            {
+              "cell": "H35",
+              "value": "65433"
+            }
+          ]
+        }
+      ],
+      "candidate_header_rows": [
+        {
+          "row": 1,
+          "keyword_score": 7,
+          "text_cells": 9,
+          "matches": [
+            {
+              "column": "B",
+              "index": 2,
+              "value": "إجمالى س.بيع",
+              "matches": [
+                "سعر_الجمهور_او_البيع"
+              ]
+            },
+            {
+              "column": "C",
+              "index": 3,
+              "value": "الرصيد",
+              "matches": [
+                "الرصيد"
+              ]
+            },
+            {
+              "column": "D",
+              "index": 4,
+              "value": "الوحدة",
+              "matches": [
+                "الوحدة"
+              ]
+            },
+            {
+              "column": "E",
+              "index": 5,
+              "value": "الكمية",
+              "matches": [
+                "الكمية"
+              ]
+            },
+            {
+              "column": "G",
+              "index": 7,
+              "value": "الشركة",
+              "matches": [
+                "الشركة"
+              ]
+            },
+            {
+              "column": "H",
+              "index": 8,
+              "value": "الإسم",
+              "matches": [
+                "اسم_الصنف"
+              ]
+            },
+            {
+              "column": "I",
+              "index": 9,
+              "value": "الكود",
+              "matches": [
+                "كود_الصنف"
+              ]
+            }
+          ]
+        },
+        {
+          "row": 5,
+          "keyword_score": 1,
+          "text_cells": 5,
+          "matches": [
+            {
+              "column": "C",
+              "index": 3,
+              "value": "One Unit",
+              "matches": [
+                "الوحدة"
+              ]
+            }
+          ]
+        },
+        {
+          "row": 7,
+          "keyword_score": 1,
+          "text_cells": 5,
+          "matches": [
+            {
+              "column": "C",
+              "index": 3,
+              "value": "One Unit",
+              "matches": [
+                "الوحدة"
+              ]
+            }
+          ]
+        },
+        {
+          "row": 13,
+          "keyword_score": 1,
+          "text_cells": 5,
+          "matches": [
+            {
+              "column": "C",
+              "index": 3,
+              "value": "One Unit",
+              "matches": [
+                "الوحدة"
+              ]
+            }
+          ]
+        },
+        {
+          "row": 14,
+          "keyword_score": 1,
+          "text_cells": 5,
+          "matches": [
+            {
+              "column": "C",
+              "index": 3,
+              "value": "One Unit",
+              "matches": [
+                "الوحدة"
+              ]
+            }
+          ]
+        },
+        {
+          "row": 18,
+          "keyword_score": 1,
+          "text_cells": 5,
+          "matches": [
+            {
+              "column": "C",
+              "index": 3,
+              "value": "One Unit",
+              "matches": [
+                "الوحدة"
+              ]
+            }
+          ]
+        },
+        {
+          "row": 20,
+          "keyword_score": 1,
+          "text_cells": 5,
+          "matches": [
+            {
+              "column": "C",
+              "index": 3,
+              "value": "One Unit",
+              "matches": [
+                "الوحدة"
+              ]
+            }
+          ]
+        },
+        {
+          "row": 24,
+          "keyword_score": 1,
+          "text_cells": 5,
+          "matches": [
+            {
+              "column": "C",
+              "index": 3,
+              "value": "One Unit",
+              "matches": [
+                "الوحدة"
+              ]
+            }
+          ]
+        },
+        {
+          "row": 26,
+          "keyword_score": 1,
+          "text_cells": 5,
+          "matches": [
+            {
+              "column": "C",
+              "index": 3,
+              "value": "One Unit",
+              "matches": [
+                "الوحدة"
+              ]
+            }
+          ]
+        },
+        {
+          "row": 28,
+          "keyword_score": 1,
+          "text_cells": 5,
+          "matches": [
+            {
+              "column": "C",
+              "index": 3,
+              "value": "One Unit",
+              "matches": [
+                "الوحدة"
+              ]
+            }
+          ]
+        }
+      ],
+      "chosen_header_row_for_profile": 1,
+      "header_to_data_profile": [
+        {
+          "header_column": "A",
+          "header_index": 1,
+          "header": "الموظف",
+          "field_matches": [],
+          "same_column_numeric_ratio": 1.0,
+          "data_samples_below": [
+            39.0,
+            208.0,
+            252.0,
+            559.0,
+            7842.0
+          ]
+        },
+        {
+          "header_column": "B",
+          "header_index": 2,
+          "header": "إجمالى س.بيع",
+          "field_matches": [
+            "سعر_الجمهور_او_البيع"
+          ],
+          "same_column_numeric_ratio": 1.0,
+          "data_samples_below": [
+            1.67,
+            2.33,
+            9.0,
+            1.0,
+            3.0
+          ]
+        },
+        {
+          "header_column": "C",
+          "header_index": 3,
+          "header": "الرصيد",
+          "field_matches": [
+            "الرصيد"
+          ],
+          "same_column_numeric_ratio": 0.0,
+          "data_samples_below": [
+            "علبة",
+            "علبة",
+            "علبة",
+            "One Unit",
+            "علبة"
+          ]
+        },
+        {
+          "header_column": "D",
+          "header_index": 4,
+          "header": "الوحدة",
+          "field_matches": [
+            "الوحدة"
+          ],
+          "same_column_numeric_ratio": 1.0,
+          "data_samples_below": [
+            1.0,
+            1.3333,
+            4.5,
+            1.0,
+            6.0
+          ]
+        },
+        {
+          "header_column": "E",
+          "header_index": 5,
+          "header": "الكمية",
+          "field_matches": [
+            "الكمية"
+          ],
+          "same_column_numeric_ratio": 0.0,
+          "data_samples_below": [
+            "محلى",
+            "إستثمارى",
+            "إستثمارى",
+            "محلى",
+            "محلى"
+          ]
+        },
+        {
+          "header_column": "F",
+          "header_index": 6,
+          "header": "المنشأ",
+          "field_matches": [],
+          "same_column_numeric_ratio": 0.0,
+          "data_samples_below": [
+            "SCOPE PHARMA",
+            "دلتا فارم",
+            "هاى فارم",
+            "SCOPE PHARMA",
+            "SCOPE PHARMA"
+          ]
+        },
+        {
+          "header_column": "G",
+          "header_index": 7,
+          "header": "الشركة",
+          "field_matches": [
+            "الشركة"
+          ],
+          "same_column_numeric_ratio": 0.0,
+          "data_samples_below": [
+            "(C6) conviban 25mg30tab",
+            "(G1)جابتين 400مجم30كبسول",
+            "(S3) ستيرونات نور اقراص",
+            "ACM MEDISUN MATTIFYING GEL 40ML",
+            "Adport 0.5 mg 100 cap"
+          ]
+        },
+        {
+          "header_column": "H",
+          "header_index": 8,
+          "header": "الإسم",
+          "field_matches": [
+            "اسم_الصنف"
+          ],
+          "same_column_numeric_ratio": 0.0,
+          "data_samples_below": [
+            "61986",
+            "47575",
+            "23132",
+            "64841",
+            "65197"
+          ]
+        },
+        {
+          "header_column": "I",
+          "header_index": 9,
+          "header": "الكود",
+          "field_matches": [
+            "كود_الصنف"
+          ],
+          "same_column_numeric_ratio": 0.0,
+          "data_samples_below": []
+        }
+      ],
+      "column_profiles": [
+        {
+          "column": "A",
+          "index": 1,
+          "non_empty": 2762,
+          "numeric": 2760,
+          "date_values": 0,
+          "numeric_ratio": 0.999,
+          "samples": [
+            "الموظف",
+            39.0,
+            208.0,
+            252.0,
+            559.0,
+            7842.0,
+            304.0,
+            260.0
+          ]
+        },
+        {
+          "column": "B",
+          "index": 2,
+          "non_empty": 2762,
+          "numeric": 2759,
+          "date_values": 0,
+          "numeric_ratio": 0.999,
+          "samples": [
+            "إجمالى س.بيع",
+            1.67,
+            2.33,
+            9.0,
+            1.0,
+            3.0,
+            2.0,
+            7.33
+          ]
+        },
+        {
+          "column": "C",
+          "index": 3,
+          "non_empty": 2761,
+          "numeric": 0,
+          "date_values": 1,
+          "numeric_ratio": 0.0,
+          "samples": [
+            "الرصيد",
+            "علبة",
+            "علبة",
+            "علبة",
+            "One Unit",
+            "علبة",
+            "One Unit",
+            "علبة"
+          ]
+        },
+        {
+          "column": "D",
+          "index": 4,
+          "non_empty": 2761,
+          "numeric": 2759,
+          "date_values": 0,
+          "numeric_ratio": 0.999,
+          "samples": [
+            "الوحدة",
+            1.0,
+            1.3333,
+            4.5,
+            1.0,
+            6.0,
+            2.0,
+            3.3333
+          ]
+        },
+        {
+          "column": "E",
+          "index": 5,
+          "non_empty": 2761,
+          "numeric": 0,
+          "date_values": 0,
+          "numeric_ratio": 0.0,
+          "samples": [
+            "الكمية",
+            "محلى",
+            "إستثمارى",
+            "إستثمارى",
+            "محلى",
+            "محلى",
+            "محلى",
+            "محلى"
+          ]
+        },
+        {
+          "column": "F",
+          "index": 6,
+          "non_empty": 2761,
+          "numeric": 0,
+          "date_values": 0,
+          "numeric_ratio": 0.0,
+          "samples": [
+            "المنشأ",
+            "SCOPE PHARMA",
+            "دلتا فارم",
+            "هاى فارم",
+            "SCOPE PHARMA",
+            "SCOPE PHARMA",
+            "SCOPE PHARMA",
+            "SCOPE PHARMA"
+          ]
+        },
+        {
+          "column": "G",
+          "index": 7,
+          "non_empty": 2761,
+          "numeric": 0,
+          "date_values": 0,
+          "numeric_ratio": 0.0,
+          "samples": [
+            "الشركة",
+            "(C6) conviban 25mg30tab",
+            "(G1)جابتين 400مجم30كبسول",
+            "(S3) ستيرونات نور اقراص",
+            "ACM MEDISUN MATTIFYING GEL 40ML",
+            "Adport 0.5 mg 100 cap",
+            "alfacareno oral drops 10ml",
+            "antodine 20mg 6amp"
+          ]
+        },
+        {
+          "column": "H",
+          "index": 8,
+          "non_empty": 2760,
+          "numeric": 0,
+          "date_values": 0,
+          "numeric_ratio": 0.0,
+          "samples": [
+            "الإسم",
+            "61986",
+            "47575",
+            "23132",
+            "64841",
+            "65197",
+            "61899",
+            "64505"
+          ]
+        },
+        {
+          "column": "I",
+          "index": 9,
+          "non_empty": 1,
+          "numeric": 0,
+          "date_values": 0,
+          "numeric_ratio": 0.0,
+          "samples": [
+            "الكود"
+          ]
+        }
+      ],
+      "keyword_locations": [
+        {
+          "cell": "B1",
+          "row": 1,
+          "column": "B",
+          "value": "إجمالى س.بيع",
+          "matches": [
+            "سعر_الجمهور_او_البيع"
+          ]
+        },
+        {
+          "cell": "C1",
+          "row": 1,
+          "column": "C",
+          "value": "الرصيد",
+          "matches": [
+            "الرصيد"
+          ]
+        },
+        {
+          "cell": "D1",
+          "row": 1,
+          "column": "D",
+          "value": "الوحدة",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "E1",
+          "row": 1,
+          "column": "E",
+          "value": "الكمية",
+          "matches": [
+            "الكمية"
+          ]
+        },
+        {
+          "cell": "G1",
+          "row": 1,
+          "column": "G",
+          "value": "الشركة",
+          "matches": [
+            "الشركة"
+          ]
+        },
+        {
+          "cell": "H1",
+          "row": 1,
+          "column": "H",
+          "value": "الإسم",
+          "matches": [
+            "اسم_الصنف"
+          ]
+        },
+        {
+          "cell": "I1",
+          "row": 1,
+          "column": "I",
+          "value": "الكود",
+          "matches": [
+            "كود_الصنف"
+          ]
+        },
+        {
+          "cell": "C5",
+          "row": 5,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C7",
+          "row": 7,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C13",
+          "row": 13,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C14",
+          "row": 14,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C18",
+          "row": 18,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C20",
+          "row": 20,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C24",
+          "row": 24,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C26",
+          "row": 26,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C28",
+          "row": 28,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C44",
+          "row": 44,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C48",
+          "row": 48,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C52",
+          "row": 52,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C53",
+          "row": 53,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C60",
+          "row": 60,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C87",
+          "row": 87,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C118",
+          "row": 118,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "G140",
+          "row": 140,
+          "column": "G",
+          "value": "zincoderm cream 50g",
+          "matches": [
+            "كود_الصنف"
+          ]
+        },
+        {
+          "cell": "C144",
+          "row": 144,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C220",
+          "row": 220,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C238",
+          "row": 238,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C265",
+          "row": 265,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C272",
+          "row": 272,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C273",
+          "row": 273,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C306",
+          "row": 306,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C310",
+          "row": 310,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C324",
+          "row": 324,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C327",
+          "row": 327,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C341",
+          "row": 341,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C352",
+          "row": 352,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C380",
+          "row": 380,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "G380",
+          "row": 380,
+          "column": "G",
+          "value": "انتيروجيرمينا 4 بليون وحده",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C383",
+          "row": 383,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C384",
+          "row": 384,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "G392",
+          "row": 392,
+          "column": "G",
+          "value": "اندوميثازين10اقماع - الشركة العربية",
+          "matches": [
+            "الشركة"
+          ]
+        },
+        {
+          "cell": "C403",
+          "row": 403,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C411",
+          "row": 411,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C418",
+          "row": 418,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C436",
+          "row": 436,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C447",
+          "row": 447,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C448",
+          "row": 448,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C452",
+          "row": 452,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C454",
+          "row": 454,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C459",
+          "row": 459,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C465",
+          "row": 465,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C475",
+          "row": 475,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C476",
+          "row": 476,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C536",
+          "row": 536,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C541",
+          "row": 541,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "G552",
+          "row": 552,
+          "column": "G",
+          "value": "ايفا اشراقة طبيعية غسول بشرة دهنية",
+          "matches": [
+            "سعر_الجمهور_او_البيع"
+          ]
+        },
+        {
+          "cell": "C553",
+          "row": 553,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "G553",
+          "row": 553,
+          "column": "G",
+          "value": "ايفا اشراقة طبيعية غسول بشرة مختلطة",
+          "matches": [
+            "سعر_الجمهور_او_البيع"
+          ]
+        },
+        {
+          "cell": "C554",
+          "row": 554,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "G554",
+          "row": 554,
+          "column": "G",
+          "value": "ايفا اشراقة طبيعية مقشر الجسم  250 جم",
+          "matches": [
+            "سعر_الجمهور_او_البيع"
+          ]
+        },
+        {
+          "cell": "G555",
+          "row": 555,
+          "column": "G",
+          "value": "ايفا اشراقة طبيعية مقشر للوجه",
+          "matches": [
+            "سعر_الجمهور_او_البيع"
+          ]
+        },
+        {
+          "cell": "C556",
+          "row": 556,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C565",
+          "row": 565,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C566",
+          "row": 566,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C567",
+          "row": 567,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "G572",
+          "row": 572,
+          "column": "G",
+          "value": "ايفا غسول بشرة عادية للجافة اشراقة طبيعية",
+          "matches": [
+            "سعر_الجمهور_او_البيع"
+          ]
+        },
+        {
+          "cell": "C574",
+          "row": 574,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "F580",
+          "row": 580,
+          "column": "F",
+          "value": "بريتش كود ليفر اوييل",
+          "matches": [
+            "كود_الصنف"
+          ]
+        },
+        {
+          "cell": "C581",
+          "row": 581,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C607",
+          "row": 607,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C609",
+          "row": 609,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C616",
+          "row": 616,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C620",
+          "row": 620,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C622",
+          "row": 622,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C656",
+          "row": 656,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C668",
+          "row": 668,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C669",
+          "row": 669,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C678",
+          "row": 678,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C681",
+          "row": 681,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C686",
+          "row": 686,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C688",
+          "row": 688,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C689",
+          "row": 689,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C749",
+          "row": 749,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C750",
+          "row": 750,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C760",
+          "row": 760,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C761",
+          "row": 761,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C764",
+          "row": 764,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C774",
+          "row": 774,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C776",
+          "row": 776,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C777",
+          "row": 777,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C778",
+          "row": 778,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C788",
+          "row": 788,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C800",
+          "row": 800,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C802",
+          "row": 802,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C825",
+          "row": 825,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C831",
+          "row": 831,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C848",
+          "row": 848,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C851",
+          "row": 851,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C858",
+          "row": 858,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C882",
+          "row": 882,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C911",
+          "row": 911,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C923",
+          "row": 923,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C929",
+          "row": 929,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C990",
+          "row": 990,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1030",
+          "row": 1030,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1039",
+          "row": 1039,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1040",
+          "row": 1040,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "G1041",
+          "row": 1041,
+          "column": "G",
+          "value": "جليكودال اقراص (G3)",
+          "matches": [
+            "كود_الصنف"
+          ]
+        },
+        {
+          "cell": "C1066",
+          "row": 1066,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1075",
+          "row": 1075,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1084",
+          "row": 1084,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1088",
+          "row": 1088,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1101",
+          "row": 1101,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "G1102",
+          "row": 1102,
+          "column": "G",
+          "value": "حجر خفاف طبيعى للقدم FEELING",
+          "matches": [
+            "سعر_الجمهور_او_البيع"
+          ]
+        },
+        {
+          "cell": "C1104",
+          "row": 1104,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1106",
+          "row": 1106,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1150",
+          "row": 1150,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1152",
+          "row": 1152,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1169",
+          "row": 1169,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1171",
+          "row": 1171,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1173",
+          "row": 1173,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1174",
+          "row": 1174,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "G1189",
+          "row": 1189,
+          "column": "G",
+          "value": "دى باك 10000 وحده 50 قرص",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1192",
+          "row": 1192,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "G1198",
+          "row": 1198,
+          "column": "G",
+          "value": "دياسميكت شراب",
+          "matches": [
+            "اسم_الصنف"
+          ]
+        },
+        {
+          "cell": "C1209",
+          "row": 1209,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1219",
+          "row": 1219,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1220",
+          "row": 1220,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1221",
+          "row": 1221,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1227",
+          "row": 1227,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1229",
+          "row": 1229,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1230",
+          "row": 1230,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1231",
+          "row": 1231,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1232",
+          "row": 1232,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1234",
+          "row": 1234,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1244",
+          "row": 1244,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1254",
+          "row": 1254,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1278",
+          "row": 1278,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1292",
+          "row": 1292,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1301",
+          "row": 1301,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1303",
+          "row": 1303,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1305",
+          "row": 1305,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1312",
+          "row": 1312,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1327",
+          "row": 1327,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1334",
+          "row": 1334,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1335",
+          "row": 1335,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1347",
+          "row": 1347,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1348",
+          "row": 1348,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1351",
+          "row": 1351,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1353",
+          "row": 1353,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "G1364",
+          "row": 1364,
+          "column": "G",
+          "value": "زنكوديرم لوسيون",
+          "matches": [
+            "كود_الصنف"
+          ]
+        },
+        {
+          "cell": "C1365",
+          "row": 1365,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "G1365",
+          "row": 1365,
+          "column": "G",
+          "value": "زنكوديرم لوسيون للجلد 120 مل",
+          "matches": [
+            "كود_الصنف"
+          ]
+        },
+        {
+          "cell": "C1385",
+          "row": 1385,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1386",
+          "row": 1386,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1387",
+          "row": 1387,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1388",
+          "row": 1388,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1389",
+          "row": 1389,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1390",
+          "row": 1390,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1392",
+          "row": 1392,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1423",
+          "row": 1423,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1427",
+          "row": 1427,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1443",
+          "row": 1443,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1446",
+          "row": 1446,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1451",
+          "row": 1451,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1452",
+          "row": 1452,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1455",
+          "row": 1455,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1459",
+          "row": 1459,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1466",
+          "row": 1466,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1473",
+          "row": 1473,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1475",
+          "row": 1475,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1476",
+          "row": 1476,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1477",
+          "row": 1477,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1478",
+          "row": 1478,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1479",
+          "row": 1479,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1480",
+          "row": 1480,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1481",
+          "row": 1481,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1484",
+          "row": 1484,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1485",
+          "row": 1485,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1491",
+          "row": 1491,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1510",
+          "row": 1510,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1511",
+          "row": 1511,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1513",
+          "row": 1513,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1514",
+          "row": 1514,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1524",
+          "row": 1524,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1536",
+          "row": 1536,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1550",
+          "row": 1550,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1557",
+          "row": 1557,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1593",
+          "row": 1593,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1601",
+          "row": 1601,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1616",
+          "row": 1616,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1619",
+          "row": 1619,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1625",
+          "row": 1625,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1639",
+          "row": 1639,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1651",
+          "row": 1651,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1654",
+          "row": 1654,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1668",
+          "row": 1668,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1680",
+          "row": 1680,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1685",
+          "row": 1685,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1686",
+          "row": 1686,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1687",
+          "row": 1687,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1691",
+          "row": 1691,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1692",
+          "row": 1692,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1693",
+          "row": 1693,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1694",
+          "row": 1694,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1695",
+          "row": 1695,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1699",
+          "row": 1699,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1700",
+          "row": 1700,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1708",
+          "row": 1708,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1709",
+          "row": 1709,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1712",
+          "row": 1712,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1714",
+          "row": 1714,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1716",
+          "row": 1716,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1717",
+          "row": 1717,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1732",
+          "row": 1732,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1735",
+          "row": 1735,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1755",
+          "row": 1755,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1759",
+          "row": 1759,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1766",
+          "row": 1766,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1772",
+          "row": 1772,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1774",
+          "row": 1774,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1786",
+          "row": 1786,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1791",
+          "row": 1791,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1797",
+          "row": 1797,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1804",
+          "row": 1804,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1808",
+          "row": 1808,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1815",
+          "row": 1815,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1820",
+          "row": 1820,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1824",
+          "row": 1824,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1825",
+          "row": 1825,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1835",
+          "row": 1835,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1838",
+          "row": 1838,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1858",
+          "row": 1858,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1874",
+          "row": 1874,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1875",
+          "row": 1875,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1879",
+          "row": 1879,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1880",
+          "row": 1880,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1908",
+          "row": 1908,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1914",
+          "row": 1914,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1915",
+          "row": 1915,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1916",
+          "row": 1916,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1950",
+          "row": 1950,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1962",
+          "row": 1962,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1963",
+          "row": 1963,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1987",
+          "row": 1987,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1990",
+          "row": 1990,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1991",
+          "row": 1991,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C1996",
+          "row": 1996,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2003",
+          "row": 2003,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2004",
+          "row": 2004,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2005",
+          "row": 2005,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2023",
+          "row": 2023,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2027",
+          "row": 2027,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "G2032",
+          "row": 2032,
+          "column": "G",
+          "value": "كالسيتونيوم 50وحده /مللى  5 امبول",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2039",
+          "row": 2039,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2071",
+          "row": 2071,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2074",
+          "row": 2074,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2090",
+          "row": 2090,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2105",
+          "row": 2105,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2115",
+          "row": 2115,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2119",
+          "row": 2119,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2120",
+          "row": 2120,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2122",
+          "row": 2122,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "G2135",
+          "row": 2135,
+          "column": "G",
+          "value": "كوديلارشراب",
+          "matches": [
+            "كود_الصنف"
+          ]
+        },
+        {
+          "cell": "C2150",
+          "row": 2150,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2181",
+          "row": 2181,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2204",
+          "row": 2204,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2205",
+          "row": 2205,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2230",
+          "row": 2230,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2233",
+          "row": 2233,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2255",
+          "row": 2255,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2263",
+          "row": 2263,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2274",
+          "row": 2274,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2290",
+          "row": 2290,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2326",
+          "row": 2326,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2329",
+          "row": 2329,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2330",
+          "row": 2330,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2333",
+          "row": 2333,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2345",
+          "row": 2345,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2352",
+          "row": 2352,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2355",
+          "row": 2355,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2356",
+          "row": 2356,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2357",
+          "row": 2357,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2358",
+          "row": 2358,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2360",
+          "row": 2360,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2366",
+          "row": 2366,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2391",
+          "row": 2391,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2403",
+          "row": 2403,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2404",
+          "row": 2404,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2406",
+          "row": 2406,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2408",
+          "row": 2408,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2412",
+          "row": 2412,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2413",
+          "row": 2413,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2419",
+          "row": 2419,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2422",
+          "row": 2422,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2429",
+          "row": 2429,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2464",
+          "row": 2464,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2474",
+          "row": 2474,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2480",
+          "row": 2480,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2482",
+          "row": 2482,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2496",
+          "row": 2496,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2499",
+          "row": 2499,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2504",
+          "row": 2504,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2512",
+          "row": 2512,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2536",
+          "row": 2536,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2538",
+          "row": 2538,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2561",
+          "row": 2561,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2576",
+          "row": 2576,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2611",
+          "row": 2611,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2615",
+          "row": 2615,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2616",
+          "row": 2616,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2617",
+          "row": 2617,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2625",
+          "row": 2625,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2638",
+          "row": 2638,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2659",
+          "row": 2659,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2664",
+          "row": 2664,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "G2677",
+          "row": 2677,
+          "column": "G",
+          "value": "هير كود جل انبوب250مل ازرق",
+          "matches": [
+            "كود_الصنف"
+          ]
+        },
+        {
+          "cell": "G2678",
+          "row": 2678,
+          "column": "G",
+          "value": "هير كود جل كيس",
+          "matches": [
+            "كود_الصنف"
+          ]
+        },
+        {
+          "cell": "C2682",
+          "row": 2682,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "G2683",
+          "row": 2683,
+          "column": "G",
+          "value": "هيركود اكياس الدوبل",
+          "matches": [
+            "كود_الصنف"
+          ]
+        },
+        {
+          "cell": "G2684",
+          "row": 2684,
+          "column": "G",
+          "value": "هيركود جل اكياس",
+          "matches": [
+            "كود_الصنف"
+          ]
+        },
+        {
+          "cell": "G2685",
+          "row": 2685,
+          "column": "G",
+          "value": "هيركود جل برطمان 100مل",
+          "matches": [
+            "كود_الصنف"
+          ]
+        },
+        {
+          "cell": "G2686",
+          "row": 2686,
+          "column": "G",
+          "value": "هيركود جيل ازرق انبوبه160مل",
+          "matches": [
+            "كود_الصنف"
+          ]
+        },
+        {
+          "cell": "C2690",
+          "row": 2690,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2691",
+          "row": 2691,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2692",
+          "row": 2692,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2714",
+          "row": 2714,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2721",
+          "row": 2721,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2723",
+          "row": 2723,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "G2731",
+          "row": 2731,
+          "column": "G",
+          "value": "ياسمين 21 قرص",
+          "matches": [
+            "اسم_الصنف"
+          ]
+        },
+        {
+          "cell": "C2741",
+          "row": 2741,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2743",
+          "row": 2743,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "C2745",
+          "row": 2745,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        },
+        {
+          "cell": "G2750",
+          "row": 2750,
+          "column": "G",
+          "value": "يوريكودروب 80 مجم 30 قرص",
+          "matches": [
+            "كود_الصنف"
+          ]
+        },
+        {
+          "cell": "C2758",
+          "row": 2758,
+          "column": "C",
+          "value": "One Unit",
+          "matches": [
+            "الوحدة"
+          ]
+        }
+      ],
+      "keyword_counts": {
+        "سعر_الجمهور_او_البيع": 7,
+        "الرصيد": 1,
+        "الوحدة": 307,
+        "الكمية": 1,
+        "الشركة": 2,
+        "اسم_الصنف": 3,
+        "كود_الصنف": 14
+      }
+    }
+  ]
+}

@@ -52,6 +52,9 @@ export type CleanRecord = RawRecord & {
     quantity?: number;
     cost?: number;
     profit?: number;
+    unitSalePrice?: number;
+    unitCost?: number;
+    profitMargin?: number;
     discount?: number;
     date?: Date;
   };
@@ -64,6 +67,9 @@ export interface ColumnMapping {
   score: number;
   reason: string;
   sample: string;
+  dataColumn?: string;
+  headerColumn?: string;
+  adjustedForHeaderShift?: boolean;
 }
 
 export interface SheetInspection {
@@ -71,6 +77,8 @@ export interface SheetInspection {
   rows: number;
   columns: number;
   headerRowIndex: number;
+  headerDataOffset: number;
+  layoutNote?: string;
   headers: string[];
   mappings: ColumnMapping[];
   rawRecords: RawRecord[];
@@ -122,7 +130,7 @@ const FIELD_DEFINITIONS: Record<CanonicalField, { labels: string[]; keywords: st
   stock_quantity: { labels: ["رصيد المخزون", "المخزون", "الرصيد", "stock quantity", "stock", "balance"], keywords: ["مخزون", "stock", "رصيد", "balance"], kind: "number" },
   reorder_level: { labels: ["حد إعادة الطلب", "الحد الأدنى", "reorder level", "min stock", "minimum stock"], keywords: ["إعادة الطلب", "حد أدنى", "reorder", "min stock"], kind: "number" },
   expiry_date: { labels: ["تاريخ الانتهاء", "تاريخ الصلاحية", "انتهاء الصلاحية", "expiry date", "expiration date", "expiry", "exp date"], keywords: ["انتهاء", "صلاحيه", "expiry", "expiration", "exp date"], kind: "date" },
-  sale_price: { labels: ["سعر البيع", "سعر", "unit sale price", "sale price", "selling price"], keywords: ["سعر البيع", "selling", "sale price"], kind: "number" },
+  sale_price: { labels: ["سعر البيع", "سعر الجمهور", "سعر المستهلك", "سعر التجزئة", "سعر", "unit sale price", "sale price", "selling price", "public price", "retail price"], keywords: ["سعر البيع", "سعر الجمهور", "سعر المستهلك", "سعر التجزئة", "selling", "sale price", "public price", "retail price"], kind: "number" },
   sales_total: { labels: ["إجمالي المبيعات", "قيمة المبيعات", "إجمالي البيع", "إجمالى س.بيع", "إجمالي س.بيع", "صافي البيع", "sales total", "total sales", "net sales", "amount sold"], keywords: ["إجمالي المبيعات", "قيمة المبيعات", "إجمالى س.بيع", "اجمالي س بيع", "total sales", "net sales", "مبيعات"], kind: "number" },
   sales_quantity: { labels: ["كمية البيع", "كمية المبيعات", "sales qty", "sales quantity"], keywords: ["بيع", "sales"], kind: "number" },
   invoice_number: { labels: ["رقم الفاتورة", "الفاتورة", "invoice number", "invoice", "bill no"], keywords: ["فاتورة", "invoice", "bill"], kind: "text" },
@@ -131,7 +139,7 @@ const FIELD_DEFINITIONS: Record<CanonicalField, { labels: string[]; keywords: st
   customer: { labels: ["العميل", "اسم العميل", "customer", "patient"], keywords: ["عميل", "customer", "patient"], kind: "text" },
   employee: { labels: ["الموظف", "البائع", "employee", "salesperson", "cashier"], keywords: ["موظف", "بائع", "employee", "cashier"], kind: "text" },
   branch: { labels: ["الفرع", "branch", "store"], keywords: ["فرع", "branch", "store"], kind: "text" },
-  cost_price: { labels: ["سعر التكلفة", "التكلفة للوحدة", "unit cost", "cost price", "purchase price"], keywords: ["سعر التكلفة", "unit cost", "cost price", "purchase"], kind: "number" },
+  cost_price: { labels: ["سعر التكلفة", "سعر الشراء", "ثمن الشراء", "التكلفة للوحدة", "unit cost", "cost price", "purchase price"], keywords: ["سعر التكلفة", "سعر الشراء", "ثمن الشراء", "unit cost", "cost price", "purchase"], kind: "number" },
   total_cost: { labels: ["إجمالي التكلفة", "قيمة التكلفة", "total cost", "cost total"], keywords: ["إجمالي التكلفة", "total cost", "قيمة التكلفة"], kind: "number" },
   profit: { labels: ["الربح", "إجمالي الربح", "profit", "gross profit"], keywords: ["ربح", "profit"], kind: "number" },
   profit_margin: { labels: ["هامش الربح", "نسبة الربح", "profit margin", "margin"], keywords: ["هامش", "margin", "نسبة الربح"], kind: "number" },
@@ -247,7 +255,7 @@ function scoreMapping(header: string): { field: CanonicalField | "unknown"; scor
   return { field: topScore >= 38 ? winner : "unknown", score: topScore, reason };
 }
 
-function mapColumns(headers: string[], rawRows: unknown[][]): ColumnMapping[] {
+function mapColumns(headers: string[], rawRows: unknown[][], headerDataOffset = 0): ColumnMapping[] {
   return headers.map((header, index) => {
     const result = scoreMapping(header);
     const sample = rawRows.slice(0, 5).map((row) => row[index]).find((value) => value !== undefined && value !== null && value !== "");
@@ -258,6 +266,9 @@ function mapColumns(headers: string[], rawRows: unknown[][]): ColumnMapping[] {
       score: result.score,
       reason: result.reason,
       sample: sample === undefined ? "—" : String(sample).slice(0, 40),
+      dataColumn: XLSX.utils.encode_col(index),
+      headerColumn: XLSX.utils.encode_col(index + headerDataOffset),
+      adjustedForHeaderShift: headerDataOffset !== 0,
     };
   });
 }
@@ -292,9 +303,44 @@ function calculateMetrics(record: RawRecord, mapsByField: Partial<Record<Canonic
   const cost = directCost ?? (costPrice !== undefined && quantity !== undefined ? costPrice * quantity : undefined);
   const directProfit = toNumber(get("profit"));
   const profit = directProfit ?? (sales !== undefined && cost !== undefined ? sales - cost : undefined);
+  const directMargin = toNumber(get("profit_margin"));
+  const unitSalePrice = salePrice ?? (sales !== undefined && quantity !== undefined && quantity > 0 ? sales / quantity : undefined);
+  const unitCost = costPrice ?? (cost !== undefined && quantity !== undefined && quantity > 0 ? cost / quantity : undefined);
+  const profitMargin = directMargin ?? (profit !== undefined && sales !== undefined && sales > 0 ? (profit / sales) * 100 : undefined);
   const discount = toNumber(get("discount_value"));
   const date = toDate(get("sale_date")) ?? toDate(get("expense_date")) ?? toDate(get("transaction_date"));
-  return { sales, quantity, cost, profit, discount, date };
+  return { sales, quantity, cost, profit, unitSalePrice, unitCost, profitMargin, discount, date };
+}
+
+/**
+ * الجلسات المحلية قد تكون حُفظت بإصدار سابق من المحرك. لا تُستخدم مؤشرات
+ * الربح أو الهامش المحفوظة معها عند الاستعادة؛ تُحسب من الأعمدة الفعلية
+ * ومطابقة المصدر الحالية حتى لا تبقى قيمة قديمة أو افتراضية في القرار.
+ */
+export function refreshImportedInspection(inspection: ImportInspection): ImportInspection {
+  return {
+    ...inspection,
+    detectedAt: inspection.detectedAt instanceof Date ? inspection.detectedAt : new Date(inspection.detectedAt),
+    sheets: inspection.sheets.map((sheet) => {
+      const mapsByField = sheet.mappings.reduce((acc, mapping) => {
+        const field = mapping.field;
+        if (field === "unknown") return acc;
+        if (!acc[field] || mapping.score > (sheet.mappings.find((item) => item.sourceColumn === acc[field])?.score ?? 0)) acc[field] = mapping.sourceColumn;
+        return acc;
+      }, {} as Partial<Record<CanonicalField, string>>);
+      const cleanRecords = sheet.cleanRecords.map((savedRecord, index) => {
+        const { __metrics: _savedMetrics, __rowIndex, __sheetName: _savedSheetName, ...raw } = savedRecord;
+        const record = raw as RawRecord;
+        return {
+          ...record,
+          __rowIndex: typeof __rowIndex === "number" ? __rowIndex : sheet.headerRowIndex + 2 + index,
+          __sheetName: sheet.name,
+          __metrics: calculateMetrics(record, mapsByField),
+        };
+      });
+      return { ...sheet, cleanRecords };
+    }),
+  };
 }
 
 function inspectSheet(name: string, matrix: unknown[][]): SheetInspection {
@@ -302,10 +348,11 @@ function inspectSheet(name: string, matrix: unknown[][]): SheetInspection {
   const rawHeaders = (matrix[headerRowIndex] ?? []).map((value, index) => String(value ?? `عمود ${index + 1}`).trim() || `عمود ${index + 1}`);
   const dataRows = matrix.slice(headerRowIndex + 1).filter((row) => row.some((cell) => cell !== undefined && cell !== null && String(cell).trim() !== ""));
   const headerWasShifted = hasLeadingHeaderShift(rawHeaders, dataRows);
+  const headerDataOffset = headerWasShifted ? 1 : 0;
   const headers = headerWasShifted
     ? [...rawHeaders.slice(1), `${rawHeaders[0]} (غير مستخدم)`]
     : rawHeaders;
-  const mappings = mapColumns(headers, dataRows);
+  const mappings = mapColumns(headers, dataRows, headerDataOffset);
   const mapsByField = mappings.reduce((acc, mapping) => {
     const detectedField = mapping.field;
     if (detectedField !== "unknown" && (!acc[detectedField] || mapping.score > (mappings.find((item) => item.sourceColumn === acc[detectedField])?.score ?? 0))) acc[detectedField] = mapping.sourceColumn;
@@ -373,7 +420,21 @@ function inspectSheet(name: string, matrix: unknown[][]): SheetInspection {
     recognizedFields: mappings.filter((mapping) => mapping.field !== "unknown").map((mapping) => mapping.field as CanonicalField),
     unknownColumns: mappings.filter((mapping) => mapping.field === "unknown").map((mapping) => mapping.sourceColumn),
   };
-  return { name, rows: matrix.length, columns: headers.length, headerRowIndex, headers, mappings, rawRecords, cleanRecords, excludedRows: totalRowsDetected.length, quality, preview: rawRecords.slice(0, 10) };
+  return {
+    name,
+    rows: matrix.length,
+    columns: headers.length,
+    headerRowIndex,
+    headerDataOffset,
+    layoutNote: headerWasShifted ? "تم التحقق من أن عناوين هذا التصدير مزاحة خانة إلى اليمين؛ لذلك رُبطت القيم بالأعمدة الفعلية المقابلة لها." : undefined,
+    headers,
+    mappings,
+    rawRecords,
+    cleanRecords,
+    excludedRows: totalRowsDetected.length,
+    quality,
+    preview: rawRecords.slice(0, 10),
+  };
 }
 
 export async function inspectPharmacyFile(file: File): Promise<ImportInspection> {
