@@ -67,4 +67,17 @@ describe("analyzeProductMovement", () => {
       publicPriceSource: "source",
     });
   });
+
+  it("يجمع سجلات الأشهر بالكود بعد تطبيعه ثم بالاسم عند غياب الكود", () => {
+    const june = sheet("6", [{ "الصنف": "اسم قديم", "الرصيد": 5, "إجمالي البيع": 100, "الكمية": 2, "الكود": "SKU- 10" }]);
+    const july = sheet("7", [{ "الصنف": "اسم محدث", "الرصيد": 3, "إجمالي البيع": 80, "الكمية": 2, "الكود": "sku10" }]);
+    const august = sheet("8", [{ "الصنف": "بدون كود", "الرصيد": 2, "إجمالي البيع": 0, "الكمية": 0 }]);
+    june.mappings.push({ sourceColumn: "الكود", field: "item_code", confidence: "عالية", score: 100, reason: "اختبار", sample: "" });
+    july.mappings.push({ sourceColumn: "الكود", field: "item_code", confidence: "عالية", score: 100, reason: "اختبار", sample: "" });
+
+    const result = analyzeProductMovement([june, july, august]);
+    expect(result.items).toHaveLength(2);
+    expect(result.items.find((item) => item.itemCode === "SKU- 10")).toMatchObject({ sourceRecordCount: 2, periods: { "sheet-month-6": { sales: 100 }, "sheet-month-7": { sales: 80 } } });
+    expect(result.metrics).toMatchObject({ matchedByCodeRecordCount: 2, matchedByNameRecordCount: 1 });
+  });
 });

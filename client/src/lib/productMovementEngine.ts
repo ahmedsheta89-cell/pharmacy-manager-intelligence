@@ -17,11 +17,11 @@ export type ProductMovementItem = {
   sales?: number;
   quantity?: number;
   purchasePrice?: number;
-  purchasePriceSource?: "source" | "derived";
+  purchasePriceSource?: "source" | "derived" | "price_file";
   publicPrice?: number;
-  publicPriceSource?: "source" | "derived";
+  publicPriceSource?: "source" | "derived" | "price_file";
   margin?: number;
-  marginSource?: "source" | "derived";
+  marginSource?: "source" | "derived" | "price_file";
   sourceRecordCount: number;
   periods: Record<string, { sales?: number; quantity?: number; stock?: number }>;
 };
@@ -80,6 +80,8 @@ export interface ProductMovementAnalysis {
     knownZeroMovementPurchaseValue?: number;
     knownZeroMovementPublicValue?: number;
     knownZeroMovementPotentialProfit?: number;
+    matchedByCodeRecordCount: number;
+    matchedByNameRecordCount: number;
   };
 }
 
@@ -91,6 +93,7 @@ const mapFields = (mappings: ColumnMapping[]): FieldMap => mappings.reduce((resu
 const valueFor = (record: CleanRecord, fields: FieldMap, field: CanonicalField) => fields[field] ? record[fields[field] as string] : undefined;
 const textFor = (record: CleanRecord, fields: FieldMap, field: CanonicalField) => String(valueFor(record, fields, field) ?? "").trim();
 const numberFor = (record: CleanRecord, fields: FieldMap, field: CanonicalField) => toNumber(valueFor(record, fields, field) as never);
+const normalizedItemKey = (value: string) => value.toLowerCase().replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي").replace(/[^a-z0-9\u0621-\u064a]+/g, "").trim();
 
 const arabicMonthNumbers: Record<string, number> = {
   "يناير": 1, "فبراير": 2, "مارس": 3, "ابريل": 4, "أبريل": 4, "مايو": 5, "يونيو": 6,
@@ -143,7 +146,10 @@ export function analyzeProductMovement(sheets: SheetInspection[]): ProductMoveme
   let hasDirectPurchasePrice = false;
   let hasDirectPublicPrice = false;
   let hasDirectMargin = false;
+  let hasPriceFilePrice = false;
   let zeroBalanceRawRecordCount = 0;
+  let matchedByCodeRecordCount = 0;
+  let matchedByNameRecordCount = 0;
 
   for (const sheet of sheets) {
     const fields = mapFields(sheet.mappings);
@@ -154,7 +160,12 @@ export function analyzeProductMovement(sheets: SheetInspection[]): ProductMoveme
       const itemName = textFor(record, fields, "item_name");
       if (!itemName) continue;
       const itemCode = textFor(record, fields, "item_code") || undefined;
-      const id = itemCode || itemName;
+      const normalizedCode = normalizedItemKey(itemCode ?? "");
+      const normalizedName = normalizedItemKey(itemName);
+      const linkedByCode = Boolean(normalizedCode);
+      const id = linkedByCode ? `code:${normalizedCode}` : `name:${normalizedName}`;
+      if (linkedByCode) matchedByCodeRecordCount += 1;
+      else matchedByNameRecordCount += 1;
       const period = resolvePeriod(sheet, record);
       if (period) periodMap.set(period.key, period);
 
@@ -175,6 +186,7 @@ export function analyzeProductMovement(sheets: SheetInspection[]): ProductMoveme
       hasDirectPurchasePrice ||= directPurchasePrice !== undefined;
       hasDirectPublicPrice ||= directPublicPrice !== undefined;
       hasDirectMargin ||= directMargin !== undefined;
+      hasPriceFilePrice ||= record.__metrics.priceSource === "price_file";
 
       const existing = itemMap.get(id);
       const next: ProductMovementItem = existing ?? {
@@ -192,11 +204,11 @@ export function analyzeProductMovement(sheets: SheetInspection[]): ProductMoveme
       next.sales = sumKnown(next.sales, sales);
       next.quantity = sumKnown(next.quantity, quantity);
       next.purchasePrice = purchasePrice ?? next.purchasePrice;
-      next.purchasePriceSource ??= directPurchasePrice !== undefined ? "source" : purchasePrice !== undefined ? "derived" : undefined;
+      next.purchasePriceSource ??= directPurchasePrice !== undefined ? "source" : record.__metrics.priceSource === "price_file" && purchasePrice !== undefined ? "price_file" : purchasePrice !== undefined ? "derived" : undefined;
       next.publicPrice = publicPrice ?? next.publicPrice;
-      next.publicPriceSource ??= directPublicPrice !== undefined ? "source" : publicPrice !== undefined ? "derived" : undefined;
+      next.publicPriceSource ??= directPublicPrice !== undefined ? "source" : record.__metrics.priceSource === "price_file" && publicPrice !== undefined ? "price_file" : publicPrice !== undefined ? "derived" : undefined;
       next.margin = margin ?? next.margin;
-      next.marginSource ??= directMargin !== undefined ? "source" : margin !== undefined ? "derived" : undefined;
+      next.marginSource ??= directMargin !== undefined ? "source" : record.__metrics.priceSource === "price_file" && margin !== undefined ? "price_file" : margin !== undefined ? "derived" : undefined;
       next.sourceRecordCount += 1;
       if (period) {
         const prior = next.periods[period.key] ?? {};
@@ -218,6 +230,7 @@ export function analyzeProductMovement(sheets: SheetInspection[]): ProductMoveme
   if (periods.length < 2) dataGaps.push("لا توجد فترتان زمنيتان قابلتان للمقارنة. أضف عمود «تاريخ البيع» أو شيتًا مستقلًا لكل شهر بعنوان الشهر فقط (مثل 6، 7، 8). ");
   if (!hasQuantity) dataGaps.push("لا توجد كمية حركة صالحة عبر فترات متعددة، لذلك لا يمكن تقدير الاحتياج للوصول إلى معدل الطلب السابق.");
   if (!hasPurchasePrice) dataGaps.push("سعر الشراء غير موجود في الملف؛ ستظهر قيمته وقيمة المخزون بالتكلفة وهامش الربح كغير متاحين بدل تقديرها.");
+  else if (hasPriceFilePrice) dataGaps.push("تمت مطابقة أسعار الشراء أو الجمهور من ملف الأسعار الإضافي؛ تُستخدم فقط في الأصناف التي نجحت مطابقتها.");
   else if (!hasDirectPurchasePrice) dataGaps.push("سعر الشراء المعروض مشتق من إجمالي تكلفة مقسومًا على الكمية؛ لا يوجد عمود سعر شراء مباشر في المصدر.");
   if (!hasPublicPrice) dataGaps.push("سعر الجمهور/البيع غير موجود في الملف؛ ستظهر قيمته كغير متاحة بدل تقديرها.");
   else if (!hasDirectPublicPrice) dataGaps.push("لا يوجد عمود مستقل لسعر الجمهور؛ سعر الوحدة المعروض مشتق من إجمالي البيع ÷ كمية الحركة، وليس سعر قائمة رسميًا.");
@@ -320,6 +333,8 @@ export function analyzeProductMovement(sheets: SheetInspection[]): ProductMoveme
       knownZeroMovementPurchaseValue,
       knownZeroMovementPublicValue,
       knownZeroMovementPotentialProfit,
+      matchedByCodeRecordCount,
+      matchedByNameRecordCount,
     },
   };
 }

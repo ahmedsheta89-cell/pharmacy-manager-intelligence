@@ -57,6 +57,7 @@ export type CleanRecord = RawRecord & {
     profitMargin?: number;
     discount?: number;
     date?: Date;
+    priceSource?: "price_file";
   };
 };
 
@@ -296,10 +297,12 @@ function calculateMetrics(record: RawRecord, mapsByField: Partial<Record<Canonic
   const get = (field: CanonicalField) => record[mapsByField[field] ?? ""];
   const quantity = toNumber(get("quantity_sold")) ?? toNumber(get("sales_quantity"));
   const directSales = toNumber(get("sales_total"));
-  const salePrice = toNumber(get("sale_price"));
+  const externalSalePrice = toNumber(record.__priceFilePublic);
+  const externalCostPrice = toNumber(record.__priceFilePurchase);
+  const salePrice = toNumber(get("sale_price")) ?? externalSalePrice;
   const sales = directSales ?? (salePrice !== undefined && quantity !== undefined ? salePrice * quantity : undefined);
   const directCost = toNumber(get("total_cost"));
-  const costPrice = toNumber(get("cost_price"));
+  const costPrice = toNumber(get("cost_price")) ?? externalCostPrice;
   const cost = directCost ?? (costPrice !== undefined && quantity !== undefined ? costPrice * quantity : undefined);
   const directProfit = toNumber(get("profit"));
   const profit = directProfit ?? (sales !== undefined && cost !== undefined ? sales - cost : undefined);
@@ -309,7 +312,7 @@ function calculateMetrics(record: RawRecord, mapsByField: Partial<Record<Canonic
   const profitMargin = directMargin ?? (profit !== undefined && sales !== undefined && sales > 0 ? (profit / sales) * 100 : undefined);
   const discount = toNumber(get("discount_value"));
   const date = toDate(get("sale_date")) ?? toDate(get("expense_date")) ?? toDate(get("transaction_date"));
-  return { sales, quantity, cost, profit, unitSalePrice, unitCost, profitMargin, discount, date };
+  return { sales, quantity, cost, profit, unitSalePrice, unitCost, profitMargin, discount, date, priceSource: externalSalePrice !== undefined || externalCostPrice !== undefined ? "price_file" : undefined };
 }
 
 /**
