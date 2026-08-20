@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { AlertCircle, ArrowLeft, Check, ChevronLeft, Download, Eye, FileSpreadsheet, LockKeyhole, ShieldCheck, SlidersHorizontal, TableProperties, X } from "lucide-react";
+import { AlertCircle, ArrowLeft, Check, ChevronLeft, Download, Eye, FileSpreadsheet, LockKeyhole, Save, ShieldCheck, SlidersHorizontal, TableProperties, Trash2, X } from "lucide-react";
 import {
   approveAllSuggestions,
   approveSheetSuggestions,
@@ -12,6 +12,7 @@ import { fieldArabicName, formatNumber, type CanonicalField, type ImportInspecti
 import type { WorkbookStructureReview } from "@/lib/excelInspector";
 import { createImportAuditRecord, exportImportAuditMap, loadImportAuditLog, type ImportAuditRecord } from "@/lib/importAuditLog";
 import type { PriceMatchReport } from "@/lib/multiPeriodImport";
+import type { ColumnMapTemplate } from "@/lib/columnMapTemplates";
 
 const ALL_FIELDS = Object.entries(fieldArabicName) as Array<[CanonicalField, string]>;
 
@@ -26,6 +27,9 @@ type Props = {
   onRequestPriceReview?: (file?: File) => Promise<void>;
   priceMatchReport?: PriceMatchReport | null;
   reviewKind?: "analysis" | "prices";
+  columnMapTemplates?: ColumnMapTemplate[];
+  onSaveColumnMapTemplate?: (name: string) => void;
+  onDeleteColumnMapTemplate?: (id: string) => void;
 };
 
 function confidenceStyle(score: number) {
@@ -49,23 +53,47 @@ function uniqueKey(mapping: SheetInspection["mappings"][number]) {
   return mapping.dataColumn ?? `${mapping.sourceColumn}-${mapping.headerColumn ?? ""}`;
 }
 
-export function ImportReviewCenter({ inspection, structure, selectedSheetIndex, onSheet, onChange, onCancel, onConfirm, onRequestPriceReview, priceMatchReport, reviewKind = "analysis" }: Props) {
+function columnIndex(column?: string) {
+  if (!column) return -1;
+  return column.toUpperCase().split("").reduce((result, letter) => (result * 26) + letter.charCodeAt(0) - 64, 0) - 1;
+}
+
+function valueText(value: unknown) {
+  return value === null || value === undefined || value === "" ? "—" : String(value);
+}
+
+export function ImportReviewCenter({ inspection, structure, selectedSheetIndex, onSheet, onChange, onCancel, onConfirm, onRequestPriceReview, priceMatchReport, reviewKind = "analysis", columnMapTemplates = [], onSaveColumnMapTemplate, onDeleteColumnMapTemplate }: Props) {
   const [showConfirm, setShowConfirm] = useState(false);
   const [previewRows, setPreviewRows] = useState(30);
   const [auditHistory] = useState(() => loadImportAuditLog());
+  const [reviewedSheets, setReviewedSheets] = useState<Record<string, boolean>>({});
+  const [columnTemplateName, setColumnTemplateName] = useState("برنامج الصيدلية");
+  const [templateSavedName, setTemplateSavedName] = useState("");
   const sheet = inspection.sheets[selectedSheetIndex] ?? inspection.sheets[0];
   const structural = structure?.sheets.find((item) => item.name === sheet?.name);
   const readiness = useMemo(() => getImportReadiness(inspection), [inspection]);
   if (!sheet) return null;
 
   const applyChoice = (mapping: SheetInspection["mappings"][number], value: string) => {
-    onChange(setColumnMapping(inspection, sheet.name, mapping.dataColumn, mapping.sourceColumn, value as MappingChoice));
+    applyInspectionChange(setColumnMapping(inspection, sheet.name, mapping.dataColumn, mapping.sourceColumn, value as MappingChoice));
   };
   const exportMap = () => exportImportAuditMap(createImportAuditRecord(inspection, structure));
   const rawRows = structural?.rawPreview ?? [];
   const visibleRawRows = rawRows.slice(0, previewRows);
   const headerRow = structural?.selectedHeaderRow ?? sheet.headerRowIndex;
   const originalColumns = structural?.columns ?? sheet.headers.map((header, index) => ({ letter: String(index + 1), rawHeader: header, displayHeader: header, isHidden: false, samples: [], nullRate: 0, typeDistribution: { text: 0, numeric: 0, date: 0, boolean: 0, mixed: false }, index, nonEmptyCount: 0, isNumericHeader: false, isDuplicateHeader: false }));
+  const comparedSheets = inspection.sheets.filter((item) => item.mappings.length > 0).map((item) => item.name);
+  const currentSheetReviewed = Boolean(reviewedSheets[sheet.name]);
+  const allSheetsReviewed = comparedSheets.length > 0 && comparedSheets.every((name) => reviewedSheets[name]);
+  const canConfirm = readiness.ready && allSheetsReviewed;
+  const comparisonStart = Math.min(Math.max(headerRow + 1, 0), rawRows.length);
+  const comparisonSourceRows = rawRows.slice(comparisonStart, comparisonStart + 5);
+  const mappedFields = sheet.mappings.filter((mapping) => mapping.field !== "unknown" && mapping.approvalStatus !== "ignored" && columnIndex(mapping.dataColumn) >= 0);
+  const applyInspectionChange = (next: ImportInspection, resetAll = false) => {
+    setReviewedSheets((current) => resetAll ? {} : { ...current, [sheet.name]: false });
+    setTemplateSavedName("");
+    onChange(next);
+  };
 
   return <main className="app-canvas min-h-screen p-3 sm:p-6" dir="rtl">
     <div className="mx-auto max-w-[1640px]">
@@ -78,13 +106,14 @@ export function ImportReviewCenter({ inspection, structure, selectedSheetIndex, 
           <button onClick={onCancel} className="rounded-xl border border-[#d6e4dd] bg-white px-3.5 py-2.5 text-xs font-bold text-[#43655b] hover:border-[#a7cabc]"><X className="ml-1 inline size-3.5" />إلغاء</button>
           <button onClick={exportMap} disabled={readiness.pendingColumns > 0} className="rounded-xl border border-[#bfd9ce] bg-[#eff8f2] px-3.5 py-2.5 text-xs font-bold text-[#245f4e] disabled:cursor-not-allowed disabled:opacity-45"><Download className="ml-1 inline size-3.5" />تصدير خريطة الاعتماد</button>
           {onRequestPriceReview && <label className="cursor-pointer rounded-xl border border-[#ead7aa] bg-[#fff9e9] px-3.5 py-2.5 text-xs font-bold text-[#805f14] hover:bg-[#fff2d4]"><FileSpreadsheet className="ml-1 inline size-3.5" />مراجعة ملف أسعار إضافي<input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={(event) => { void onRequestPriceReview(event.target.files?.[0]); event.target.value = ""; }} /></label>}
-          <button onClick={() => setShowConfirm(true)} disabled={!readiness.ready} className="rounded-xl bg-[#123c37] px-4 py-2.5 text-xs font-bold text-white hover:bg-[#17564c] disabled:cursor-not-allowed disabled:bg-[#8da59c]"><ShieldCheck className="ml-1 inline size-3.5" />بدء التحليل بعد الاعتماد <ArrowLeft className="mr-1 inline size-3.5" /></button>
+          <button onClick={() => setShowConfirm(true)} disabled={!canConfirm} className="rounded-xl bg-[#123c37] px-4 py-2.5 text-xs font-bold text-white hover:bg-[#17564c] disabled:cursor-not-allowed disabled:bg-[#8da59c]"><ShieldCheck className="ml-1 inline size-3.5" />بدء التحليل بعد الاعتماد <ArrowLeft className="mr-1 inline size-3.5" /></button>
         </div>
       </header>
 
       <section className={`mb-5 rounded-2xl border p-4 ${readiness.ready ? "border-[#b9dfcd] bg-[#eef9f2]" : "border-[#edd9ae] bg-[#fffaf0]"}`}>
         <div className="flex flex-wrap items-start justify-between gap-4"><div className="flex items-start gap-3"><div className={`mt-0.5 grid size-8 place-items-center rounded-lg ${readiness.ready ? "bg-[#d8f0e2] text-[#226d55]" : "bg-[#fff0d0] text-[#9c6e19]"}`}><LockKeyhole className="size-4" /></div><div><p className="text-sm font-bold text-[#234d43]">بوابة اعتماد المدير</p><p className="mt-1 max-w-3xl text-xs leading-5 text-[#617a70]">الاقتراحات لا تُطبق تلقائيًا. راجع أسماء الأعمدة والعينات، ثم اعتمد الاقتراح أو عيّن الحقل المناسب أو استبعد العمود. لا يبدأ التحليل ما دام قرار واحد معلّقًا.</p></div></div><div className="flex flex-wrap gap-2 text-[10px] font-bold"><span className="rounded-lg bg-white px-2.5 py-1.5 text-[#477167]">{readiness.approvedColumns} معتمد</span><span className="rounded-lg bg-white px-2.5 py-1.5 text-[#94701c]">{readiness.overriddenColumns} تعديل مدير</span><span className="rounded-lg bg-white px-2.5 py-1.5 text-[#718078]">{readiness.ignoredColumns} مستبعد</span>{readiness.pendingColumns > 0 && <span className="rounded-lg bg-[#fff0eb] px-2.5 py-1.5 text-[#a94d3e]">{readiness.pendingColumns} قرار معلّق</span>}</div></div>
-        {!readiness.ready && <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#ebddb9] bg-white/70 px-3 py-2.5"><p className="text-[11px] text-[#775f1b]">{readiness.unresolvedCriticalFields.length ? `ينقص تعيين: ${readiness.unresolvedCriticalFields.join("، ")}.` : "اعتمد أو استبعد كل الأعمدة قبل المتابعة."}</p><button onClick={() => onChange(approveAllSuggestions(inspection))} className="rounded-lg bg-[#173f38] px-3 py-2 text-[11px] font-bold text-white hover:bg-[#17564c]"><Check className="ml-1 inline size-3.5" />اعتماد جميع الاقتراحات بعد المراجعة</button></div>}
+        {!readiness.ready && <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#ebddb9] bg-white/70 px-3 py-2.5"><p className="text-[11px] text-[#775f1b]">{readiness.unresolvedCriticalFields.length ? `ينقص تعيين: ${readiness.unresolvedCriticalFields.join("، ")}.` : "اعتمد أو استبعد كل الأعمدة قبل المتابعة."}</p><button onClick={() => applyInspectionChange(approveAllSuggestions(inspection), true)} className="rounded-lg bg-[#173f38] px-3 py-2 text-[11px] font-bold text-white hover:bg-[#17564c]"><Check className="ml-1 inline size-3.5" />اعتماد جميع الاقتراحات بعد المراجعة</button></div>}
+        {readiness.ready && !allSheetsReviewed && <div className="mt-3 rounded-xl border border-[#d9d0a4] bg-[#fff9e8] px-3 py-2.5 text-[11px] leading-5 text-[#7b641b]">اكتملت قرارات الأعمدة، ويتبقى تأكيد معاينة الصفوف المصححة في {comparedSheets.filter((name) => !reviewedSheets[name]).length} شيت قبل تفعيل بدء التحليل.</div>}
         {priceMatchReport && <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#c7dfd2] bg-white/75 px-3 py-2.5 text-[11px] text-[#356457]"><span><b>آخر مطابقة أسعار معتمدة:</b> {priceMatchReport.matchRate.toLocaleString("ar-EG", { maximumFractionDigits: 1 })}%</span><span>{formatNumber(priceMatchReport.matchedRecords)} سجل مطابق · {formatNumber(priceMatchReport.unmatchedRecords)} غير مطابق</span></div>}
       </section>
 
@@ -96,7 +125,7 @@ export function ImportReviewCenter({ inspection, structure, selectedSheetIndex, 
             const source = structure?.sheets.find((review) => review.name === item.name);
             return <button key={`${item.name}-${index}`} onClick={() => onSheet(index)} className={`w-full rounded-xl border p-3 text-right ${active ? "border-[#75ae9e] bg-[#eaf5ef]" : "border-transparent bg-[#f3f6f2] hover:border-[#d1e3da]"}`}><div className="flex items-center justify-between gap-3"><span className="truncate text-sm font-bold text-[#1e4a42]">{item.name}</span><span className="rounded-md bg-white px-1.5 py-0.5 text-[10px] font-bold text-[#356457]">{formatNumber(item.rows)} × {formatNumber(item.columns)}</span></div><p className="mt-1.5 text-[10px] text-[#72867e]">رأس مقترح: صف {item.headerRowIndex + 1}{source?.visibility !== "visible" ? " · شيت مخفي" : ""}</p></button>;
           })}</div>
-          <button onClick={() => onChange(approveSheetSuggestions(inspection, sheet.name))} className="mt-4 w-full rounded-xl border border-[#bdddd0] bg-[#eff9f3] px-3 py-2.5 text-xs font-bold text-[#286b55] hover:bg-[#e2f3e9]"><Check className="ml-1 inline size-3.5" />اعتماد قرارات هذا الشيت</button>
+          <button onClick={() => applyInspectionChange(approveSheetSuggestions(inspection, sheet.name))} className="mt-4 w-full rounded-xl border border-[#bdddd0] bg-[#eff9f3] px-3 py-2.5 text-xs font-bold text-[#286b55] hover:bg-[#e2f3e9]"><Check className="ml-1 inline size-3.5" />اعتماد قرارات هذا الشيت</button>
           {auditHistory.length > 0 && <div className="mt-5 border-t border-[#e2ece6] pt-4"><p className="text-[11px] font-bold text-[#365e54]">آخر اعتماد محلي</p><p className="mt-1.5 text-[10px] leading-5 text-[#72867e]">{auditHistory[0].fileName}<br />{new Date(auditHistory[0].timestamp).toLocaleDateString("ar-EG")}</p></div>}
         </aside>
 
@@ -118,6 +147,17 @@ export function ImportReviewCenter({ inspection, structure, selectedSheetIndex, 
               return <tr key={uniqueKey(mapping)} className="border-t border-[#edf2ee] text-xs"><td className="px-4 py-3"><span className="font-bold text-[#2c554b]">{mapping.dataColumn ?? "—"}</span><p className="mt-1 text-[9px] text-[#71857d]">القيم كما ظهرت في Excel</p></td><td className="px-4 py-3"><span className="font-bold text-[#2c554b]">{mapping.headerColumn ?? "لا يوجد"}</span><span className="mr-1 text-[#627a71]">{mapping.sourceColumn}</span>{mapping.adjustedForHeaderShift && <span className="mr-2 rounded bg-[#fff1df] px-1.5 py-0.5 text-[9px] font-bold text-[#936417]">رأس مزاح</span>}</td><td className="max-w-[180px] px-4 py-3 text-[#71857d]">{mapping.sample}</td><td className="px-4 py-3 text-[#405e54]">{mapping.proposedField && mapping.proposedField !== "unknown" ? fieldArabicName[mapping.proposedField] : "غير معروف"}</td><td className="px-4 py-3"><span className={`rounded-md border px-2 py-1 text-[10px] font-bold ${confidence.className}`}>{mapping.score}% · {confidence.label}</span><p className="mt-1.5 max-w-[190px] text-[10px] leading-4 text-[#788a84]">{mapping.reason}</p></td><td className="px-4 py-3"><select value={choice} onChange={(event) => applyChoice(mapping, event.target.value)} className="min-w-[180px] rounded-lg border border-[#cdded6] bg-white px-2.5 py-2 text-xs font-semibold text-[#2c574c] focus:border-[#298369] focus:outline-none"><option value="ignore">تجاهل من التحليل</option>{ALL_FIELDS.map(([field, label]) => <option value={field} key={field}>{label}</option>)}</select></td><td className="px-4 py-3"><span className={`rounded-md px-2 py-1 text-[10px] font-bold ${decisionStyle(mapping.approvalStatus)}`}>{decisionLabel(mapping.approvalStatus)}</span>{mapping.approvalStatus === "overridden" && <p className="mt-1 max-w-[160px] text-[9px] leading-4 text-[#927028]">{mapping.approvalReason}</p>}</td></tr>;
             })}</tbody></table></div>
           </section>
+
+          <section className="overflow-hidden rounded-2xl border border-[#c9ded4] bg-[#fcfcf8] shadow-[0_10px_30px_rgba(28,73,61,.05)]">
+            <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#e0ece5] bg-[#f3f8f4] px-4 py-4 sm:px-5"><div><div className="flex items-center gap-2"><Eye className="size-4 text-[#0b6b5b]" /><h2 className="font-bold text-[#214a41]">مقارنة مرئية للصفوف — المصدر مقابل الخريطة المصححة</h2></div><p className="mt-1 max-w-3xl text-[11px] leading-5 text-[#667e74]">الأصل يعرض Excel كما هو، والمصحح يوضح مواقع القيم التي ستُقرأ بعد الخريطة الحالية. لا تُنشأ نسخة من الملف ولا تُغيّر أي قيمة.</p></div><span className="rounded-lg bg-white px-2.5 py-1.5 text-[10px] font-bold text-[#286b55]">{comparisonSourceRows.length} صفوف عينة</span></div>
+            <div className="grid gap-px bg-[#dfece5] xl:grid-cols-2">
+              <div className="bg-white p-4"><div className="mb-3 flex flex-wrap items-center justify-between gap-2"><div><p className="text-xs font-bold text-[#30594e]">الصف الأصلي من Excel</p><p className="mt-1 text-[10px] text-[#7b8e86]">حروف الأعمدة والقيم الخام كما ظهرت في الملف.</p></div><span className="rounded-md bg-[#edf2ee] px-2 py-1 text-[9px] font-bold text-[#617970]">مصدر غير معدّل</span></div>{(sheet.removedHeaders ?? []).map((header) => <p key={header.headerColumn} className="mb-2 rounded-lg border border-[#efc7be] bg-[#fff2ef] px-2.5 py-2 text-[10px] font-bold leading-5 text-[#9c4032]">رأس وهمي مُزال من التفسير: {header.headerColumn} «{header.title}» — لا تُحذف أي قيمة من عمود البيانات.</p>)}<div className="space-y-3">{comparisonSourceRows.map((row, rowIndex) => <article key={`source-${rowIndex}`} className="rounded-xl border border-[#e1ebe5] bg-[#fbfcfa] p-3"><p className="mb-2 text-[10px] font-bold text-[#58746a]">صف Excel {comparisonStart + rowIndex + 1}</p><div className="grid gap-2 sm:grid-cols-2">{originalColumns.map((column) => { const mapping = sheet.mappings.find((item) => item.dataColumn === column.letter); const tone = mapping?.adjustedForHeaderShift ? "border-[#eed4a5] bg-[#fff9ea] text-[#875d14]" : mapping ? "border-[#bfdfcd] bg-[#effaf3] text-[#286b55]" : "border-[#e3e9e5] bg-white text-[#647a72]"; return <div key={`${rowIndex}-${column.letter}`} className={`rounded-lg border px-2.5 py-2 ${tone}`}><p className="text-[9px] font-bold">{column.letter} · {column.rawHeader || "بلا عنوان"}</p><p className="mt-1 break-words text-[11px] font-semibold">{valueText(row[column.index])}</p></div>; })}</div></article>)}</div></div>
+              <div className="bg-[#fcfdfb] p-4"><div className="mb-3 flex flex-wrap items-center justify-between gap-2"><div><p className="text-xs font-bold text-[#30594e]">الصف المصحح وفق الخريطة</p><p className="mt-1 text-[10px] text-[#7b8e86]">اسم الحقل ← موقع قيمة Excel، قبل أي تحليل أو استبدال.</p></div><div className="flex gap-1.5 text-[9px] font-bold"><span className="rounded-md bg-[#effaf3] px-2 py-1 text-[#286b55]">مطابق</span><span className="rounded-md bg-[#fff6df] px-2 py-1 text-[#936417]">رأس مزاح</span></div></div><div className="space-y-3">{comparisonSourceRows.map((row, rowIndex) => <article key={`mapped-${rowIndex}`} className="rounded-xl border border-[#dce9e2] bg-white p-3"><p className="mb-2 text-[10px] font-bold text-[#58746a]">الصف المصحح {comparisonStart + rowIndex + 1}</p><div className="grid gap-2 sm:grid-cols-2">{mappedFields.map((mapping) => { const shifted = mapping.adjustedForHeaderShift; const cellIndex = columnIndex(mapping.dataColumn); return <div key={`${rowIndex}-${uniqueKey(mapping)}`} className={`rounded-lg border px-2.5 py-2 ${shifted ? "border-[#eed4a5] bg-[#fff9ea] text-[#875d14]" : "border-[#bfdfcd] bg-[#effaf3] text-[#286b55]"}`}><p className="text-[9px] font-bold">{fieldArabicName[mapping.field as keyof typeof fieldArabicName] ?? "حقل غير معروف"} <span className="opacity-70">← {mapping.dataColumn}</span></p><p className="mt-1 break-words text-[11px] font-semibold">{valueText(row[cellIndex])}</p></div>; })}</div>{!mappedFields.length && <p className="rounded-lg bg-[#fff4ef] px-2.5 py-2 text-[10px] text-[#9d4e3b]">لم تُعتمد حقول قابلة للمقارنة في هذا الشيت بعد.</p>}</article>)}</div></div>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#e0ece5] bg-[#f8fbf8] px-4 py-3.5"><p className="max-w-2xl text-[10px] leading-5 text-[#637a71]">أكّد بعد مراجعة العينات أن قيمة كل حقل في الجانب المصحح مأخوذة من العمود الصحيح في المصدر. يعاد طلب التأكيد تلقائيًا إذا تغير أي قرار للعمود.</p><label className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-[11px] font-bold ${currentSheetReviewed ? "border-[#9fd1ba] bg-[#eaf7ef] text-[#21674f]" : "border-[#d7bf7e] bg-[#fff9e8] text-[#795e15]"}`}><input type="checkbox" checked={currentSheetReviewed} disabled={!comparisonSourceRows.length} onChange={(event) => setReviewedSheets((current) => ({ ...current, [sheet.name]: event.target.checked }))} className="size-3.5 accent-[#16735b]" />أؤكد أنني راجعت مقارنة هذا الشيت</label></div>
+          </section>
+
+          {reviewKind === "analysis" && onSaveColumnMapTemplate && <section className="rounded-2xl border border-[#dbe8e1] bg-[#fcfcf8] p-4 shadow-[0_10px_30px_rgba(28,73,61,.05)]"><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex items-center gap-2"><Save className="size-4 text-[#0b6b5b]" /><h2 className="font-bold text-[#214a41]">قوالب خريطة الأعمدة المحلية</h2></div><p className="mt-1 max-w-2xl text-[11px] leading-5 text-[#73857e]">يحفظ القالب قرارات الأعمدة وترتيب العناوين وقاعدة الانزياح فقط؛ لا يُحفظ أي صف أو قيمة من ملف Excel. يحدّث الاسم نفسه القالب الحالي.</p></div><span className="rounded-lg bg-[#eff8f2] px-2.5 py-1.5 text-[10px] font-bold text-[#286b55]">{columnMapTemplates.length} قالب محلي</span></div><div className="mt-3 flex flex-col gap-2 sm:flex-row"><input value={columnTemplateName} maxLength={48} onChange={(event) => { setColumnTemplateName(event.target.value); setTemplateSavedName(""); }} className="min-w-0 flex-1 rounded-xl border border-[#cbded5] bg-white px-3 py-2.5 text-xs font-semibold text-[#31594f] outline-none focus:border-[#38866f]" aria-label="اسم قالب خريطة الأعمدة" /><button onClick={() => { const name = columnTemplateName.trim(); if (!name) return; onSaveColumnMapTemplate(name); setTemplateSavedName(name); }} disabled={!readiness.ready || !allSheetsReviewed || !columnTemplateName.trim()} className="rounded-xl bg-[#123c37] px-4 py-2.5 text-xs font-bold text-white hover:bg-[#17564c] disabled:cursor-not-allowed disabled:bg-[#8da59c]"><Save className="ml-1 inline size-3.5" />حفظ كقالب</button></div>{templateSavedName && <p className="mt-2 rounded-lg border border-[#b9dfcd] bg-[#eef9f2] px-3 py-2 text-[10px] font-bold text-[#287057]">تم حفظ خريطة الأعمدة باسم «{templateSavedName}» محليًا.</p>}<div className="mt-3 grid gap-2 md:grid-cols-2">{columnMapTemplates.length ? columnMapTemplates.map((template) => <div key={template.id} className="flex items-center justify-between gap-3 rounded-xl border border-[#e0ebe5] bg-[#f8fbf8] px-3 py-2.5"><div className="min-w-0"><p className="truncate text-xs font-bold text-[#315a4f]">{template.name}</p><p className="mt-1 text-[9px] text-[#7a8d85]">{template.sheets.length} شيت · آخر حفظ {new Date(template.updatedAt).toLocaleDateString("ar-EG")}</p></div>{onDeleteColumnMapTemplate && <button onClick={() => onDeleteColumnMapTemplate(template.id)} className="grid size-8 shrink-0 place-items-center rounded-lg border border-[#ead5cf] bg-white text-[#a34c3d] hover:bg-[#fff4f1]" aria-label={`حذف قالب ${template.name}`}><Trash2 className="size-3.5" /></button>}</div>) : <p className="rounded-xl border border-dashed border-[#d4e2db] px-3 py-3 text-[10px] text-[#73857e]">لا يوجد قالب محفوظ بعد. اعتمد الخريطة وراجِع المقارنة البصرية، ثم احفظ قالب «برنامج الصيدلية».</p>}</div></section>}
         </div>
       </div>
 

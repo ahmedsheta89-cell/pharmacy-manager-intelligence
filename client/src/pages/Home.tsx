@@ -86,6 +86,7 @@ import { exportInventoryFlowWorkbook } from "@/lib/inventoryFlowExport";
 import { ImportReviewCenter } from "@/components/ImportReviewCenter";
 import { inspectWorkbookStructure, type WorkbookStructureReview } from "@/lib/excelInspector";
 import { recordImportAudit, type ImportAuditRecord } from "@/lib/importAuditLog";
+import { createColumnMapTemplate, deleteColumnMapTemplate, findColumnMapTemplateCompatibility, loadColumnMapTemplates, saveColumnMapTemplate, type ColumnMapTemplate, type ColumnMapTemplateCompatibility } from "@/lib/columnMapTemplates";
 
 type Stage = "welcome" | "review" | "dashboard";
 type DashboardView = "overview" | "sales" | "products" | "movement" | "flow" | "companies" | "inventory" | "branches" | "alerts" | "report" | "settings";
@@ -146,6 +147,11 @@ function EmptyMetric({ label, note }: { label: string; note: string }) {
   return <div className="rounded-2xl border border-dashed border-[#c9dcd4] bg-[#f8faf6]/70 p-4"><p className="text-xs font-semibold text-[#385b51]">{label}</p><p className="mt-2 text-xs leading-5 text-[#788b84]">{note}</p></div>;
 }
 
+function ColumnMapMismatchWarning({ compatibility, onContinue, onCancel }: { compatibility: ColumnMapTemplateCompatibility; onContinue: () => void; onCancel: () => void }) {
+  const differences = compatibility.differences.slice(0, 12);
+  return <div className="fixed inset-0 z-[70] overflow-y-auto bg-[#102f2a]/70 p-3 backdrop-blur-sm sm:p-6" role="dialog" aria-modal="true" aria-labelledby="column-map-warning-title"><div className="mx-auto my-3 w-full max-w-3xl rounded-2xl border border-[#e4c77a] bg-[#fffdf7] shadow-2xl"><div className="border-b border-[#f0dfaf] bg-[#fff7e2] px-5 py-4"><div className="flex items-start gap-3"><div className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#f4dfaa] text-[#876017]"><AlertCircle className="size-5" /></div><div><h2 id="column-map-warning-title" className="display-font text-lg font-semibold text-[#654b12]">تحذير: ترتيب الأعمدة لا يطابق القالب المعتمد</h2><p className="mt-1 text-xs leading-5 text-[#7b662b]">قورِن الملف الجديد بالقالب المحلي «{compatibility.template.name}». لن يُطبّق القالب تلقائيًا، ولن يبدأ التحليل قبل أن تتابع إلى مراجعة خريطة جديدة وتعتمدها بنفسك.</p></div></div></div><div className="p-5"><div className="mb-3 flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-bold text-[#284b42]">مواضع الاختلاف المكتشفة</p><span className="rounded-lg bg-[#fff2d5] px-2.5 py-1 text-[10px] font-bold text-[#89631b]">{compatibility.differences.length} اختلاف</span></div><div className="overflow-hidden rounded-xl border border-[#e7dec9]"><div className="grid grid-cols-[minmax(100px,.75fr)_minmax(0,1fr)_minmax(0,1fr)] bg-[#f8f3e5] px-3 py-2 text-[10px] font-bold text-[#6a624d]"><span>الموضع</span><span>المتوقع في القالب</span><span>الموجود في الملف</span></div>{differences.map((difference, index) => <div key={`${difference.kind}-${difference.sheetName}-${index}`} className="grid grid-cols-[minmax(100px,.75fr)_minmax(0,1fr)_minmax(0,1fr)] gap-2 border-t border-[#eee8db] px-3 py-2.5 text-[11px] leading-5"><span className="font-bold text-[#596f66]">{difference.sheetName}{difference.position !== undefined ? ` · ${String.fromCharCode(65 + difference.position)}` : ""}</span><span className="break-words text-[#71624a]">{difference.expected?.title || (difference.kind === "column_count" ? "عدد الأعمدة في القالب" : "—")}</span><span className="break-words font-semibold text-[#8d4937]">{difference.found?.title || difference.message}</span></div>)}</div>{compatibility.differences.length > differences.length && <p className="mt-2 text-[10px] text-[#788078]">توجد {compatibility.differences.length - differences.length} اختلافات إضافية؛ ستظهر تفاصيل بنية الملف كاملة في مركز المراجعة.</p>}<div className="mt-4 rounded-xl border border-[#e7dcc0] bg-[#fffaf0] px-3 py-2.5 text-[11px] leading-5 text-[#756134]"><b>قرار آمن:</b> اختر «مراجعة خريطة جديدة» لتفحص الصفوف الأصلية والمصححة يدويًا. لا يتجاوز هذا الإقرار أي موافقة على الخريطة، بل يفتح مرحلة المراجعة فقط.</div><div className="mt-5 flex flex-col-reverse justify-end gap-2 sm:flex-row"><button onClick={onCancel} className="rounded-xl border border-[#d7ded9] bg-white px-4 py-2.5 text-xs font-bold text-[#48665c]">إلغاء اختيار الملف</button><button onClick={onContinue} className="rounded-xl bg-[#123c37] px-4 py-2.5 text-xs font-bold text-white hover:bg-[#17564c]">أفهم الاختلاف — مراجعة خريطة جديدة <ChevronLeft className="mr-1 inline size-3.5" /></button></div></div></div></div>;
+}
+
 export default function Home() {
   const [stage, setStage] = useState<Stage>("welcome");
   const [inspection, setInspection] = useState<ImportInspection | null>(null);
@@ -179,6 +185,9 @@ export default function Home() {
   const [monthlyDraft, setMonthlyDraft] = useState<MonthlyFileDraft[]>([]);
   const [importTemplates, setImportTemplates] = useState<ImportTemplate[]>(() => loadImportTemplates());
   const [templateName, setTemplateName] = useState("");
+  const [columnMapTemplates, setColumnMapTemplates] = useState<ColumnMapTemplate[]>(() => loadColumnMapTemplates());
+  const [columnMapMismatch, setColumnMapMismatch] = useState<ColumnMapTemplateCompatibility | null>(null);
+  const [mismatchAcknowledged, setMismatchAcknowledged] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const monthlyFilesInput = useRef<HTMLInputElement>(null);
   const reportRef = useRef<HTMLElement>(null);
@@ -193,6 +202,12 @@ export default function Home() {
   const selectedSheet = inspection?.sheets[selectedSheetIndex];
   useEffect(() => { saveReportPreferences(reportPreferences); }, [reportPreferences]);
 
+  function assessColumnMapCompatibility(nextInspection: ImportInspection, nextStructure: WorkbookStructureReview) {
+    const compatibility = findColumnMapTemplateCompatibility(columnMapTemplates, nextInspection, nextStructure);
+    setColumnMapMismatch(compatibility?.compatible ? null : compatibility);
+    setMismatchAcknowledged(Boolean(compatibility?.compatible) || !compatibility);
+  }
+
   async function beginFile(file?: File) {
     if (!file) return;
     const fileName = file.name.toLowerCase();
@@ -201,7 +216,7 @@ export default function Home() {
     try {
       const [result, structure] = await Promise.all([inspectPharmacyFile(file), inspectWorkbookStructure(file)]);
       if (!result.sheets.some((sheet) => sheet.cleanRecords.length)) throw new Error("لم نعثر على صفوف بيانات قابلة للتحليل داخل الملف. راجع أن التقرير يحتوي على جدول فعلي.");
-      setInspection(result); setWorkbookStructure(structure); setSelectedSheetIndex(0); setStage("review");
+      assessColumnMapCompatibility(result, structure); setInspection(result); setWorkbookStructure(structure); setSelectedSheetIndex(0); setStage("review");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "تعذر قراءة الملف. تأكد من أن الملف غير محمي بكلمة مرور ثم حاول مجددًا.");
     } finally { setProcessing(false); }
@@ -236,10 +251,15 @@ export default function Home() {
     setImportTemplates(saveImportTemplate({ name, assignments, expectsPriceFile: false })); setTemplateName(name); setError("");
   }
   function removeImportTemplate(id: string) { setImportTemplates(deleteImportTemplate(id)); }
+  function saveCurrentColumnMapTemplate(name: string) {
+    if (!inspection || reviewSource !== "base") return;
+    setColumnMapTemplates(saveColumnMapTemplate(createColumnMapTemplate(name, inspection, workbookStructure)));
+  }
+  function removeColumnMapTemplate(id: string) { setColumnMapTemplates(deleteColumnMapTemplate(id)); }
   async function beginMonthlyFiles() {
     if (!monthlyDraft.length) return;
     setProcessing(true); setError(""); setAnswer(""); setPriceMatchReport(null);
-    try { const [result, reviews] = await Promise.all([inspectMonthlyFiles(monthlyDraft.map((entry) => entry.file), monthlyDraft.map((entry) => entry.month)), Promise.all(monthlyDraft.map((entry) => inspectWorkbookStructure(entry.file)))]); setInspection(result.inspection); setWorkbookStructure({ fileName: result.inspection.fileName, fileFingerprintHint: result.inspection.fileFingerprint, inspectedAt: new Date().toISOString(), sheets: result.months.flatMap((month) => (reviews.find((review) => review.fileName === month.fileName)?.sheets ?? []).map((sheet) => ({ ...sheet, name: month.label }))), warnings: reviews.flatMap((review) => review.warnings) }); setImportedMonths(result.months); setSelectedSheetIndex(0); setStage("review"); }
+    try { const [result, reviews] = await Promise.all([inspectMonthlyFiles(monthlyDraft.map((entry) => entry.file), monthlyDraft.map((entry) => entry.month)), Promise.all(monthlyDraft.map((entry) => inspectWorkbookStructure(entry.file)))]); const nextStructure = { fileName: result.inspection.fileName, fileFingerprintHint: result.inspection.fileFingerprint, inspectedAt: new Date().toISOString(), sheets: result.months.flatMap((month) => (reviews.find((review) => review.fileName === month.fileName)?.sheets ?? []).map((sheet) => ({ ...sheet, name: month.label }))), warnings: reviews.flatMap((review) => review.warnings) }; assessColumnMapCompatibility(result.inspection, nextStructure); setInspection(result.inspection); setWorkbookStructure(nextStructure); setImportedMonths(result.months); setSelectedSheetIndex(0); setStage("review"); }
     catch (caught) { setError(caught instanceof Error ? caught.message : "تعذر قراءة ملفات الأشهر."); }
     finally { setProcessing(false); }
   }
@@ -258,6 +278,7 @@ export default function Home() {
 
   function confirmImport(audit?: ImportAuditRecord) {
     if (!inspection) return;
+    if (columnMapMismatch && !mismatchAcknowledged) { setError("راجع تحذير اختلاف ترتيب الأعمدة قبل اعتماد أي خريطة."); return; }
     if (reviewSource === "price") {
       if (!priceInspection) return;
       const result = applyPriceFile(inspection, priceInspection);
@@ -278,7 +299,7 @@ export default function Home() {
     setFilters({}); setView("overview"); setStage("dashboard");
   }
 
-  function importNewFile() { setInspection(null); setWorkbookStructure(null); setPriceInspection(null); setPriceWorkbookStructure(null); setReviewSource("base"); setImportedMonths([]); setPriceMatchReport(null); setMonthlyDraft([]); setAnswer(""); setError(""); setStage("welcome"); }
+  function importNewFile() { setInspection(null); setWorkbookStructure(null); setPriceInspection(null); setPriceWorkbookStructure(null); setReviewSource("base"); setImportedMonths([]); setPriceMatchReport(null); setMonthlyDraft([]); setColumnMapMismatch(null); setMismatchAcknowledged(false); setAnswer(""); setError(""); setStage("welcome"); }
   function restoreAnalysisSession(session: LocalAnalysisSession) { setInspection(refreshImportedInspection(session.inspection)); setSelectedSheetIndex(0); setFilters({}); setAnswer(""); setView("overview"); setStage("dashboard"); }
   function removeAnalysisSession(session: LocalAnalysisSession) { setSavedSessions(deleteAnalysisSession(session.id)); }
   function updateSessionTags(id: string, tags: string[]) { setSavedSessions(updateAnalysisSessionTags(id, tags)); }
@@ -341,7 +362,7 @@ export default function Home() {
   if (stage === "review" && inspection && selectedSheet) {
     const activeInspection = reviewSource === "price" ? priceInspection : inspection;
     const activeStructure = reviewSource === "price" ? priceWorkbookStructure : workbookStructure;
-    if (activeInspection) return <ImportReviewCenter inspection={activeInspection} structure={activeStructure} selectedSheetIndex={selectedSheetIndex} onSheet={setSelectedSheetIndex} onChange={reviewSource === "price" ? setPriceInspection : setInspection} onCancel={reviewSource === "price" ? () => { setPriceInspection(null); setPriceWorkbookStructure(null); setReviewSource("base"); setSelectedSheetIndex(0); } : importNewFile} onConfirm={confirmImport} onRequestPriceReview={reviewSource === "base" ? beginPriceReview : undefined} priceMatchReport={reviewSource === "base" ? priceMatchReport : null} reviewKind={reviewSource === "price" ? "prices" : "analysis"} />;
+    if (activeInspection) return <><ImportReviewCenter inspection={activeInspection} structure={activeStructure} selectedSheetIndex={selectedSheetIndex} onSheet={setSelectedSheetIndex} onChange={reviewSource === "price" ? setPriceInspection : setInspection} onCancel={reviewSource === "price" ? () => { setPriceInspection(null); setPriceWorkbookStructure(null); setReviewSource("base"); setSelectedSheetIndex(0); } : importNewFile} onConfirm={confirmImport} onRequestPriceReview={reviewSource === "base" ? beginPriceReview : undefined} priceMatchReport={reviewSource === "base" ? priceMatchReport : null} reviewKind={reviewSource === "price" ? "prices" : "analysis"} columnMapTemplates={reviewSource === "base" ? columnMapTemplates : []} onSaveColumnMapTemplate={reviewSource === "base" ? saveCurrentColumnMapTemplate : undefined} onDeleteColumnMapTemplate={reviewSource === "base" ? removeColumnMapTemplate : undefined} />{columnMapMismatch && !mismatchAcknowledged && <ColumnMapMismatchWarning compatibility={columnMapMismatch} onContinue={() => setMismatchAcknowledged(true)} onCancel={importNewFile} />}</>;
   }
   if (!analytics || !inspection) return null;
 
