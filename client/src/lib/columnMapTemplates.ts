@@ -33,7 +33,7 @@ export type ColumnMapTemplateSheet = {
   headerOrder: ColumnMapTemplateHeader[];
   mappings: ColumnMapTemplateMapping[];
   removedHeaders: Array<{ headerColumn: string; title: string }>;
-  editorConfig?: Pick<SheetEditorConfig, "headerRowIndex" | "dataStartRowIndex" | "firstDataColumnIndex" | "excludedRowNumbers">;
+  editorConfig?: Pick<SheetEditorConfig, "headerRowIndex" | "dataStartRowIndex" | "firstDataColumnIndex" | "lastDataRowIndex" | "lastDataColumnIndex" | "excludedRowNumbers" | "textTransforms">;
 };
 
 export type ColumnMapTemplate = {
@@ -132,7 +132,23 @@ function normalizeSheets(value: unknown): ColumnMapTemplateSheet[] {
           headerRowIndex: Math.max(0, Number(editor.headerRowIndex)),
           dataStartRowIndex: Math.max(0, Number(editor.dataStartRowIndex)),
           firstDataColumnIndex: Math.max(0, Number(editor.firstDataColumnIndex)),
+          lastDataRowIndex: Math.max(0, Number.isInteger(editor.lastDataRowIndex) ? Number(editor.lastDataRowIndex) : Number(editor.dataStartRowIndex)),
+          lastDataColumnIndex: Math.max(0, Number.isInteger(editor.lastDataColumnIndex) ? Number(editor.lastDataColumnIndex) : Number(editor.firstDataColumnIndex)),
           excludedRowNumbers: Array.from(new Set((Array.isArray(editor.excludedRowNumbers) ? editor.excludedRowNumbers : []).map((item) => Math.trunc(Number(item))).filter((item) => item > 0))).sort((a, b) => a - b).slice(0, 500),
+          textTransforms: (Array.isArray(editor.textTransforms) ? editor.textTransforms : []).flatMap<SheetEditorConfig["textTransforms"][number]>((transform, index) => {
+            const item = transform as SheetEditorConfig["textTransforms"][number];
+            const id = String(item?.id ?? `template-transform-${index + 1}`).trim();
+            const target = String(item?.target ?? "").trim().slice(0, 80);
+            const separator = String(item?.separator ?? " ").slice(0, 20);
+            if (!id || !target) return [];
+            if (item.type === "merge") {
+              const sources = Array.from(new Set((item.sources ?? []).map((source) => String(source).trim()).filter(Boolean))).slice(0, 6);
+              return sources.length >= 2 ? [{ id, type: "merge" as const, sources, target, separator }] : [];
+            }
+            const source = String(item.source ?? "").trim();
+            const parts = Math.min(6, Math.max(2, Math.trunc(Number(item.parts) || 2)));
+            return source ? [{ id, type: "split" as const, source, target, separator, parts }] : [];
+          }).slice(0, 20),
         }
       : undefined;
     return [{
@@ -189,7 +205,10 @@ function serializeSheet(sheet: SheetInspection, structure?: WorkbookStructureRev
       headerRowIndex: sheet.editorConfig.headerRowIndex,
       dataStartRowIndex: sheet.editorConfig.dataStartRowIndex,
       firstDataColumnIndex: sheet.editorConfig.firstDataColumnIndex,
+      lastDataRowIndex: sheet.editorConfig.lastDataRowIndex,
+      lastDataColumnIndex: sheet.editorConfig.lastDataColumnIndex,
       excludedRowNumbers: sheet.editorConfig.excludedRowNumbers,
+      textTransforms: sheet.editorConfig.textTransforms,
     } : undefined,
   };
 }

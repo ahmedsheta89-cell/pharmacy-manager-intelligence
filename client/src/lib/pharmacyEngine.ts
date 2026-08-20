@@ -83,10 +83,20 @@ export interface SheetEditorConfig {
   headerRowIndex: number;
   dataStartRowIndex: number;
   firstDataColumnIndex: number;
+  /** الحد الأخير للنطاق المقروء، بفهرس صفري داخليًا. */
+  lastDataRowIndex: number;
+  /** الحد الأخير للأعمدة المقروءة، بفهرس صفري داخليًا. */
+  lastDataColumnIndex: number;
   /** أرقام صفوف Excel المرئية للمدير، وتبدأ من 1. */
   excludedRowNumbers: number[];
+  /** تحويلات نصية محلية على نسخة المعاينة فقط، ولا تعدّل ملف المصدر. */
+  textTransforms: SheetTextTransform[];
   updatedAt?: string;
 }
+
+export type SheetTextTransform =
+  | { id: string; type: "merge"; sources: string[]; target: string; separator: string }
+  | { id: string; type: "split"; source: string; target: string; separator: string; parts: number };
 
 export interface SheetInspection {
   name: string;
@@ -305,10 +315,68 @@ function normalizeEditorConfig(matrix: DataValue[][], requested?: Partial<SheetE
   const headerRowIndex = Math.min(Math.max(Math.trunc(requested?.headerRowIndex ?? getHeaderRow(matrix)), 0), maxRow);
   const dataStartRowIndex = Math.min(Math.max(Math.trunc(requested?.dataStartRowIndex ?? headerRowIndex + 1), headerRowIndex + 1), matrix.length);
   const firstDataColumnIndex = Math.min(Math.max(Math.trunc(requested?.firstDataColumnIndex ?? 0), 0), maxColumn);
+  const lastDataRowIndex = Math.min(Math.max(Math.trunc(requested?.lastDataRowIndex ?? maxRow), dataStartRowIndex), maxRow);
+  const lastDataColumnIndex = Math.min(Math.max(Math.trunc(requested?.lastDataColumnIndex ?? maxColumn), firstDataColumnIndex), maxColumn);
   const excludedRowNumbers = Array.from(new Set((requested?.excludedRowNumbers ?? [])
     .map((item) => Math.trunc(item))
-    .filter((item) => item > dataStartRowIndex && item <= matrix.length))).sort((a, b) => a - b);
-  return { headerRowIndex, dataStartRowIndex, firstDataColumnIndex, excludedRowNumbers, updatedAt: requested?.updatedAt };
+    .filter((item) => item > dataStartRowIndex && item <= lastDataRowIndex + 1))).sort((a, b) => a - b);
+  const textTransforms = (requested?.textTransforms ?? []).flatMap((transform, index): SheetTextTransform[] => {
+    const id = String(transform?.id ?? `transform-${index + 1}`).trim();
+    const target = String(transform?.target ?? "").trim().slice(0, 80);
+    const separator = String(transform?.separator ?? " ").slice(0, 20);
+    if (!id || !target) return [];
+    if (transform.type === "merge") {
+      const sources = Array.from(new Set((transform.sources ?? []).map((source) => String(source).trim()).filter(Boolean))).slice(0, 6);
+      return sources.length >= 2 ? [{ id, type: "merge", sources, target, separator }] : [];
+    }
+    const source = String(transform.source ?? "").trim();
+    const parts = Math.min(6, Math.max(2, Math.trunc(transform.parts ?? 2)));
+    return source ? [{ id, type: "split", source, target, separator, parts }] : [];
+  });
+  return { headerRowIndex, dataStartRowIndex, firstDataColumnIndex, lastDataRowIndex, lastDataColumnIndex, excludedRowNumbers, textTransforms, updatedAt: requested?.updatedAt };
+}
+
+function splitTargetName(target: string, index: number) {
+  return `${target} ${index + 1}`;
+}
+
+function editorTransformMappings(transforms: SheetTextTransform[]): ColumnMapping[] {
+  return transforms.flatMap((transform) => {
+    const sourceColumns = transform.type === "merge"
+      ? [transform.target]
+      : Array.from({ length: transform.parts }, (_, index) => splitTargetName(transform.target, index));
+    return sourceColumns.map((sourceColumn) => ({
+      sourceColumn,
+      field: "unknown" as const,
+      proposedField: "unknown" as const,
+      confidence: "منخفضة" as const,
+      score: 0,
+      reason: transform.type === "merge"
+        ? `عمود نصي ناتج من دمج: ${transform.sources.join(" + ")}.`
+        : `عمود نصي ناتج من تقسيم «${transform.source}» بالفاصل المحدد.` ,
+      sample: "—",
+      approvalStatus: "suggested" as const,
+    }));
+  });
+}
+
+function applyTextTransforms(record: RawRecord, transforms: SheetTextTransform[]): RawRecord {
+  return transforms.reduce<RawRecord>((next, transform) => {
+    if (transform.type === "merge") {
+      next[transform.target] = transform.sources.map((source) => valueToText(next[source])).filter(Boolean).join(transform.separator);
+      return next;
+    }
+    const sourceText = valueToText(next[transform.source]);
+    const parts = transform.separator ? sourceText.split(transform.separator) : Array.from(sourceText);
+    Array.from({ length: transform.parts }, (_, index) => {
+      next[splitTargetName(transform.target, index)] = parts[index]?.trim() ?? "";
+    });
+    return next;
+  }, { ...record });
+}
+
+function valueToText(value: DataValue): string {
+  return value === null || value === undefined ? "" : String(value).trim();
 }
 
 function offsetColumn(column: string | undefined, offset: number): string | undefined {
@@ -397,9 +465,9 @@ export function refreshImportedInspection(inspection: ImportInspection): ImportI
 
 function inspectSheet(name: string, matrix: DataValue[][], requestedEditorConfig?: Partial<SheetEditorConfig>): SheetInspection {
   const editorConfig = normalizeEditorConfig(matrix, requestedEditorConfig);
-  const { headerRowIndex, dataStartRowIndex, firstDataColumnIndex } = editorConfig;
-  const rawHeaders = (matrix[headerRowIndex] ?? []).slice(firstDataColumnIndex).map((value, index) => String(value ?? `عمود ${firstDataColumnIndex + index + 1}`).trim() || `عمود ${firstDataColumnIndex + index + 1}`);
-  const dataRowEntries = matrix.slice(dataStartRowIndex).map((row, index) => ({ row: row.slice(firstDataColumnIndex), rowNumber: dataStartRowIndex + index + 1 }))
+  const { headerRowIndex, dataStartRowIndex, firstDataColumnIndex, lastDataRowIndex, lastDataColumnIndex } = editorConfig;
+  const rawHeaders = (matrix[headerRowIndex] ?? []).slice(firstDataColumnIndex, lastDataColumnIndex + 1).map((value, index) => String(value ?? `عمود ${firstDataColumnIndex + index + 1}`).trim() || `عمود ${firstDataColumnIndex + index + 1}`);
+  const dataRowEntries = matrix.slice(dataStartRowIndex, lastDataRowIndex + 1).map((row, index) => ({ row: row.slice(firstDataColumnIndex, lastDataColumnIndex + 1), rowNumber: dataStartRowIndex + index + 1 }))
     .filter((item) => !editorConfig.excludedRowNumbers.includes(item.rowNumber))
     .filter((item) => item.row.some((cell) => cell !== undefined && cell !== null && String(cell).trim() !== ""));
   const dataRows = dataRowEntries.map((item) => item.row);
@@ -424,22 +492,22 @@ function inspectSheet(name: string, matrix: DataValue[][], requestedEditorConfig
       }]
     : [];
   const suggestedMappings = mapColumns(headers, dataRows, headerColumns, firstDataColumnIndex);
-  const mappings = headerWasShifted
+  const mappings = (headerWasShifted
     ? suggestedMappings.map((mapping) => mapping.headerColumn
       ? {
           ...mapping,
           reason: `قاعدة الانزياح المعتمدة: عنوان ${mapping.headerColumn} «${mapping.sourceColumn}» يصف قيم العمود ${mapping.dataColumn}، وليس قيم العمود الذي تحته.`,
         }
       : mapping)
-    : suggestedMappings;
+    : suggestedMappings).concat(editorTransformMappings(editorConfig.textTransforms));
   const mapsByField = approvedFieldMap(mappings);
 
   const rawRecordEntries = dataRowEntries.map(({ row, rowNumber }) => ({
     rowNumber,
-    record: headers.reduce<RawRecord>((record, header, index) => {
+    record: applyTextTransforms(headers.reduce<RawRecord>((record, header, index) => {
       record[header] = row[index] as DataValue;
       return record;
-    }, {}),
+    }, {}), editorConfig.textTransforms),
   }));
   const rawRecords = rawRecordEntries.map((item) => item.record);
   const totalRows = rawRecords.length;

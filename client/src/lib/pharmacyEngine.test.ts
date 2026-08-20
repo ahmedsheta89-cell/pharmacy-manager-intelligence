@@ -121,4 +121,37 @@ describe("inspectPharmacyFile", () => {
     expect(shiftedStart.sheets[0].headers[0]).toBe("اسم الصنف");
     expect(shiftedStart.sheets[0].mappings[0]?.dataColumn).toBe("B");
   });
+
+  it("يقصر المعاينة على نطاق المدير ويضيف أعمدة دمج وتقسيم نصية من دون تغيير المصدر", async () => {
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([
+      ["ملاحظات تمهيدية"],
+      ["الاسم الأول", "اسم العائلة", "كود-شركة", "الرصيد"],
+      ["سارة", "أحمد", "P-10-ALPHA", 6],
+      ["مها", "سالم", "P-11-BETA", 2],
+      ["صف خارج النطاق", "لا يقرأ", "P-12-GAMMA", 9],
+    ]), "Sheet1");
+    const bytes = XLSX.write(workbook, { type: "array", bookType: "xlsx" });
+    const inspection = await inspectPharmacyFile(new File([bytes], "range-transform.xlsx", { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+    const edited = applySheetEditorConfig(inspection, "Sheet1", {
+      headerRowIndex: 1,
+      dataStartRowIndex: 2,
+      firstDataColumnIndex: 0,
+      lastDataRowIndex: 3,
+      lastDataColumnIndex: 3,
+      textTransforms: [
+        { id: "full-name", type: "merge", sources: ["الاسم الأول", "اسم العائلة"], target: "الاسم الكامل", separator: " " },
+        { id: "split-code", type: "split", source: "كود-شركة", target: "جزء الكود", separator: "-", parts: 3 },
+      ],
+    });
+    const sheet = edited.sheets[0];
+
+    expect(sheet.cleanRecords).toHaveLength(2);
+    expect(sheet.cleanRecords[0]?.["الاسم الكامل"]).toBe("سارة أحمد");
+    expect(sheet.cleanRecords[0]?.["جزء الكود 1"]).toBe("P");
+    expect(sheet.cleanRecords[0]?.["جزء الكود 3"]).toBe("ALPHA");
+    expect(sheet.mappings.map((mapping) => mapping.sourceColumn)).toEqual(expect.arrayContaining(["الاسم الكامل", "جزء الكود 1", "جزء الكود 2", "جزء الكود 3"]));
+    expect(sheet.sourceMatrix?.[4]?.[0]).toBe("صف خارج النطاق");
+    expect(sheet.editorConfig).toMatchObject({ lastDataRowIndex: 3, lastDataColumnIndex: 3, textTransforms: expect.arrayContaining([expect.objectContaining({ id: "full-name" })]) });
+  });
 });

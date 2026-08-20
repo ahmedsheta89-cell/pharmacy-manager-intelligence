@@ -47,9 +47,31 @@ try {
   await manualEditor.getByRole("button", { name: "إضافة أو استعادة" }).click();
   await manualEditor.getByRole("button", { name: /صف 6 مستبعد/ }).waitFor();
   await manualEditor.getByRole("button", { name: /صف 6 مستبعد/ }).click();
-  await manualEditor.locator("select").selectOption("1");
-  if (await manualEditor.locator("select").inputValue() !== "1") throw new Error("لم يقبل محرر الشيت تغيير عمود البداية.");
-  await manualEditor.locator("select").selectOption("0");
+  const firstDataColumnSelect = manualEditor.getByLabel(/ابدأ من العمود/);
+  await firstDataColumnSelect.selectOption("1");
+  if (await firstDataColumnSelect.inputValue() !== "1") throw new Error("لم يقبل محرر الشيت تغيير عمود البداية.");
+  await firstDataColumnSelect.selectOption("0");
+
+  await page.getByRole("heading", { name: "تحديد نطاق خلايا بالسحب" }).waitFor();
+  const firstRangeCell = page.getByLabel("خلية A2");
+  const lastRangeCell = page.getByLabel("خلية B3");
+  const firstBox = await firstRangeCell.boundingBox();
+  const lastBox = await lastRangeCell.boundingBox();
+  if (!firstBox || !lastBox) throw new Error("لم تظهر خلايا محرر تحديد النطاق.");
+  await page.mouse.move(firstBox.x + firstBox.width / 2, firstBox.y + firstBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(lastBox.x + lastBox.width / 2, lastBox.y + lastBox.height / 2, { steps: 8 });
+  await page.mouse.up();
+  await page.getByText("النطاق المختار:").waitFor();
+  await page.getByRole("button", { name: "استخدم النطاق للقراءة" }).click();
+  await page.getByRole("button", { name: "تراجع" }).click();
+
+  const mergePanel = page.getByRole("heading", { name: "دمج أعمدة نصية" }).locator("..").locator("..");
+  await mergePanel.getByRole("checkbox").nth(0).check();
+  await mergePanel.getByRole("checkbox").nth(1).check();
+  await mergePanel.getByRole("button", { name: "دمج المختار" }).click();
+  await page.getByText("تحويلات المعاينة الحالية").waitFor();
+  await page.getByRole("button", { name: "تراجع" }).click();
 
   await page.getByRole("heading", { name: "مقارنة مرئية للصفوف — المصدر مقابل الخريطة المصححة" }).waitFor();
   await page.getByRole("heading", { name: "قوالب خريطة الأعمدة المحلية" }).waitFor();
