@@ -113,7 +113,7 @@ export interface QualityReport {
 
 const FIELD_DEFINITIONS: Record<CanonicalField, { labels: string[]; keywords: string[]; kind?: "number" | "date" | "text" }> = {
   item_code: { labels: ["كود الصنف", "كود", "رمز الصنف", "item code", "product code", "code", "sku", "barcode"], keywords: ["كود", "رمز", "code", "sku", "barcode"], kind: "text" },
-  item_name: { labels: ["اسم الصنف", "الصنف", "اسم المنتج", "المنتج", "item name", "product", "description", "item"], keywords: ["صنف", "منتج", "item", "product", "description", "اسم"], kind: "text" },
+  item_name: { labels: ["اسم الصنف", "الاسم", "الإسم", "الصنف", "اسم المنتج", "المنتج", "item name", "product", "description", "item"], keywords: ["اسم", "اسـم", "صنف", "منتج", "item", "product", "description"], kind: "text" },
   company: { labels: ["الشركة", "اسم الشركة", "manufacturer", "company", "supplier", "المورد"], keywords: ["شركة", "company", "manufacturer", "supplier", "مورد"], kind: "text" },
   category: { labels: ["التصنيف", "الفئة", "القسم", "category", "classification", "group"], keywords: ["تصنيف", "فئة", "قسم", "category", "class", "group"], kind: "text" },
   item_type: { labels: ["نوع الصنف", "النوع", "item type", "type"], keywords: ["نوع", "type"], kind: "text" },
@@ -123,7 +123,7 @@ const FIELD_DEFINITIONS: Record<CanonicalField, { labels: string[]; keywords: st
   reorder_level: { labels: ["حد إعادة الطلب", "الحد الأدنى", "reorder level", "min stock", "minimum stock"], keywords: ["إعادة الطلب", "حد أدنى", "reorder", "min stock"], kind: "number" },
   expiry_date: { labels: ["تاريخ الانتهاء", "تاريخ الصلاحية", "انتهاء الصلاحية", "expiry date", "expiration date", "expiry", "exp date"], keywords: ["انتهاء", "صلاحيه", "expiry", "expiration", "exp date"], kind: "date" },
   sale_price: { labels: ["سعر البيع", "سعر", "unit sale price", "sale price", "selling price"], keywords: ["سعر البيع", "selling", "sale price"], kind: "number" },
-  sales_total: { labels: ["إجمالي المبيعات", "قيمة المبيعات", "إجمالي البيع", "صافي البيع", "sales total", "total sales", "net sales", "amount sold"], keywords: ["إجمالي المبيعات", "قيمة المبيعات", "total sales", "net sales", "مبيعات"], kind: "number" },
+  sales_total: { labels: ["إجمالي المبيعات", "قيمة المبيعات", "إجمالي البيع", "إجمالى س.بيع", "إجمالي س.بيع", "صافي البيع", "sales total", "total sales", "net sales", "amount sold"], keywords: ["إجمالي المبيعات", "قيمة المبيعات", "إجمالى س.بيع", "اجمالي س بيع", "total sales", "net sales", "مبيعات"], kind: "number" },
   sales_quantity: { labels: ["كمية البيع", "كمية المبيعات", "sales qty", "sales quantity"], keywords: ["بيع", "sales"], kind: "number" },
   invoice_number: { labels: ["رقم الفاتورة", "الفاتورة", "invoice number", "invoice", "bill no"], keywords: ["فاتورة", "invoice", "bill"], kind: "text" },
   sale_date: { labels: ["تاريخ البيع", "التاريخ", "sale date", "sales date", "date"], keywords: ["تاريخ", "date"], kind: "date" },
@@ -262,6 +262,20 @@ function mapColumns(headers: string[], rawRows: unknown[][]): ColumnMapping[] {
   });
 }
 
+/**
+ * بعض إصدارات برنامج الصيدلية تضع رأس الجدول مزاحًا خانة إلى اليمين:
+ * تبدأ القيم تحت «إجمالي س.بيع» بينما يظهر «الموظف» في عمود فارغ آخر الصف.
+ * لا يعمل التصحيح إلا عند تحقق علامات الرأس والقيم معًا.
+ */
+function hasLeadingHeaderShift(headers: string[], dataRows: unknown[][]): boolean {
+  if (headers.length < 4 || dataRows.length < 2) return false;
+  if (scoreMapping(headers[0]).field !== "employee" || scoreMapping(headers[1]).field !== "sales_total") return false;
+  const sample = dataRows.slice(0, Math.min(20, dataRows.length));
+  const numericAtStart = sample.filter((row) => toNumber(row[0] as DataValue) !== undefined).length;
+  const blankAtEnd = sample.filter((row) => row[headers.length - 1] === null || row[headers.length - 1] === undefined || String(row[headers.length - 1]).trim() === "").length;
+  return numericAtStart / sample.length >= 0.8 && blankAtEnd / sample.length >= 0.8;
+}
+
 function looksLikeTotalRow(record: RawRecord): boolean {
   const values = Object.values(record).map((value) => normalizeText(value)).join(" ");
   return /(اجمالي|المجموع|total|grand total|subtotal)/.test(values);
@@ -271,20 +285,26 @@ function calculateMetrics(record: RawRecord, mapsByField: Partial<Record<Canonic
   const get = (field: CanonicalField) => record[mapsByField[field] ?? ""];
   const quantity = toNumber(get("quantity_sold")) ?? toNumber(get("sales_quantity"));
   const directSales = toNumber(get("sales_total"));
-  const sales = directSales ?? ((toNumber(get("sale_price")) ?? 0) * (quantity ?? 0));
+  const salePrice = toNumber(get("sale_price"));
+  const sales = directSales ?? (salePrice !== undefined && quantity !== undefined ? salePrice * quantity : undefined);
   const directCost = toNumber(get("total_cost"));
-  const cost = directCost ?? ((toNumber(get("cost_price")) ?? 0) * (quantity ?? 0));
+  const costPrice = toNumber(get("cost_price"));
+  const cost = directCost ?? (costPrice !== undefined && quantity !== undefined ? costPrice * quantity : undefined);
   const directProfit = toNumber(get("profit"));
   const profit = directProfit ?? (sales !== undefined && cost !== undefined ? sales - cost : undefined);
   const discount = toNumber(get("discount_value"));
   const date = toDate(get("sale_date")) ?? toDate(get("expense_date")) ?? toDate(get("transaction_date"));
-  return { sales: sales || undefined, quantity, cost: cost || undefined, profit, discount, date };
+  return { sales, quantity, cost, profit, discount, date };
 }
 
 function inspectSheet(name: string, matrix: unknown[][]): SheetInspection {
   const headerRowIndex = getHeaderRow(matrix);
-  const headers = (matrix[headerRowIndex] ?? []).map((value, index) => String(value ?? `عمود ${index + 1}`).trim() || `عمود ${index + 1}`);
+  const rawHeaders = (matrix[headerRowIndex] ?? []).map((value, index) => String(value ?? `عمود ${index + 1}`).trim() || `عمود ${index + 1}`);
   const dataRows = matrix.slice(headerRowIndex + 1).filter((row) => row.some((cell) => cell !== undefined && cell !== null && String(cell).trim() !== ""));
+  const headerWasShifted = hasLeadingHeaderShift(rawHeaders, dataRows);
+  const headers = headerWasShifted
+    ? [...rawHeaders.slice(1), `${rawHeaders[0]} (غير مستخدم)`]
+    : rawHeaders;
   const mappings = mapColumns(headers, dataRows);
   const mapsByField = mappings.reduce((acc, mapping) => {
     const detectedField = mapping.field;

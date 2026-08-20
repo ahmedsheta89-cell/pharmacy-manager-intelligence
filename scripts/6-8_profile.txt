@@ -1,0 +1,32 @@
+SHEET=Sheet1
+BOUNDS=min_row:1, max_row:2762, min_col:1, max_col:9
+ROWS=2761
+HEADER_COUNT=9
+HEADERS_REPR=
+  1: 'الموظف'
+  2: 'إجمالى س.بيع'
+  3: 'الرصيد'
+  4: 'الوحدة'
+  5: 'الكمية'
+  6: 'المنشأ'
+  7: 'الشركة'
+  8: 'الإسم'
+  9: 'الكود'
+FIRST_THREE_ROWS_REPR=
+(39.0, 1.67, 'علبة', 1.0, 'محلى', 'SCOPE PHARMA', '(C6) conviban 25mg30tab', '61986', None)
+(208.0, 2.33, 'علبة', 1.3333, 'إستثمارى', 'دلتا فارم', '(G1)جابتين 400مجم30كبسول', '47575', None)
+(252.0, 9.0, 'علبة', 4.5, 'إستثمارى', 'هاى فارم', '(S3) ستيرونات نور اقراص', '23132', None)
+COORDINATE_CHECK=
+  A1='الموظف' | B1='إجمالى س.بيع' | C1='الرصيد' | D1='الوحدة' | E1='الكمية' | F1='المنشأ' | G1='الشركة' | H1='الإسم' | I1='الكود'
+  A2=39.0 | B2=1.67 | C2='علبة' | D2=1.0 | E2='محلى' | F2='SCOPE PHARMA' | G2='(C6) conviban 25mg30tab' | H2='61986'
+  A3=208.0 | B3=2.33 | C3='علبة' | D3=1.3333 | E3='إستثمارى' | F3='دلتا فارم' | G3='(G1)جابتين 400مجم30كبسول' | H3='47575'
+COLUMN_PROFILE=
+  1: title='الموظف'; filled=2761; types={'float': 2760, 'str': 1}; samples=[39.0, 208.0, 252.0, 559.0, 7842.0]
+  2: title='إجمالى س.بيع'; filled=2761; types={'float': 2759, 'str': 2}; samples=[1.67, 2.33, 9.0, 1.0, 3.0]
+  3: title='الرصيد'; filled=2760; types={'str': 2759, 'datetime': 1}; samples=['علبة', 'علبة', 'علبة', 'One Unit', 'علبة']
+  4: title='الوحدة'; filled=2760; types={'float': 2759, 'str': 1}; samples=[1.0, 1.3333, 4.5, 1.0, 6.0]
+  5: title='الكمية'; filled=2760; types={'str': 2759, 'time': 1}; samples=['محلى', 'إستثمارى', 'إستثمارى', 'محلى', 'محلى']
+  6: title='المنشأ'; filled=2760; types={'str': 2760}; samples=['SCOPE PHARMA', 'دلتا فارم', 'هاى فارم', 'SCOPE PHARMA', 'SCOPE PHARMA']
+  7: title='الشركة'; filled=2760; types={'str': 2760}; samples=['(C6) conviban 25mg30tab', '(G1)جابتين 400مجم30كبسول', '(S3) ستيرونات نور اقراص', 'ACM MEDISUN MATTIFYING GEL 40ML', 'Adport 0.5 mg 100 cap']
+  8: title='الإسم'; filled=2759; types={'str': 2759}; samples=['61986', '47575', '23132', '64841', '65197']
+  9: title='الكود'; filled=0; types={}; samples=[]

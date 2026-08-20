@@ -180,10 +180,10 @@ function buildProductInsights(records: CleanRecord[], map: Partial<Record<Canoni
     const sales = record.__metrics.sales;
     const cost = record.__metrics.cost;
     const quantity = record.__metrics.quantity;
-    const existing = group.get(key) ?? { id: key || `item-${index}`, itemName: itemName || "صنف بلا اسم", itemCode: itemCode || undefined, company: String(fieldValue(record, map, "company") ?? "").trim() || undefined, category: String(fieldValue(record, map, "category") ?? "").trim() || undefined, sales: 0, cost: 0, quantity: 0, profit: 0 };
-    existing.sales = (existing.sales ?? 0) + (sales ?? 0);
-    existing.cost = (existing.cost ?? 0) + (cost ?? 0);
-    existing.quantity = (existing.quantity ?? 0) + (quantity ?? 0);
+    const existing = group.get(key) ?? { id: key || `item-${index}`, itemName: itemName || "صنف بلا اسم", itemCode: itemCode || undefined, company: String(fieldValue(record, map, "company") ?? "").trim() || undefined, category: String(fieldValue(record, map, "category") ?? "").trim() || undefined };
+    if (sales !== undefined) existing.sales = (existing.sales ?? 0) + sales;
+    if (cost !== undefined) existing.cost = (existing.cost ?? 0) + cost;
+    if (quantity !== undefined) existing.quantity = (existing.quantity ?? 0) + quantity;
     if (record.__metrics.profit !== undefined) existing.profit = (existing.profit ?? 0) + record.__metrics.profit;
     else if (sales !== undefined && cost !== undefined) existing.profit = (existing.profit ?? 0) + (sales - cost);
     group.set(key, existing);
@@ -191,7 +191,7 @@ function buildProductInsights(records: CleanRecord[], map: Partial<Record<Canoni
   return Array.from(group.values()).map((item) => {
     const sales = totals.sales !== undefined ? item.sales : undefined;
     const cost = totals.cost !== undefined ? item.cost : undefined;
-    const profit = sales !== undefined && cost !== undefined ? sales - cost : (item.profit || undefined);
+    const profit = item.profit ?? (sales !== undefined && cost !== undefined ? sales - cost : undefined);
     return { ...item, sales, cost, profit, margin: sales && profit !== undefined ? (profit / sales) * 100 : undefined, salesShare: sales && totals.sales ? (sales / totals.sales) * 100 : undefined };
   }).sort((a, b) => (b.sales ?? -Infinity) - (a.sales ?? -Infinity));
 }
@@ -200,12 +200,12 @@ function buildCompanyInsights(products: ProductInsight[]): CompanyInsight[] {
   const groups = new Map<string, CompanyInsight>();
   products.forEach((product) => {
     const company = product.company || "غير مصنف";
-    const existing = groups.get(company) ?? { company, items: 0, sales: 0, cost: 0, profit: 0, quantity: 0 };
+    const existing = groups.get(company) ?? { company, items: 0 };
     existing.items += 1;
-    existing.sales = (existing.sales ?? 0) + (product.sales ?? 0);
-    existing.cost = (existing.cost ?? 0) + (product.cost ?? 0);
-    existing.profit = (existing.profit ?? 0) + (product.profit ?? 0);
-    existing.quantity = (existing.quantity ?? 0) + (product.quantity ?? 0);
+    if (product.sales !== undefined) existing.sales = (existing.sales ?? 0) + product.sales;
+    if (product.cost !== undefined) existing.cost = (existing.cost ?? 0) + product.cost;
+    if (product.profit !== undefined) existing.profit = (existing.profit ?? 0) + product.profit;
+    if (product.quantity !== undefined) existing.quantity = (existing.quantity ?? 0) + product.quantity;
     groups.set(company, existing);
   });
   return Array.from(groups.values()).map((company) => ({ ...company, margin: company.sales && company.profit !== undefined ? (company.profit / company.sales) * 100 : undefined })).sort((a, b) => (b.sales ?? -Infinity) - (a.sales ?? -Infinity));
@@ -308,7 +308,11 @@ function buildSummary(analytics: { sales?: number; profit?: number; margin?: num
   if (analytics.margin !== undefined) paragraphs.push(`هامش الربح الإجمالي ${analytics.margin.toFixed(1)}%، مع ${reviewed} صنفًا في مجموعة المبيعات المرتفعة والربحية المنخفضة.`);
   else paragraphs.push("تحليل الربحية غير متاح بالكامل لأن بيانات التكلفة أو الربح غير موجودة في التقرير الحالي.");
   if (analytics.expenses !== undefined) paragraphs.push(`بلغت المصروفات المرصودة ${analytics.expenses.toLocaleString("ar-EG", { maximumFractionDigits: 2 })} ج.م؛ يعرض صافي الربح فقط عندما تتوفر بيانات المبيعات والتكلفة والمصروفات معًا.`);
-  const recommendations = risks.length ? ["ابدأ بالمخاطر الأعلى أدناه؛ كل تنبيه يعرض السبب والقيمة والإجراء المقترح.", "استخدم الفلاتر لعزل الشركة أو الصنف قبل اتخاذ قرار تشغيلي.", "راجع مطابقة الأعمدة عند ظهور أي قيمة لا تعكس التقرير الأصلي."] : ["راجع الأصناف ذات هامش الربح المرتفع ومبيعاتها المنخفضة لاكتشاف فرص نمو عملية.", "تابع أعلى الأصناف ربحًا وتأكد من توافرها وفق حركة الطلب.", "استورد تقريرًا لفترة سابقة لإثراء المقارنات الزمنية."];
+  const recommendations = risks.length
+    ? ["ابدأ بالمخاطر الأعلى أدناه؛ كل تنبيه يعرض السبب والقيمة والإجراء المقترح.", "استخدم الفلاتر لعزل الشركة أو الصنف قبل اتخاذ قرار تشغيلي.", "راجع مطابقة الأعمدة عند ظهور أي قيمة لا تعكس التقرير الأصلي."]
+    : analytics.margin !== undefined
+      ? ["راجع الأصناف ذات هامش الربح المرتفع ومبيعاتها المنخفضة لاكتشاف فرص نمو عملية.", "تابع أعلى الأصناف ربحًا وتأكد من توافرها وفق حركة الطلب.", "استورد تقريرًا لفترة سابقة لإثراء المقارنات الزمنية."]
+      : ["تابع أعلى الأصناف مبيعًا وتأكد من توافرها وفق حركة الرصيد الحالية.", "أضف تكلفة الشراء أو الربح الفعلي في التقرير لتفعيل تحليل الربحية بدقة.", "استورد تقريرًا لفترة سابقة أو تقريرًا مؤرخًا لإثراء المقارنات الزمنية."];
   return { headline, paragraphs, positives, risks, opportunities, recommendations };
 }
 
