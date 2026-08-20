@@ -261,10 +261,11 @@ function scoreMapping(header: string): { field: CanonicalField | "unknown"; scor
   return { field: topScore >= 38 ? winner : "unknown", score: topScore, reason };
 }
 
-function mapColumns(headers: string[], rawRows: unknown[][], headerDataOffset = 0): ColumnMapping[] {
+function mapColumns(headers: string[], rawRows: unknown[][], headerColumns?: Array<string | undefined>): ColumnMapping[] {
   return headers.map((header, index) => {
     const result = scoreMapping(header);
     const sample = rawRows.slice(0, 5).map((row) => row[index]).find((value) => value !== undefined && value !== null && value !== "");
+    const headerColumn = headerColumns ? headerColumns[index] : XLSX.utils.encode_col(index);
     return {
       sourceColumn: header,
       field: result.field,
@@ -275,8 +276,8 @@ function mapColumns(headers: string[], rawRows: unknown[][], headerDataOffset = 
       sample: sample === undefined ? "—" : String(sample).slice(0, 40),
       approvalStatus: "suggested",
       dataColumn: XLSX.utils.encode_col(index),
-      headerColumn: XLSX.utils.encode_col(index + headerDataOffset),
-      adjustedForHeaderShift: headerDataOffset !== 0,
+      headerColumn,
+      adjustedForHeaderShift: headerColumn !== XLSX.utils.encode_col(index),
     };
   });
 }
@@ -365,10 +366,17 @@ function inspectSheet(name: string, matrix: unknown[][]): SheetInspection {
   const dataRows = matrix.slice(headerRowIndex + 1).filter((row) => row.some((cell) => cell !== undefined && cell !== null && String(cell).trim() !== ""));
   const headerWasShifted = hasLeadingHeaderShift(rawHeaders, dataRows);
   const headerDataOffset = headerWasShifted ? 1 : 0;
+  const dataColumnCount = Math.max(rawHeaders.length, ...dataRows.map((row) => row.length), 0);
   const headers = headerWasShifted
-    ? [...rawHeaders.slice(1), `${rawHeaders[0]} (غير مستخدم)`]
+    ? [
+        ...rawHeaders.slice(1),
+        `عمود ${XLSX.utils.encode_col(dataColumnCount - 1)} بلا رأس مقابل`,
+      ]
     : rawHeaders;
-  const mappings = mapColumns(headers, dataRows, headerDataOffset);
+  const headerColumns = headerWasShifted
+    ? Array.from({ length: dataColumnCount }, (_, index) => index < dataColumnCount - 1 ? XLSX.utils.encode_col(index + 1) : undefined)
+    : Array.from({ length: dataColumnCount }, (_, index) => XLSX.utils.encode_col(index));
+  const mappings = mapColumns(headers, dataRows, headerColumns);
   const mapsByField = approvedFieldMap(mappings);
 
   const rawRecords = dataRows.map((row) => headers.reduce<RawRecord>((record, header, index) => {
@@ -438,7 +446,9 @@ function inspectSheet(name: string, matrix: unknown[][]): SheetInspection {
     columns: headers.length,
     headerRowIndex,
     headerDataOffset,
-    layoutNote: headerWasShifted ? "تم التحقق من أن عناوين هذا التصدير مزاحة خانة إلى اليمين؛ لذلك رُبطت القيم بالأعمدة الفعلية المقابلة لها." : undefined,
+    layoutNote: headerWasShifted
+      ? "انزياح مثبت بالقيم: رأس B يفسر قيم A (إجمالي البيع)، ورأس C قيم B (الرصيد)، ورأس D قيم C (الوحدة)، ورأس E قيم D (الكمية)، ورأس F قيم E (المنشأ)، ورأس G قيم F (الشركة)، ورأس H قيم G (الاسم)، ورأس I قيم H (كود الصنف). لا يوجد رأس مقابل لعمود I، لذلك يبقى مستبعدًا ما لم يقرره المدير."
+      : undefined,
     headers,
     mappings,
     rawRecords,
