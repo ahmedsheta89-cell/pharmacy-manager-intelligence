@@ -3,6 +3,7 @@
  * يستخدم فقط الحقول التي تطابقها قراءة Excel بثقة، ولا يملأ أي نقص بتخمينات.
  */
 import type { CanonicalField, CleanRecord, ColumnMapping, SheetInspection } from "./pharmacyEngine";
+import { isApprovedMapping } from "./importReview";
 
 type FieldMap = Partial<Record<CanonicalField, string>>;
 
@@ -62,7 +63,7 @@ export interface ReorderRule {
 }
 
 const mapFields = (mappings: ColumnMapping[]): FieldMap => mappings.reduce((result, mapping) => {
-  if (mapping.field !== "unknown" && mapping.confidence !== "منخفضة" && !result[mapping.field]) result[mapping.field] = mapping.sourceColumn;
+  if (mapping.field !== "unknown" && isApprovedMapping(mapping) && !result[mapping.field]) result[mapping.field] = mapping.sourceColumn;
   return result;
 }, {} as FieldMap);
 

@@ -4,6 +4,7 @@
  * عندما تكون البيانات المطلوبة غير موجودة في تقرير الصيدلية.
  */
 import type { CanonicalField, CleanRecord, ColumnMapping, SheetInspection } from "./pharmacyEngine";
+import { isApprovedMapping } from "./importReview";
 
 export type Availability = "available" | "partial" | "unavailable";
 export type Confidence = "عالية" | "متوسطة" | "غير متاح";
@@ -126,7 +127,7 @@ export interface PeriodComparison {
 
 const canonicalMap = (mappings: ColumnMapping[]): Partial<Record<CanonicalField, string>> =>
   mappings.reduce((acc, mapping) => {
-    if (mapping.field !== "unknown" && mapping.confidence !== "منخفضة" && !acc[mapping.field]) acc[mapping.field] = mapping.sourceColumn;
+    if (mapping.field !== "unknown" && isApprovedMapping(mapping) && !acc[mapping.field]) acc[mapping.field] = mapping.sourceColumn;
     return acc;
   }, {} as Partial<Record<CanonicalField, string>>);
 

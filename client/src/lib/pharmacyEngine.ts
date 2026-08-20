@@ -64,10 +64,15 @@ export type CleanRecord = RawRecord & {
 export interface ColumnMapping {
   sourceColumn: string;
   field: CanonicalField | "unknown";
+  /** التفسير الآلي الأولي؛ لا يُستخدم في القرار قبل اعتماد المدير. */
+  proposedField?: CanonicalField | "unknown";
   confidence: "عالية" | "متوسطة" | "منخفضة";
   score: number;
   reason: string;
   sample: string;
+  approvalStatus?: "suggested" | "approved" | "overridden" | "ignored";
+  approvalReason?: string;
+  approvedAt?: string;
   dataColumn?: string;
   headerColumn?: string;
   adjustedForHeaderShift?: boolean;
@@ -263,10 +268,12 @@ function mapColumns(headers: string[], rawRows: unknown[][], headerDataOffset = 
     return {
       sourceColumn: header,
       field: result.field,
+      proposedField: result.field,
       confidence: result.score >= 78 ? "عالية" : result.score >= 48 ? "متوسطة" : "منخفضة",
       score: result.score,
       reason: result.reason,
       sample: sample === undefined ? "—" : String(sample).slice(0, 40),
+      approvalStatus: "suggested",
       dataColumn: XLSX.utils.encode_col(index),
       headerColumn: XLSX.utils.encode_col(index + headerDataOffset),
       adjustedForHeaderShift: headerDataOffset !== 0,
@@ -315,6 +322,17 @@ function calculateMetrics(record: RawRecord, mapsByField: Partial<Record<Canonic
   return { sales, quantity, cost, profit, unitSalePrice, unitCost, profitMargin, discount, date, priceSource: externalSalePrice !== undefined || externalCostPrice !== undefined ? "price_file" : undefined };
 }
 
+/** تحفظ الجلسات القديمة التي لا تحمل حالة اعتماد، أما الفحوص الجديدة فلا تمرر إلا ما اعتمده المدير صراحة. */
+function approvedFieldMap(mappings: ColumnMapping[]): Partial<Record<CanonicalField, string>> {
+  return mappings.reduce((acc, mapping) => {
+    const approved = mapping.approvalStatus === undefined || mapping.approvalStatus === "approved" || mapping.approvalStatus === "overridden";
+    const field = mapping.field;
+    if (!approved || field === "unknown") return acc;
+    if (!acc[field] || mapping.score > (mappings.find((item) => item.sourceColumn === acc[field])?.score ?? 0)) acc[field] = mapping.sourceColumn;
+    return acc;
+  }, {} as Partial<Record<CanonicalField, string>>);
+}
+
 /**
  * الجلسات المحلية قد تكون حُفظت بإصدار سابق من المحرك. لا تُستخدم مؤشرات
  * الربح أو الهامش المحفوظة معها عند الاستعادة؛ تُحسب من الأعمدة الفعلية
@@ -325,12 +343,7 @@ export function refreshImportedInspection(inspection: ImportInspection): ImportI
     ...inspection,
     detectedAt: inspection.detectedAt instanceof Date ? inspection.detectedAt : new Date(inspection.detectedAt),
     sheets: inspection.sheets.map((sheet) => {
-      const mapsByField = sheet.mappings.reduce((acc, mapping) => {
-        const field = mapping.field;
-        if (field === "unknown") return acc;
-        if (!acc[field] || mapping.score > (sheet.mappings.find((item) => item.sourceColumn === acc[field])?.score ?? 0)) acc[field] = mapping.sourceColumn;
-        return acc;
-      }, {} as Partial<Record<CanonicalField, string>>);
+      const mapsByField = approvedFieldMap(sheet.mappings);
       const cleanRecords = sheet.cleanRecords.map((savedRecord, index) => {
         const { __metrics: _savedMetrics, __rowIndex, __sheetName: _savedSheetName, ...raw } = savedRecord;
         const record = raw as RawRecord;
@@ -356,11 +369,7 @@ function inspectSheet(name: string, matrix: unknown[][]): SheetInspection {
     ? [...rawHeaders.slice(1), `${rawHeaders[0]} (غير مستخدم)`]
     : rawHeaders;
   const mappings = mapColumns(headers, dataRows, headerDataOffset);
-  const mapsByField = mappings.reduce((acc, mapping) => {
-    const detectedField = mapping.field;
-    if (detectedField !== "unknown" && (!acc[detectedField] || mapping.score > (mappings.find((item) => item.sourceColumn === acc[detectedField])?.score ?? 0))) acc[detectedField] = mapping.sourceColumn;
-    return acc;
-  }, {} as Partial<Record<CanonicalField, string>>);
+  const mapsByField = approvedFieldMap(mappings);
 
   const rawRecords = dataRows.map((row) => headers.reduce<RawRecord>((record, header, index) => {
     record[header] = row[index] as DataValue;

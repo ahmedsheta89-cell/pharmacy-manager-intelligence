@@ -3,6 +3,7 @@ import * as XLSX from "xlsx";
 import { inspectPharmacyFile, refreshImportedInspection } from "./pharmacyEngine";
 import { analyzeProductMovement } from "./productMovementEngine";
 import { analyzePharmacyData } from "./analyticsEngine";
+import { approveAllSuggestions } from "./importReview";
 
 describe("inspectPharmacyFile", () => {
   it("يصحح انزياح رأس تقرير البرنامج ويلتقط الاسم والرصيد والمبيعات من المواضع الفعلية", async () => {
@@ -16,7 +17,7 @@ describe("inspectPharmacyFile", () => {
     const bytes = XLSX.write(workbook, { type: "array", bookType: "xlsx" });
     const file = new File([bytes], "program-export.xlsx", { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
 
-    const inspection = await inspectPharmacyFile(file);
+    const inspection = approveAllSuggestions(await inspectPharmacyFile(file));
     const sheet = inspection.sheets[0];
     const movement = analyzeProductMovement(inspection.sheets);
 
@@ -42,7 +43,7 @@ describe("inspectPharmacyFile", () => {
     const bytes = XLSX.write(workbook, { type: "array", bookType: "xlsx" });
     const file = new File([bytes], "no-cost-export.xlsx", { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
 
-    const inspection = await inspectPharmacyFile(file);
+    const inspection = approveAllSuggestions(await inspectPharmacyFile(file));
     const analytics = analyzePharmacyData(inspection.sheets);
 
     expect(analytics?.metrics.sales).toMatchObject({ value: 1250, availability: "available" });
@@ -62,7 +63,7 @@ describe("inspectPharmacyFile", () => {
     const bytes = XLSX.write(workbook, { type: "array", bookType: "xlsx" });
     const file = new File([bytes], "priced-export.xlsx", { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
 
-    const inspection = await inspectPharmacyFile(file);
+    const inspection = approveAllSuggestions(await inspectPharmacyFile(file));
     const sheet = inspection.sheets[0];
     const analytics = analyzePharmacyData(inspection.sheets);
 

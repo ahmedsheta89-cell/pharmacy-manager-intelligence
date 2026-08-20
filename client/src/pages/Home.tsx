@@ -83,6 +83,9 @@ import { applyPriceFile, inspectMonthlyFiles, monthFromFileName, type ImportedMo
 import { deleteImportTemplate, loadImportTemplates, saveImportTemplate, type ImportTemplate } from "@/lib/importTemplates";
 import { analyzeInventoryFlow } from "@/lib/inventoryFlowEngine";
 import { exportInventoryFlowWorkbook } from "@/lib/inventoryFlowExport";
+import { ImportReviewCenter } from "@/components/ImportReviewCenter";
+import { inspectWorkbookStructure, type WorkbookStructureReview } from "@/lib/excelInspector";
+import { recordImportAudit, type ImportAuditRecord } from "@/lib/importAuditLog";
 
 type Stage = "welcome" | "review" | "dashboard";
 type DashboardView = "overview" | "sales" | "products" | "movement" | "flow" | "companies" | "inventory" | "branches" | "alerts" | "report" | "settings";
@@ -146,6 +149,10 @@ function EmptyMetric({ label, note }: { label: string; note: string }) {
 export default function Home() {
   const [stage, setStage] = useState<Stage>("welcome");
   const [inspection, setInspection] = useState<ImportInspection | null>(null);
+  const [workbookStructure, setWorkbookStructure] = useState<WorkbookStructureReview | null>(null);
+  const [priceInspection, setPriceInspection] = useState<ImportInspection | null>(null);
+  const [priceWorkbookStructure, setPriceWorkbookStructure] = useState<WorkbookStructureReview | null>(null);
+  const [reviewSource, setReviewSource] = useState<"base" | "price">("base");
   const [selectedSheetIndex, setSelectedSheetIndex] = useState(0);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState("");
@@ -192,9 +199,9 @@ export default function Home() {
     if (!/\.(xlsx|xls|csv)$/.test(fileName)) { setError("يرجى اختيار ملف Excel أو CSV بصيغة XLSX أو XLS أو CSV."); return; }
     setProcessing(true); setError(""); setAnswer("");
     try {
-      const result = await inspectPharmacyFile(file);
+      const [result, structure] = await Promise.all([inspectPharmacyFile(file), inspectWorkbookStructure(file)]);
       if (!result.sheets.some((sheet) => sheet.cleanRecords.length)) throw new Error("لم نعثر على صفوف بيانات قابلة للتحليل داخل الملف. راجع أن التقرير يحتوي على جدول فعلي.");
-      setInspection(result); setSelectedSheetIndex(0); setStage("review");
+      setInspection(result); setWorkbookStructure(structure); setSelectedSheetIndex(0); setStage("review");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "تعذر قراءة الملف. تأكد من أن الملف غير محمي بكلمة مرور ثم حاول مجددًا.");
     } finally { setProcessing(false); }
@@ -232,21 +239,32 @@ export default function Home() {
   async function beginMonthlyFiles() {
     if (!monthlyDraft.length) return;
     setProcessing(true); setError(""); setAnswer(""); setPriceMatchReport(null);
-    try { const result = await inspectMonthlyFiles(monthlyDraft.map((entry) => entry.file), monthlyDraft.map((entry) => entry.month)); setInspection(result.inspection); setImportedMonths(result.months); setSelectedSheetIndex(0); setStage("review"); }
+    try { const [result, reviews] = await Promise.all([inspectMonthlyFiles(monthlyDraft.map((entry) => entry.file), monthlyDraft.map((entry) => entry.month)), Promise.all(monthlyDraft.map((entry) => inspectWorkbookStructure(entry.file)))]); setInspection(result.inspection); setWorkbookStructure({ fileName: result.inspection.fileName, fileFingerprintHint: result.inspection.fileFingerprint, inspectedAt: new Date().toISOString(), sheets: result.months.flatMap((month) => (reviews.find((review) => review.fileName === month.fileName)?.sheets ?? []).map((sheet) => ({ ...sheet, name: month.label }))), warnings: reviews.flatMap((review) => review.warnings) }); setImportedMonths(result.months); setSelectedSheetIndex(0); setStage("review"); }
     catch (caught) { setError(caught instanceof Error ? caught.message : "تعذر قراءة ملفات الأشهر."); }
     finally { setProcessing(false); }
   }
-  async function addPriceFile(file?: File) {
+  async function beginPriceReview(file?: File) {
     if (!file || !inspection) return;
     setProcessing(true); setError("");
-    try { const priceInspection = await inspectPharmacyFile(file); const result = applyPriceFile(inspection, priceInspection); setInspection(result.inspection); setPriceMatchReport(result.report); }
+    try {
+      const [nextPriceInspection, nextPriceStructure] = await Promise.all([inspectPharmacyFile(file), inspectWorkbookStructure(file)]);
+      if (!nextPriceInspection.sheets.some((sheet) => sheet.cleanRecords.length)) throw new Error("لم نعثر على جدول أسعار صالح داخل الملف الإضافي.");
+      setPriceInspection(nextPriceInspection); setPriceWorkbookStructure(nextPriceStructure); setReviewSource("price"); setSelectedSheetIndex(0);
+    }
     catch (caught) { setError(caught instanceof Error ? caught.message : "تعذر مطابقة ملف الأسعار."); }
     finally { setProcessing(false); }
   }
   function onDrop(event: DragEvent<HTMLDivElement>) { event.preventDefault(); setDragging(false); void beginFile(event.dataTransfer.files?.[0]); }
 
-  function confirmImport() {
+  function confirmImport(audit?: ImportAuditRecord) {
     if (!inspection) return;
+    if (reviewSource === "price") {
+      if (!priceInspection) return;
+      const result = applyPriceFile(inspection, priceInspection);
+      if (audit) recordImportAudit(audit);
+      setInspection(result.inspection); setPriceMatchReport(result.report); setPriceInspection(null); setPriceWorkbookStructure(null); setReviewSource("base"); setSelectedSheetIndex(0);
+      return;
+    }
     const key = "pmi-import-history";
     const now = new Date();
     const current = { name: inspection.fileName, importedAt: now.toISOString(), rows: inspection.sheets.reduce((sum, sheet) => sum + sheet.quality.validRecords, 0), fingerprint: inspection.fileFingerprint };
@@ -254,12 +272,13 @@ export default function Home() {
       const previous = JSON.parse(localStorage.getItem(key) ?? "[]") as Array<typeof current>;
       localStorage.setItem(key, JSON.stringify([current, ...previous.filter((entry) => entry.fingerprint !== current.fingerprint)].slice(0, 15)));
     } catch { /* history is optional and never blocks local analysis */ }
+    if (audit) recordImportAudit(audit);
     const sessionResult = saveAnalysisSession(inspection);
     setSavedSessions(sessionResult.sessions);
     setFilters({}); setView("overview"); setStage("dashboard");
   }
 
-  function importNewFile() { setInspection(null); setImportedMonths([]); setPriceMatchReport(null); setMonthlyDraft([]); setAnswer(""); setError(""); setStage("welcome"); }
+  function importNewFile() { setInspection(null); setWorkbookStructure(null); setPriceInspection(null); setPriceWorkbookStructure(null); setReviewSource("base"); setImportedMonths([]); setPriceMatchReport(null); setMonthlyDraft([]); setAnswer(""); setError(""); setStage("welcome"); }
   function restoreAnalysisSession(session: LocalAnalysisSession) { setInspection(refreshImportedInspection(session.inspection)); setSelectedSheetIndex(0); setFilters({}); setAnswer(""); setView("overview"); setStage("dashboard"); }
   function removeAnalysisSession(session: LocalAnalysisSession) { setSavedSessions(deleteAnalysisSession(session.id)); }
   function updateSessionTags(id: string, tags: string[]) { setSavedSessions(updateAnalysisSessionTags(id, tags)); }
@@ -319,7 +338,11 @@ export default function Home() {
   function clearReportPasscode() { setReportLock(removeLocalReportPasscode()); }
 
   if (stage === "welcome") return <WelcomeScreen dragging={dragging} processing={processing} error={error} fileInput={fileInput} monthlyFilesInput={monthlyFilesInput} sessions={savedSessions} monthlyDraft={monthlyDraft} importTemplates={importTemplates} templateName={templateName} onTemplateName={setTemplateName} onApplyTemplate={applyImportTemplate} onDeleteTemplate={removeImportTemplate} onSaveTemplate={saveCurrentImportTemplate} onChangeDraftMonth={changeDraftMonth} onRestore={restoreAnalysisSession} onDeleteSession={removeAnalysisSession} onUpdateTags={updateSessionTags} onExportBackup={exportLocalBackup} onImportBackup={importBackup} onDrop={onDrop} onDragOver={(event) => { event.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onChange={onFileChange} onMonthlyFilesChange={(event) => { selectMonthlyFiles(event.target.files); event.target.value = ""; }} onStartMonthly={() => { void beginMonthlyFiles(); }} onOpen={() => fileInput.current?.click()} onOpenMonthly={() => monthlyFilesInput.current?.click()} />;
-  if (stage === "review" && inspection && selectedSheet) return <ReviewScreen inspection={inspection} selectedSheet={selectedSheet} selectedSheetIndex={selectedSheetIndex} importedMonths={importedMonths} priceMatchReport={priceMatchReport} onPriceFile={addPriceFile} onSheet={(index) => setSelectedSheetIndex(index)} onCancel={importNewFile} onConfirm={confirmImport} />;
+  if (stage === "review" && inspection && selectedSheet) {
+    const activeInspection = reviewSource === "price" ? priceInspection : inspection;
+    const activeStructure = reviewSource === "price" ? priceWorkbookStructure : workbookStructure;
+    if (activeInspection) return <ImportReviewCenter inspection={activeInspection} structure={activeStructure} selectedSheetIndex={selectedSheetIndex} onSheet={setSelectedSheetIndex} onChange={reviewSource === "price" ? setPriceInspection : setInspection} onCancel={reviewSource === "price" ? () => { setPriceInspection(null); setPriceWorkbookStructure(null); setReviewSource("base"); setSelectedSheetIndex(0); } : importNewFile} onConfirm={confirmImport} onRequestPriceReview={reviewSource === "base" ? beginPriceReview : undefined} priceMatchReport={reviewSource === "base" ? priceMatchReport : null} reviewKind={reviewSource === "price" ? "prices" : "analysis"} />;
+  }
   if (!analytics || !inspection) return null;
 
   const sheet = inspection.sheets.find((item) => item.name === analytics.sourceSheet) ?? inspection.sheets[0];

@@ -2,11 +2,12 @@ import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import { inspectPharmacyFile } from "./pharmacyEngine";
 import { analyzeProductMovement } from "./productMovementEngine";
+import { approveAllSuggestions } from "./importReview";
 
 describe("ملف الصيدلية المرسل 6-8.xlsx", () => {
   it("يصحح انزياح العناوين ويستخرج الحقول التي ثبت وجودها دون اختلاق أسعار أو تواريخ", async () => {
     const bytes = await readFile("/home/ubuntu/upload/6-8.xlsx");
-    const inspection = await inspectPharmacyFile(new File([bytes], "6-8.xlsx", { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+    const inspection = approveAllSuggestions(await inspectPharmacyFile(new File([bytes], "6-8.xlsx", { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })));
     const sheet = inspection.sheets[0];
     const movement = analyzeProductMovement(inspection.sheets);
 

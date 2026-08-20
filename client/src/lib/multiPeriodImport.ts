@@ -1,4 +1,5 @@
 import { inspectPharmacyFile, refreshImportedInspection, toNumber, type CanonicalField, type CleanRecord, type ColumnMapping, type ImportInspection, type SheetInspection } from "./pharmacyEngine";
+import { isApprovedMapping } from "./importReview";
 
 export type ImportedMonth = { fileName: string; label: string; month: number; rows: number; source: "اسم الملف" | "اختيار يدوي" };
 export type PriceMatchItem = { itemCode?: string; itemName?: string; occurrences: number; reason: "غير موجود في ملف الأسعار" | "لا كود ولا اسم صالح للمطابقة" };
@@ -50,7 +51,7 @@ export function resolveMonthlyAssignments(fileNames: string[], manualMonths: Arr
 
 function fieldMap(mappings: ColumnMapping[]) {
   return mappings.reduce((result, mapping) => {
-    if (mapping.field !== "unknown" && mapping.confidence !== "منخفضة" && !result[mapping.field]) result[mapping.field] = mapping.sourceColumn;
+    if (mapping.field !== "unknown" && isApprovedMapping(mapping) && !result[mapping.field]) result[mapping.field] = mapping.sourceColumn;
     return result;
   }, {} as Partial<Record<CanonicalField, string>>);
 }
