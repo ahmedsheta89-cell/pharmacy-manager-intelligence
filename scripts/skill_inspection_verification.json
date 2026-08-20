@@ -1,0 +1,296 @@
+{
+  "file": "6-8.xlsx",
+  "sheet_count": 1,
+  "sheets": [
+    {
+      "name": "Sheet1",
+      "rows": 2762,
+      "columns": 9,
+      "merged_ranges": [],
+      "hidden_rows": [],
+      "hidden_columns": [],
+      "header_candidates": [
+        {
+          "row": 1,
+          "matches": [
+            {
+              "cell": "C1",
+              "text": "الرصيد",
+              "fields": [
+                "stock_quantity"
+              ]
+            },
+            {
+              "cell": "E1",
+              "text": "الكمية",
+              "fields": [
+                "quantity_sold"
+              ]
+            },
+            {
+              "cell": "H1",
+              "text": "الإسم",
+              "fields": [
+                "item_name"
+              ]
+            },
+            {
+              "cell": "I1",
+              "text": "الكود",
+              "fields": [
+                "item_code"
+              ]
+            }
+          ],
+          "score": 4
+        }
+      ],
+      "field_candidates": {
+        "item_code": [
+          {
+            "row": 1,
+            "column": 9,
+            "cell": "I1",
+            "header": "الكود"
+          }
+        ],
+        "item_name": [
+          {
+            "row": 1,
+            "column": 8,
+            "cell": "H1",
+            "header": "الإسم"
+          }
+        ],
+        "stock_quantity": [
+          {
+            "row": 1,
+            "column": 3,
+            "cell": "C1",
+            "header": "الرصيد"
+          }
+        ],
+        "quantity_sold": [
+          {
+            "row": 1,
+            "column": 5,
+            "cell": "E1",
+            "header": "الكمية"
+          }
+        ]
+      },
+      "first_rows": [
+        {
+          "row": 1,
+          "values": [
+            "الموظف",
+            "إجمالى س.بيع",
+            "الرصيد",
+            "الوحدة",
+            "الكمية",
+            "المنشأ",
+            "الشركة",
+            "الإسم",
+            "الكود"
+          ]
+        },
+        {
+          "row": 2,
+          "values": [
+            "39.0",
+            "1.67",
+            "علبة",
+            "1.0",
+            "محلى",
+            "SCOPE PHARMA",
+            "(C6) conviban 25mg30tab",
+            "61986",
+            ""
+          ]
+        },
+        {
+          "row": 3,
+          "values": [
+            "208.0",
+            "2.33",
+            "علبة",
+            "1.3333",
+            "إستثمارى",
+            "دلتا فارم",
+            "(G1)جابتين 400مجم30كبسول",
+            "47575",
+            ""
+          ]
+        },
+        {
+          "row": 4,
+          "values": [
+            "252.0",
+            "9.0",
+            "علبة",
+            "4.5",
+            "إستثمارى",
+            "هاى فارم",
+            "(S3) ستيرونات نور اقراص",
+            "23132",
+            ""
+          ]
+        },
+        {
+          "row": 5,
+          "values": [
+            "559.0",
+            "1.0",
+            "One Unit",
+            "1.0",
+            "محلى",
+            "SCOPE PHARMA",
+            "ACM MEDISUN MATTIFYING GEL 40ML",
+            "64841",
+            ""
+          ]
+        },
+        {
+          "row": 6,
+          "values": [
+            "7842.0",
+            "3.0",
+            "علبة",
+            "6.0",
+            "محلى",
+            "SCOPE PHARMA",
+            "Adport 0.5 mg 100 cap",
+            "65197",
+            ""
+          ]
+        },
+        {
+          "row": 7,
+          "values": [
+            "304.0",
+            "2.0",
+            "One Unit",
+            "2.0",
+            "محلى",
+            "SCOPE PHARMA",
+            "alfacareno oral drops 10ml",
+            "61899",
+            ""
+          ]
+        },
+        {
+          "row": 8,
+          "values": [
+            "260.0",
+            "7.33",
+            "علبة",
+            "3.3333",
+            "محلى",
+            "SCOPE PHARMA",
+            "antodine 20mg 6amp",
+            "64505",
+            ""
+          ]
+        },
+        {
+          "row": 9,
+          "values": [
+            "463.0",
+            "",
+            "علبة",
+            "1.0",
+            "مستورد",
+            "ميلوبا",
+            "APTAMIL MILK 1 COMFORT",
+            "32040",
+            ""
+          ]
+        },
+        {
+          "row": 10,
+          "values": [
+            "1350.0",
+            "",
+            "علبة",
+            "3.0",
+            "محلى",
+            "SCOPE PHARMA",
+            "APTAMIL PROSYNEO MILK 400 GM",
+            "62762",
+            ""
+          ]
+        },
+        {
+          "row": 11,
+          "values": [
+            "411.0",
+            "2.0",
+            "علبة",
+            "3.0",
+            "محلى",
+            "SCOPE PHARMA",
+            "arcoxia 120mg 7tab/A5/",
+            "62016",
+            ""
+          ]
+        },
+        {
+          "row": 12,
+          "values": [
+            "219.0",
+            "1.0",
+            "فردة شراب",
+            "1.0",
+            "محلى",
+            "SCOPE PHARMA",
+            "argento cleanser 200 ml",
+            "62826",
+            ""
+          ]
+        },
+        {
+          "row": 13,
+          "values": [
+            "966.0",
+            "1.0",
+            "One Unit",
+            "2.0",
+            "محلى",
+            "SCOPE PHARMA",
+            "avara 20mg 30tab",
+            "61779",
+            ""
+          ]
+        },
+        {
+          "row": 14,
+          "values": [
+            "280.0",
+            "1.0",
+            "One Unit",
+            "1.0",
+            "محلى",
+            "SCOPE PHARMA",
+            "BELLAVERA SERUM",
+            "65379",
+            ""
+          ]
+        },
+        {
+          "row": 15,
+          "values": [
+            "220.0",
+            "1.0",
+            "علبة",
+            "1.0",
+            "محلى",
+            "SCOPE PHARMA",
+            "Benogen 10sachets",
+            "65693",
+            ""
+          ]
+        }
+      ]
+    }
+  ]
+}
