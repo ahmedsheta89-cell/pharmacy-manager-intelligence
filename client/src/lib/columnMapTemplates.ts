@@ -3,7 +3,7 @@
  * صفوف Excel أو قيم الأصناف أو محتوى الملف.
  */
 import type { WorkbookStructureReview } from "./excelInspector";
-import type { CanonicalField, ImportInspection, SheetInspection } from "./pharmacyEngine";
+import type { CanonicalField, ImportInspection, SheetEditorConfig, SheetInspection } from "./pharmacyEngine";
 
 export const columnMapTemplatesStorageKey = "pmi-column-map-templates-v1";
 const TEMPLATE_LIMIT = 10;
@@ -33,6 +33,7 @@ export type ColumnMapTemplateSheet = {
   headerOrder: ColumnMapTemplateHeader[];
   mappings: ColumnMapTemplateMapping[];
   removedHeaders: Array<{ headerColumn: string; title: string }>;
+  editorConfig?: Pick<SheetEditorConfig, "headerRowIndex" | "dataStartRowIndex" | "firstDataColumnIndex" | "excludedRowNumbers">;
 };
 
 export type ColumnMapTemplate = {
@@ -125,6 +126,15 @@ function normalizeSheets(value: unknown): ColumnMapTemplateSheet[] {
       const title = String(value.title ?? "").trim();
       return headerColumn && title ? [{ headerColumn, title }] : [];
     }) : [];
+    const editor = sheet.editorConfig as Partial<SheetEditorConfig> | undefined;
+    const editorConfig = editor && Number.isInteger(editor.headerRowIndex) && Number.isInteger(editor.dataStartRowIndex) && Number.isInteger(editor.firstDataColumnIndex)
+      ? {
+          headerRowIndex: Math.max(0, Number(editor.headerRowIndex)),
+          dataStartRowIndex: Math.max(0, Number(editor.dataStartRowIndex)),
+          firstDataColumnIndex: Math.max(0, Number(editor.firstDataColumnIndex)),
+          excludedRowNumbers: Array.from(new Set((Array.isArray(editor.excludedRowNumbers) ? editor.excludedRowNumbers : []).map((item) => Math.trunc(Number(item))).filter((item) => item > 0))).sort((a, b) => a - b).slice(0, 500),
+        }
+      : undefined;
     return [{
       name,
       headerRowIndex: Math.max(0, Number(sheet.headerRowIndex) || 0),
@@ -133,6 +143,7 @@ function normalizeSheets(value: unknown): ColumnMapTemplateSheet[] {
       headerOrder,
       mappings: normalizeMappings(sheet.mappings),
       removedHeaders,
+      editorConfig,
     }];
   }).slice(0, 20);
 }
@@ -174,6 +185,12 @@ function serializeSheet(sheet: SheetInspection, structure?: WorkbookStructureRev
       adjustedForHeaderShift: Boolean(mapping.adjustedForHeaderShift),
     })),
     removedHeaders: (sheet.removedHeaders ?? []).map((header) => ({ headerColumn: header.headerColumn, title: header.title })),
+    editorConfig: sheet.editorConfig ? {
+      headerRowIndex: sheet.editorConfig.headerRowIndex,
+      dataStartRowIndex: sheet.editorConfig.dataStartRowIndex,
+      firstDataColumnIndex: sheet.editorConfig.firstDataColumnIndex,
+      excludedRowNumbers: sheet.editorConfig.excludedRowNumbers,
+    } : undefined,
   };
 }
 

@@ -78,6 +78,16 @@ export interface ColumnMapping {
   adjustedForHeaderShift?: boolean;
 }
 
+/** إعدادات المدير لتحرير قراءة الشيت. الفهارس صفرية داخليًا، ولا تعدّل ملف Excel الأصلي. */
+export interface SheetEditorConfig {
+  headerRowIndex: number;
+  dataStartRowIndex: number;
+  firstDataColumnIndex: number;
+  /** أرقام صفوف Excel المرئية للمدير، وتبدأ من 1. */
+  excludedRowNumbers: number[];
+  updatedAt?: string;
+}
+
 export interface SheetInspection {
   name: string;
   rows: number;
@@ -96,6 +106,9 @@ export interface SheetInspection {
   excludedRows: number;
   quality: QualityReport;
   preview: RawRecord[];
+  /** نسخة قراءة محلية من المصدر لتمكين المحرر؛ لا تمر للتحليل بوصفها ملفًا جديدًا. */
+  sourceMatrix?: DataValue[][];
+  editorConfig?: SheetEditorConfig;
 }
 
 export interface ImportInspection {
@@ -108,7 +121,7 @@ export interface ImportInspection {
 }
 
 export interface QualityIssue {
-  type: "مفقود" | "غير رقمي" | "تاريخ غير صالح" | "قيمة سالبة" | "تكرار" | "صف إجمالي";
+  type: "مفقود" | "غير رقمي" | "تاريخ غير صالح" | "قيمة سالبة" | "تكرار" | "صف إجمالي" | "صف مستبعد بقرار المدير";
   count: number;
   detail: string;
   severity: "low" | "medium" | "high";
@@ -265,7 +278,7 @@ function scoreMapping(header: string): { field: CanonicalField | "unknown"; scor
   return { field: topScore >= 38 ? winner : "unknown", score: topScore, reason };
 }
 
-function mapColumns(headers: string[], rawRows: unknown[][], headerColumns?: Array<string | undefined>): ColumnMapping[] {
+function mapColumns(headers: string[], rawRows: unknown[][], headerColumns?: Array<string | undefined>, dataColumnOffset = 0): ColumnMapping[] {
   return headers.map((header, index) => {
     const result = scoreMapping(header);
     const sample = rawRows.slice(0, 5).map((row) => row[index]).find((value) => value !== undefined && value !== null && value !== "");
@@ -279,11 +292,29 @@ function mapColumns(headers: string[], rawRows: unknown[][], headerColumns?: Arr
       reason: result.reason,
       sample: sample === undefined ? "—" : String(sample).slice(0, 40),
       approvalStatus: "suggested",
-      dataColumn: XLSX.utils.encode_col(index),
+      dataColumn: XLSX.utils.encode_col(index + dataColumnOffset),
       headerColumn,
-      adjustedForHeaderShift: headerColumn !== XLSX.utils.encode_col(index),
+      adjustedForHeaderShift: headerColumn !== XLSX.utils.encode_col(index + dataColumnOffset),
     };
   });
+}
+
+function normalizeEditorConfig(matrix: DataValue[][], requested?: Partial<SheetEditorConfig>): SheetEditorConfig {
+  const maxRow = Math.max(matrix.length - 1, 0);
+  const maxColumn = Math.max(matrix.reduce((max, row) => Math.max(max, row.length), 0) - 1, 0);
+  const headerRowIndex = Math.min(Math.max(Math.trunc(requested?.headerRowIndex ?? getHeaderRow(matrix)), 0), maxRow);
+  const dataStartRowIndex = Math.min(Math.max(Math.trunc(requested?.dataStartRowIndex ?? headerRowIndex + 1), headerRowIndex + 1), matrix.length);
+  const firstDataColumnIndex = Math.min(Math.max(Math.trunc(requested?.firstDataColumnIndex ?? 0), 0), maxColumn);
+  const excludedRowNumbers = Array.from(new Set((requested?.excludedRowNumbers ?? [])
+    .map((item) => Math.trunc(item))
+    .filter((item) => item > dataStartRowIndex && item <= matrix.length))).sort((a, b) => a - b);
+  return { headerRowIndex, dataStartRowIndex, firstDataColumnIndex, excludedRowNumbers, updatedAt: requested?.updatedAt };
+}
+
+function offsetColumn(column: string | undefined, offset: number): string | undefined {
+  if (!column) return column;
+  const base = column.toUpperCase().split("").reduce((value, letter) => value * 26 + letter.charCodeAt(0) - 64, 0) - 1;
+  return XLSX.utils.encode_col(base + offset);
 }
 
 /**
@@ -364,10 +395,14 @@ export function refreshImportedInspection(inspection: ImportInspection): ImportI
   };
 }
 
-function inspectSheet(name: string, matrix: unknown[][]): SheetInspection {
-  const headerRowIndex = getHeaderRow(matrix);
-  const rawHeaders = (matrix[headerRowIndex] ?? []).map((value, index) => String(value ?? `عمود ${index + 1}`).trim() || `عمود ${index + 1}`);
-  const dataRows = matrix.slice(headerRowIndex + 1).filter((row) => row.some((cell) => cell !== undefined && cell !== null && String(cell).trim() !== ""));
+function inspectSheet(name: string, matrix: DataValue[][], requestedEditorConfig?: Partial<SheetEditorConfig>): SheetInspection {
+  const editorConfig = normalizeEditorConfig(matrix, requestedEditorConfig);
+  const { headerRowIndex, dataStartRowIndex, firstDataColumnIndex } = editorConfig;
+  const rawHeaders = (matrix[headerRowIndex] ?? []).slice(firstDataColumnIndex).map((value, index) => String(value ?? `عمود ${firstDataColumnIndex + index + 1}`).trim() || `عمود ${firstDataColumnIndex + index + 1}`);
+  const dataRowEntries = matrix.slice(dataStartRowIndex).map((row, index) => ({ row: row.slice(firstDataColumnIndex), rowNumber: dataStartRowIndex + index + 1 }))
+    .filter((item) => !editorConfig.excludedRowNumbers.includes(item.rowNumber))
+    .filter((item) => item.row.some((cell) => cell !== undefined && cell !== null && String(cell).trim() !== ""));
+  const dataRows = dataRowEntries.map((item) => item.row);
   const headerWasShifted = hasLeadingHeaderShift(rawHeaders, dataRows);
   const headerDataOffset = headerWasShifted ? 1 : 0;
   const dataColumnCount = Math.max(rawHeaders.length, ...dataRows.map((row) => row.length), 0);
@@ -378,8 +413,8 @@ function inspectSheet(name: string, matrix: unknown[][]): SheetInspection {
   // تنتهي الخريطة عند «الكود» (I ← H) ولا تدخل قيم I الفارغة في التحليل.
   const headers = headerWasShifted ? shiftedHeaders : rawHeaders;
   const headerColumns = headerWasShifted
-    ? headers.map((_, index) => XLSX.utils.encode_col(index + 1))
-    : Array.from({ length: dataColumnCount }, (_, index) => XLSX.utils.encode_col(index));
+    ? headers.map((_, index) => XLSX.utils.encode_col(firstDataColumnIndex + index + 1))
+    : Array.from({ length: dataColumnCount }, (_, index) => XLSX.utils.encode_col(firstDataColumnIndex + index));
   const excludedColumns: Array<{ dataColumn: string; sourceColumn: string; reason: string }> = [];
   const removedHeaders = headerWasShifted
     ? [{
@@ -388,7 +423,7 @@ function inspectSheet(name: string, matrix: unknown[][]): SheetInspection {
         reason: "قرار المدير: إزالة رأس «الموظف» الوهمي فقط. قيم العمود A محفوظة وتُفسر بعنوان B «إجمالي البيع».",
       }]
     : [];
-  const suggestedMappings = mapColumns(headers, dataRows, headerColumns);
+  const suggestedMappings = mapColumns(headers, dataRows, headerColumns, firstDataColumnIndex);
   const mappings = headerWasShifted
     ? suggestedMappings.map((mapping) => mapping.headerColumn
       ? {
@@ -399,16 +434,20 @@ function inspectSheet(name: string, matrix: unknown[][]): SheetInspection {
     : suggestedMappings;
   const mapsByField = approvedFieldMap(mappings);
 
-  const rawRecords = dataRows.map((row) => headers.reduce<RawRecord>((record, header, index) => {
-    record[header] = row[index] as DataValue;
-    return record;
-  }, {}));
+  const rawRecordEntries = dataRowEntries.map(({ row, rowNumber }) => ({
+    rowNumber,
+    record: headers.reduce<RawRecord>((record, header, index) => {
+      record[header] = row[index] as DataValue;
+      return record;
+    }, {}),
+  }));
+  const rawRecords = rawRecordEntries.map((item) => item.record);
   const totalRows = rawRecords.length;
-  const totalRowsDetected = rawRecords.filter(looksLikeTotalRow);
-  const candidateRecords = rawRecords.filter((record) => !looksLikeTotalRow(record));
+  const totalRowsDetected = rawRecordEntries.filter((item) => looksLikeTotalRow(item.record));
+  const candidateRecords = rawRecordEntries.filter((item) => !looksLikeTotalRow(item.record));
   const cleanRecords = candidateRecords
-    .filter((record) => Object.values(record).some((value) => value !== null && value !== undefined && String(value).trim() !== ""))
-    .map<CleanRecord>((record, index) => ({ ...record, __rowIndex: headerRowIndex + 2 + index, __sheetName: name, __metrics: calculateMetrics(record, mapsByField) }));
+    .filter((item) => Object.values(item.record).some((value) => value !== null && value !== undefined && String(value).trim() !== ""))
+    .map<CleanRecord>(({ record, rowNumber }) => ({ ...record, __rowIndex: rowNumber, __sheetName: name, __metrics: calculateMetrics(record, mapsByField) }));
 
   const criticalFields = ["item_name", "sales_total", "quantity_sold", "sale_date"] as CanonicalField[];
   const emptyCriticalCells = criticalFields.reduce((count, field) => {
@@ -440,6 +479,7 @@ function inspectSheet(name: string, matrix: unknown[][]): SheetInspection {
   const penalty = Math.min(70, (emptyCriticalCells / denominator) * 20 + (invalidNumericValues / denominator) * 15 + (invalidDates / denominator) * 20 + (negativeValues / denominator) * 8 + (duplicates / denominator) * 12 + (totalRowsDetected.length / Math.max(totalRows, 1)) * 10);
   const issues: QualityIssue[] = [];
   if (totalRowsDetected.length) issues.push({ type: "صف إجمالي", count: totalRowsDetected.length, detail: "تم استبعاد صفوف الإجمالي من التحليل حتى لا تتكرر القيم.", severity: "low" });
+  if (editorConfig.excludedRowNumbers.length) issues.push({ type: "صف مستبعد بقرار المدير", count: editorConfig.excludedRowNumbers.length, detail: "صفوف اختار المدير تجاهلها في محرر الشيت قبل التحليل.", severity: "low" });
   if (emptyCriticalCells) issues.push({ type: "مفقود", count: emptyCriticalCells, detail: "خلايا أساسية فارغة في الأعمدة المتاحة.", severity: emptyCriticalCells / denominator > 0.15 ? "high" : "medium" });
   if (invalidNumericValues) issues.push({ type: "غير رقمي", count: invalidNumericValues, detail: "قيم لا يمكن تحويلها إلى أرقام في حقول رقمية.", severity: "medium" });
   if (invalidDates) issues.push({ type: "تاريخ غير صالح", count: invalidDates, detail: "قيم تاريخ غير مقروءة في الحقول المعروفة كتاريخ.", severity: "medium" });
@@ -449,7 +489,7 @@ function inspectSheet(name: string, matrix: unknown[][]): SheetInspection {
   const quality: QualityReport = {
     score: Math.max(30, Math.round(100 - penalty)),
     validRecords: cleanRecords.length,
-    excludedRecords: totalRowsDetected.length,
+    excludedRecords: totalRowsDetected.length + editorConfig.excludedRowNumbers.length,
     emptyCriticalCells,
     invalidNumericValues,
     invalidDates,
@@ -463,21 +503,34 @@ function inspectSheet(name: string, matrix: unknown[][]): SheetInspection {
   return {
     name,
     rows: matrix.length,
-    columns: headers.length,
+    columns: Math.max(...matrix.map((row) => row.length), 0),
     headerRowIndex,
     headerDataOffset,
     layoutNote: headerWasShifted
       ? "قرار المدير المثبت: إزالة رأس A «الموظف» الوهمي فقط، وليس بيانات A. بعده تُرحّل العناوين هكذا: عنوان B «إجمالي البيع» يصف قيم A، عنوان C «الرصيد» يصف B، عنوان D «الوحدة» يصف C، عنوان E «الكمية» يصف D، عنوان F «المنشأ» يصف E، عنوان G «الشركة» يصف F، عنوان H «الاسم» يصف G، وعنوان I «الكود» يصف قيم H. لا تدخل قيم I الفارغة في الخريطة أو التحليل."
       : undefined,
     excludedColumns,
-    removedHeaders,
+    removedHeaders: removedHeaders.map((header) => ({ ...header, headerColumn: offsetColumn(header.headerColumn, firstDataColumnIndex) ?? header.headerColumn })),
     headers,
     mappings,
     rawRecords,
     cleanRecords,
-    excludedRows: totalRowsDetected.length,
+    excludedRows: totalRowsDetected.length + editorConfig.excludedRowNumbers.length,
     quality,
     preview: rawRecords.slice(0, 10),
+    sourceMatrix: matrix,
+    editorConfig,
+  };
+}
+
+/** يعيد بناء شيت واحد من المصدر الذي قرئ محليًا وفق قرارات المدير، من دون تعديل ملف Excel أو تطبيق موافقات ضمنية. */
+export function applySheetEditorConfig(inspection: ImportInspection, sheetName: string, requested: Partial<SheetEditorConfig>): ImportInspection {
+  return {
+    ...inspection,
+    sheets: inspection.sheets.map((sheet) => {
+      if (sheet.name !== sheetName || !sheet.sourceMatrix?.length) return sheet;
+      return inspectSheet(sheet.name, sheet.sourceMatrix, { ...sheet.editorConfig, ...requested, updatedAt: new Date().toISOString() });
+    }),
   };
 }
 
@@ -486,7 +539,7 @@ export async function inspectPharmacyFile(file: File): Promise<ImportInspection>
   const workbook = XLSX.read(buffer, { type: "array", cellDates: true, raw: true });
   const sheets = workbook.SheetNames.map((name) => {
     const sheet = workbook.Sheets[name];
-    const matrix = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: null, raw: true });
+    const matrix = XLSX.utils.sheet_to_json<DataValue[]>(sheet, { header: 1, defval: null, raw: true });
     return inspectSheet(name, matrix);
   });
   const text = `${file.name}|${file.size}|${file.lastModified}|${sheets.map((sheet) => `${sheet.name}:${sheet.rows}:${sheet.columns}`).join(";")}`;

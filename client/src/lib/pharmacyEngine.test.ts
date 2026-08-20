@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import * as XLSX from "xlsx";
-import { inspectPharmacyFile, refreshImportedInspection } from "./pharmacyEngine";
+import { applySheetEditorConfig, inspectPharmacyFile, refreshImportedInspection } from "./pharmacyEngine";
 import { analyzeProductMovement } from "./productMovementEngine";
 import { analyzePharmacyData } from "./analyticsEngine";
 import { approveAllSuggestions } from "./importReview";
@@ -93,5 +93,32 @@ describe("inspectPharmacyFile", () => {
     expect(refreshed.sheets[0].cleanRecords[0].__metrics.cost).toBeUndefined();
     expect(refreshed.sheets[0].cleanRecords[0].__metrics.profit).toBeUndefined();
     expect(refreshed.sheets[0].cleanRecords[0].__metrics.profitMargin).toBeUndefined();
+  });
+
+  it("يطبق محرر الشيت على المعاينة فقط: صف رأس يدوي وبداية بيانات واستبعاد صف وعمود بداية", async () => {
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([
+      ["تقرير تجريبي لا يدخل البيانات"],
+      ["ملاحظات داخلية"],
+      ["كود الصنف", "اسم الصنف", "الرصيد", "إجمالي البيع"],
+      ["IGNORE", "صف يلغيه المدير", 99, 999],
+      ["C-01", "صنف معتمد", 4, 120],
+      ["C-02", "صنف ثانٍ", 0, 70],
+    ]), "Sheet1");
+    const bytes = XLSX.write(workbook, { type: "array", bookType: "xlsx" });
+    const inspection = await inspectPharmacyFile(new File([bytes], "manual-editor.xlsx", { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+    const edited = applySheetEditorConfig(inspection, "Sheet1", { headerRowIndex: 2, dataStartRowIndex: 3, firstDataColumnIndex: 0, excludedRowNumbers: [4] });
+    const sheet = edited.sheets[0];
+
+    expect(sheet.editorConfig).toMatchObject({ headerRowIndex: 2, dataStartRowIndex: 3, firstDataColumnIndex: 0, excludedRowNumbers: [4] });
+    expect(sheet.cleanRecords).toHaveLength(2);
+    expect(sheet.cleanRecords.map((record) => record["كود الصنف"])).toEqual(["C-01", "C-02"]);
+    expect(sheet.cleanRecords.map((record) => record.__rowIndex)).toEqual([5, 6]);
+    expect(sheet.sourceMatrix?.[3]?.[1]).toBe("صف يلغيه المدير");
+    expect(sheet.quality.issues).toContainEqual(expect.objectContaining({ type: "صف مستبعد بقرار المدير", count: 1 }));
+
+    const shiftedStart = applySheetEditorConfig(edited, "Sheet1", { firstDataColumnIndex: 1 });
+    expect(shiftedStart.sheets[0].headers[0]).toBe("اسم الصنف");
+    expect(shiftedStart.sheets[0].mappings[0]?.dataColumn).toBe("B");
   });
 });

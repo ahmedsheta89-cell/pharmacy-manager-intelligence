@@ -41,6 +41,16 @@ try {
   await page.locator('input[type="file"]').first().setInputFiles(sourceFile);
   await page.getByRole("heading", { name: "مراجعة الاستيراد" }).waitFor({ timeout: 20_000 });
 
+  const manualEditor = page.locator("#sheet-manual-editor");
+  await page.getByRole("heading", { name: "محرر الشيت اليدوي — اضبط القراءة قبل الاعتماد" }).waitFor();
+  await manualEditor.getByLabel("رقم صف Excel للاستبعاد").fill("6");
+  await manualEditor.getByRole("button", { name: "إضافة أو استعادة" }).click();
+  await manualEditor.getByRole("button", { name: /صف 6 مستبعد/ }).waitFor();
+  await manualEditor.getByRole("button", { name: /صف 6 مستبعد/ }).click();
+  await manualEditor.locator("select").selectOption("1");
+  if (await manualEditor.locator("select").inputValue() !== "1") throw new Error("لم يقبل محرر الشيت تغيير عمود البداية.");
+  await manualEditor.locator("select").selectOption("0");
+
   await page.getByRole("heading", { name: "مقارنة مرئية للصفوف — المصدر مقابل الخريطة المصححة" }).waitFor();
   await page.getByRole("heading", { name: "قوالب خريطة الأعمدة المحلية" }).waitFor();
   await page.getByLabel("أؤكد أنني راجعت مقارنة هذا الشيت").check();
