@@ -1,0 +1,22 @@
+{
+  "sheets": [
+    {
+      "name": "Sheet1",
+      "dimensions": {
+        "max_row": 2763,
+        "max_column": 50
+      },
+      "best_header_row": 2,
+      "keyword_counts": {
+        "سعر_الجمهور_او_البيع": 7,
+        "الرصيد": 1,
+        "الوحدة": 307,
+        "الكمية": 1,
+        "الشركة": 2,
+        "اسم_الصنف": 3,
+        "كود_الصنف": 14
+      }
+    }
+  ]
+}
+Saved deep inspection to /home/ubuntu/pharmacy-manager-intelligence/scripts/6-8_deep_inspection.json

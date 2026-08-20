@@ -17,11 +17,16 @@ describe("ملف الصيدلية المرسل 6-8.xlsx", () => {
     expect(sheet.mappings.find((mapping) => mapping.sourceColumn === "الإسم")).toMatchObject({ field: "item_name", dataColumn: "G", headerColumn: "H" });
     expect(sheet.mappings.find((mapping) => mapping.sourceColumn === "الكود")).toMatchObject({ field: "item_code", dataColumn: "H", headerColumn: "I" });
     expect(sheet.mappings.find((mapping) => mapping.sourceColumn === "إجمالى س.بيع")).toMatchObject({ field: "sales_total", dataColumn: "A", headerColumn: "B" });
+    expect(sheet.mappings.find((mapping) => mapping.sourceColumn === "إجمالى س.بيع")?.reason).toContain("عنوان B");
+    expect(sheet.mappings.find((mapping) => mapping.sourceColumn === "إجمالى س.بيع")?.reason).toContain("قيم العمود A");
     expect(sheet.mappings.find((mapping) => mapping.sourceColumn === "الرصيد")).toMatchObject({ field: "stock_quantity", dataColumn: "B", headerColumn: "C" });
     expect(sheet.mappings.find((mapping) => mapping.sourceColumn === "الوحدة")).toMatchObject({ field: "unit", dataColumn: "C", headerColumn: "D" });
     expect(sheet.mappings.find((mapping) => mapping.sourceColumn === "الكمية")).toMatchObject({ field: "quantity_sold", dataColumn: "D", headerColumn: "E" });
     expect(sheet.mappings.some((mapping) => mapping.field === "employee")).toBe(false);
-    expect(sheet.mappings.find((mapping) => mapping.dataColumn === "I")).toMatchObject({ field: "unknown", headerColumn: undefined });
+    expect(sheet.layoutNote).toContain("لا يُقرأ «الموظف» كموظف هنا");
+    expect(sheet.layoutNote).toContain("عنوان I «الكود» يصف قيم H");
+    // قد يمتد نطاق Excel الفعلي بعد I بسبب تنسيق محفوظ؛ ما يهم أن عمود القيم التالي للكود لا يدخل التحليل.
+    expect(sheet.mappings.find((mapping) => mapping.dataColumn === "I")).toMatchObject({ field: "unknown" });
     expect(sheet.cleanRecords[0]).toMatchObject({
       "إجمالى س.بيع": 39,
       "الرصيد": 1.67,

@@ -376,7 +376,15 @@ function inspectSheet(name: string, matrix: unknown[][]): SheetInspection {
   const headerColumns = headerWasShifted
     ? Array.from({ length: dataColumnCount }, (_, index) => index < dataColumnCount - 1 ? XLSX.utils.encode_col(index + 1) : undefined)
     : Array.from({ length: dataColumnCount }, (_, index) => XLSX.utils.encode_col(index));
-  const mappings = mapColumns(headers, dataRows, headerColumns);
+  const suggestedMappings = mapColumns(headers, dataRows, headerColumns);
+  const mappings = headerWasShifted
+    ? suggestedMappings.map((mapping) => mapping.headerColumn
+      ? {
+          ...mapping,
+          reason: `قاعدة الانزياح المعتمدة: عنوان ${mapping.headerColumn} «${mapping.sourceColumn}» يصف قيم العمود ${mapping.dataColumn}، وليس قيم العمود الذي تحته.`,
+        }
+      : mapping)
+    : suggestedMappings;
   const mapsByField = approvedFieldMap(mappings);
 
   const rawRecords = dataRows.map((row) => headers.reduce<RawRecord>((record, header, index) => {
@@ -447,7 +455,7 @@ function inspectSheet(name: string, matrix: unknown[][]): SheetInspection {
     headerRowIndex,
     headerDataOffset,
     layoutNote: headerWasShifted
-      ? "انزياح مثبت بالقيم: رأس B يفسر قيم A (إجمالي البيع)، ورأس C قيم B (الرصيد)، ورأس D قيم C (الوحدة)، ورأس E قيم D (الكمية)، ورأس F قيم E (المنشأ)، ورأس G قيم F (الشركة)، ورأس H قيم G (الاسم)، ورأس I قيم H (كود الصنف). لا يوجد رأس مقابل لعمود I، لذلك يبقى مستبعدًا ما لم يقرره المدير."
+      ? "قاعدة المدير المثبتة: العناوين مزاحة خانة إلى اليمين. لا يُقرأ «الموظف» كموظف هنا؛ عنوان B «إجمالي البيع» يصف قيم A، وعنوان C «الرصيد» يصف قيم B، وعنوان D «الوحدة» يصف قيم C، وعنوان E «الكمية» يصف قيم D، وعنوان F «المنشأ» يصف قيم E، وعنوان G «الشركة» يصف قيم F، وعنوان H «الاسم» يصف قيم G، وعنوان I «الكود» يصف قيم H. العمود I لا يملك عنوانًا مقابلاً، لذلك يبقى مستبعدًا ما لم يقرره المدير."
       : undefined,
     headers,
     mappings,
