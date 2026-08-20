@@ -87,6 +87,8 @@ export interface SheetInspection {
   layoutNote?: string;
   /** أعمدة ظهرت في المصدر الخام ولكن استُبعدت بقرار صريح قبل التحليل. */
   excludedColumns?: Array<{ dataColumn: string; sourceColumn: string; reason: string }>;
+  /** رؤوس وهمية أزيلت من تفسير الخريطة، من دون حذف أي عمود بيانات. */
+  removedHeaders?: Array<{ headerColumn: string; title: string; reason: string }>;
   headers: string[];
   mappings: ColumnMapping[];
   rawRecords: RawRecord[];
@@ -371,14 +373,20 @@ function inspectSheet(name: string, matrix: unknown[][]): SheetInspection {
   const dataColumnCount = Math.max(rawHeaders.length, ...dataRows.map((row) => row.length), 0);
   const codeHeaderIndex = headerWasShifted ? rawHeaders.findIndex((header) => scoreMapping(header).field === "item_code") : -1;
   const shiftedHeaders = codeHeaderIndex >= 1 ? rawHeaders.slice(1, codeHeaderIndex + 1) : rawHeaders.slice(1);
-  // قرار المدير: «الموظف» عنوان زائد في A، فلا يدخل النسخة المعالجة.
-  // كل عنوان تالٍ يصف قيم العمود الذي يسبقه؛ لذلك تنتهي الخريطة عند «الكود» (I ← H).
+  // قرار المدير: «الموظف» رأس زائد في A وليس عمود بيانات.
+  // كل عنوان تالٍ يصف قيم العمود الذي يسبقه؛ لذلك تبقى قيم A محفوظة وتُسمى «إجمالي البيع».
+  // تنتهي الخريطة عند «الكود» (I ← H) ولا تدخل قيم I الفارغة في التحليل.
   const headers = headerWasShifted ? shiftedHeaders : rawHeaders;
   const headerColumns = headerWasShifted
     ? headers.map((_, index) => XLSX.utils.encode_col(index + 1))
     : Array.from({ length: dataColumnCount }, (_, index) => XLSX.utils.encode_col(index));
-  const excludedColumns = headerWasShifted
-    ? [{ dataColumn: "A", sourceColumn: rawHeaders[0] ?? "الموظف", reason: "قرار المدير: استبعاد عمود الموظف الزائد من النسخة المعالجة وترحيل الحقول التالية." }]
+  const excludedColumns: Array<{ dataColumn: string; sourceColumn: string; reason: string }> = [];
+  const removedHeaders = headerWasShifted
+    ? [{
+        headerColumn: "A",
+        title: rawHeaders[0] ?? "الموظف",
+        reason: "قرار المدير: إزالة رأس «الموظف» الوهمي فقط. قيم العمود A محفوظة وتُفسر بعنوان B «إجمالي البيع».",
+      }]
     : [];
   const suggestedMappings = mapColumns(headers, dataRows, headerColumns);
   const mappings = headerWasShifted
@@ -459,9 +467,10 @@ function inspectSheet(name: string, matrix: unknown[][]): SheetInspection {
     headerRowIndex,
     headerDataOffset,
     layoutNote: headerWasShifted
-      ? "قرار المدير المثبت: استبعاد عمود A «الموظف» من النسخة المعالجة. بعده تُرحّل الحقول هكذا: عنوان B «إجمالي البيع» يصف قيم A، عنوان C «الرصيد» يصف B، عنوان D «الوحدة» يصف C، عنوان E «الكمية» يصف D، عنوان F «المنشأ» يصف E، عنوان G «الشركة» يصف F، عنوان H «الاسم» يصف G، وعنوان I «الكود» يصف قيم H. لا تدخل قيم I الفارغة في الخريطة أو التحليل."
+      ? "قرار المدير المثبت: إزالة رأس A «الموظف» الوهمي فقط، وليس بيانات A. بعده تُرحّل العناوين هكذا: عنوان B «إجمالي البيع» يصف قيم A، عنوان C «الرصيد» يصف B، عنوان D «الوحدة» يصف C، عنوان E «الكمية» يصف D، عنوان F «المنشأ» يصف E، عنوان G «الشركة» يصف F، عنوان H «الاسم» يصف G، وعنوان I «الكود» يصف قيم H. لا تدخل قيم I الفارغة في الخريطة أو التحليل."
       : undefined,
     excludedColumns,
+    removedHeaders,
     headers,
     mappings,
     rawRecords,

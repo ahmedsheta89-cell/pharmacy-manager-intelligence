@@ -23,8 +23,9 @@ describe("ملف الصيدلية المرسل 6-8.xlsx", () => {
     expect(sheet.mappings.find((mapping) => mapping.sourceColumn === "الوحدة")).toMatchObject({ field: "unit", dataColumn: "C", headerColumn: "D" });
     expect(sheet.mappings.find((mapping) => mapping.sourceColumn === "الكمية")).toMatchObject({ field: "quantity_sold", dataColumn: "D", headerColumn: "E" });
     expect(sheet.mappings.some((mapping) => mapping.field === "employee")).toBe(false);
-    expect(sheet.excludedColumns).toEqual([{ dataColumn: "A", sourceColumn: "الموظف", reason: expect.stringContaining("قرار المدير") }]);
-    expect(sheet.layoutNote).toContain("استبعاد عمود A «الموظف»");
+    expect(sheet.excludedColumns).toEqual([]);
+    expect(sheet.removedHeaders).toEqual([expect.objectContaining({ headerColumn: "A", title: "الموظف", reason: expect.stringContaining("قيم العمود A محفوظة") })]);
+    expect(sheet.layoutNote).toContain("إزالة رأس A «الموظف» الوهمي فقط");
     expect(sheet.layoutNote).toContain("عنوان I «الكود» يصف قيم H");
     expect(sheet.mappings.find((mapping) => mapping.dataColumn === "I")).toBeUndefined();
     expect(sheet.cleanRecords[0]).toMatchObject({
@@ -36,6 +37,16 @@ describe("ملف الصيدلية المرسل 6-8.xlsx", () => {
       "الشركة": "SCOPE PHARMA",
       "الإسم": "(C6) conviban 25mg30tab",
       "الكود": "61986",
+    });
+    expect(sheet.cleanRecords.find((record) => record["الكود"] === "65057")).toMatchObject({
+      "إجمالى س.بيع": 200,
+      "الرصيد": 0,
+      "الوحدة": "علبة",
+      "الكمية": 4,
+      "المنشأ": "محلى",
+      "الشركة": "SCOPE PHARMA",
+      "الإسم": "BLESS HOLD HAIR GEL 250ML",
+      "الكود": "65057",
     });
     expect(sheet.mappings.some((mapping) => mapping.field === "cost_price")).toBe(false);
     expect(sheet.mappings.some((mapping) => mapping.field === "sale_price")).toBe(false);
