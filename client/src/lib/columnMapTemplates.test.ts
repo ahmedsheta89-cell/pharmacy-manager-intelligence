@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compareColumnMapTemplate, createColumnMapTemplate, deleteColumnMapTemplate, loadColumnMapTemplates, saveColumnMapTemplate, type ColumnMapTemplate } from "./columnMapTemplates";
+import { columnMapReviewStage, compareColumnMapTemplate, createColumnMapTemplate, deleteColumnMapTemplate, loadColumnMapTemplates, saveColumnMapTemplate, type ColumnMapTemplate } from "./columnMapTemplates";
 import type { WorkbookStructureReview } from "./excelInspector";
 import type { ImportInspection } from "./pharmacyEngine";
 
@@ -48,5 +48,8 @@ describe("column map templates", () => {
     const mismatch = compareColumnMapTemplate(template, sampleInspection(changedHeaders), sampleStructure(changedHeaders));
     expect(mismatch.compatible).toBe(false);
     expect(mismatch.differences.some((difference) => difference.kind === "header_order" && difference.message.includes("إجمالي البيع"))).toBe(true);
+    expect(columnMapReviewStage(mismatch)).toBe("column-map-warning");
+    expect(columnMapReviewStage(compareColumnMapTemplate(template, inspection, sampleStructure()))).toBe("review");
+    expect(columnMapReviewStage(null)).toBe("review");
   });
 });

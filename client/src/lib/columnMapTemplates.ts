@@ -58,6 +58,13 @@ export type ColumnMapTemplateCompatibility = {
   differences: ColumnOrderDifference[];
 };
 
+export type ColumnMapReviewStage = "column-map-warning" | "review";
+
+/** يختار المسار الآمن: لا يصل الملف المختلف إلى مركز المراجعة قبل إقرار المدير بالتحذير. */
+export function columnMapReviewStage(compatibility: ColumnMapTemplateCompatibility | null): ColumnMapReviewStage {
+  return compatibility && !compatibility.compatible ? "column-map-warning" : "review";
+}
+
 function getStorage(storage?: StorageLike) {
   if (storage) return storage;
   try { return typeof localStorage === "undefined" ? undefined : localStorage; } catch { return undefined; }

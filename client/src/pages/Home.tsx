@@ -86,9 +86,9 @@ import { exportInventoryFlowWorkbook } from "@/lib/inventoryFlowExport";
 import { ImportReviewCenter } from "@/components/ImportReviewCenter";
 import { inspectWorkbookStructure, type WorkbookStructureReview } from "@/lib/excelInspector";
 import { recordImportAudit, type ImportAuditRecord } from "@/lib/importAuditLog";
-import { createColumnMapTemplate, deleteColumnMapTemplate, findColumnMapTemplateCompatibility, loadColumnMapTemplates, saveColumnMapTemplate, type ColumnMapTemplate, type ColumnMapTemplateCompatibility } from "@/lib/columnMapTemplates";
+import { columnMapReviewStage, createColumnMapTemplate, deleteColumnMapTemplate, findColumnMapTemplateCompatibility, loadColumnMapTemplates, saveColumnMapTemplate, type ColumnMapTemplate, type ColumnMapTemplateCompatibility } from "@/lib/columnMapTemplates";
 
-type Stage = "welcome" | "review" | "dashboard";
+type Stage = "welcome" | "column-map-warning" | "review" | "dashboard";
 type DashboardView = "overview" | "sales" | "products" | "movement" | "flow" | "companies" | "inventory" | "branches" | "alerts" | "report" | "settings";
 type MonthlyFileDraft = { file: File; month?: number; inferred: boolean };
 
@@ -206,6 +206,7 @@ export default function Home() {
     const compatibility = findColumnMapTemplateCompatibility(columnMapTemplates, nextInspection, nextStructure);
     setColumnMapMismatch(compatibility?.compatible ? null : compatibility);
     setMismatchAcknowledged(Boolean(compatibility?.compatible) || !compatibility);
+    return compatibility;
   }
 
   async function beginFile(file?: File) {
@@ -216,7 +217,7 @@ export default function Home() {
     try {
       const [result, structure] = await Promise.all([inspectPharmacyFile(file), inspectWorkbookStructure(file)]);
       if (!result.sheets.some((sheet) => sheet.cleanRecords.length)) throw new Error("لم نعثر على صفوف بيانات قابلة للتحليل داخل الملف. راجع أن التقرير يحتوي على جدول فعلي.");
-      assessColumnMapCompatibility(result, structure); setInspection(result); setWorkbookStructure(structure); setSelectedSheetIndex(0); setStage("review");
+      const compatibility = assessColumnMapCompatibility(result, structure); setInspection(result); setWorkbookStructure(structure); setSelectedSheetIndex(0); setStage(columnMapReviewStage(compatibility));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "تعذر قراءة الملف. تأكد من أن الملف غير محمي بكلمة مرور ثم حاول مجددًا.");
     } finally { setProcessing(false); }
@@ -259,7 +260,7 @@ export default function Home() {
   async function beginMonthlyFiles() {
     if (!monthlyDraft.length) return;
     setProcessing(true); setError(""); setAnswer(""); setPriceMatchReport(null);
-    try { const [result, reviews] = await Promise.all([inspectMonthlyFiles(monthlyDraft.map((entry) => entry.file), monthlyDraft.map((entry) => entry.month)), Promise.all(monthlyDraft.map((entry) => inspectWorkbookStructure(entry.file)))]); const nextStructure = { fileName: result.inspection.fileName, fileFingerprintHint: result.inspection.fileFingerprint, inspectedAt: new Date().toISOString(), sheets: result.months.flatMap((month) => (reviews.find((review) => review.fileName === month.fileName)?.sheets ?? []).map((sheet) => ({ ...sheet, name: month.label }))), warnings: reviews.flatMap((review) => review.warnings) }; assessColumnMapCompatibility(result.inspection, nextStructure); setInspection(result.inspection); setWorkbookStructure(nextStructure); setImportedMonths(result.months); setSelectedSheetIndex(0); setStage("review"); }
+    try { const [result, reviews] = await Promise.all([inspectMonthlyFiles(monthlyDraft.map((entry) => entry.file), monthlyDraft.map((entry) => entry.month)), Promise.all(monthlyDraft.map((entry) => inspectWorkbookStructure(entry.file)))]); const nextStructure = { fileName: result.inspection.fileName, fileFingerprintHint: result.inspection.fileFingerprint, inspectedAt: new Date().toISOString(), sheets: result.months.flatMap((month) => (reviews.find((review) => review.fileName === month.fileName)?.sheets ?? []).map((sheet) => ({ ...sheet, name: month.label }))), warnings: reviews.flatMap((review) => review.warnings) }; const compatibility = assessColumnMapCompatibility(result.inspection, nextStructure); setInspection(result.inspection); setWorkbookStructure(nextStructure); setImportedMonths(result.months); setSelectedSheetIndex(0); setStage(columnMapReviewStage(compatibility)); }
     catch (caught) { setError(caught instanceof Error ? caught.message : "تعذر قراءة ملفات الأشهر."); }
     finally { setProcessing(false); }
   }
@@ -358,11 +359,12 @@ export default function Home() {
   async function verifyReportPasscode(passcode: string) { return verifyLocalReportPasscode(passcode, reportLock); }
   function clearReportPasscode() { setReportLock(removeLocalReportPasscode()); }
 
+  if (stage === "column-map-warning" && columnMapMismatch) return <ColumnMapMismatchWarning compatibility={columnMapMismatch} onContinue={() => { setMismatchAcknowledged(true); setStage("review"); }} onCancel={importNewFile} />;
   if (stage === "welcome") return <WelcomeScreen dragging={dragging} processing={processing} error={error} fileInput={fileInput} monthlyFilesInput={monthlyFilesInput} sessions={savedSessions} monthlyDraft={monthlyDraft} importTemplates={importTemplates} templateName={templateName} onTemplateName={setTemplateName} onApplyTemplate={applyImportTemplate} onDeleteTemplate={removeImportTemplate} onSaveTemplate={saveCurrentImportTemplate} onChangeDraftMonth={changeDraftMonth} onRestore={restoreAnalysisSession} onDeleteSession={removeAnalysisSession} onUpdateTags={updateSessionTags} onExportBackup={exportLocalBackup} onImportBackup={importBackup} onDrop={onDrop} onDragOver={(event) => { event.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onChange={onFileChange} onMonthlyFilesChange={(event) => { selectMonthlyFiles(event.target.files); event.target.value = ""; }} onStartMonthly={() => { void beginMonthlyFiles(); }} onOpen={() => fileInput.current?.click()} onOpenMonthly={() => monthlyFilesInput.current?.click()} />;
   if (stage === "review" && inspection && selectedSheet) {
     const activeInspection = reviewSource === "price" ? priceInspection : inspection;
     const activeStructure = reviewSource === "price" ? priceWorkbookStructure : workbookStructure;
-    if (activeInspection) return <><ImportReviewCenter inspection={activeInspection} structure={activeStructure} selectedSheetIndex={selectedSheetIndex} onSheet={setSelectedSheetIndex} onChange={reviewSource === "price" ? setPriceInspection : setInspection} onCancel={reviewSource === "price" ? () => { setPriceInspection(null); setPriceWorkbookStructure(null); setReviewSource("base"); setSelectedSheetIndex(0); } : importNewFile} onConfirm={confirmImport} onRequestPriceReview={reviewSource === "base" ? beginPriceReview : undefined} priceMatchReport={reviewSource === "base" ? priceMatchReport : null} reviewKind={reviewSource === "price" ? "prices" : "analysis"} columnMapTemplates={reviewSource === "base" ? columnMapTemplates : []} onSaveColumnMapTemplate={reviewSource === "base" ? saveCurrentColumnMapTemplate : undefined} onDeleteColumnMapTemplate={reviewSource === "base" ? removeColumnMapTemplate : undefined} />{columnMapMismatch && !mismatchAcknowledged && <ColumnMapMismatchWarning compatibility={columnMapMismatch} onContinue={() => setMismatchAcknowledged(true)} onCancel={importNewFile} />}</>;
+    if (activeInspection) return <ImportReviewCenter inspection={activeInspection} structure={activeStructure} selectedSheetIndex={selectedSheetIndex} onSheet={setSelectedSheetIndex} onChange={reviewSource === "price" ? setPriceInspection : setInspection} onCancel={reviewSource === "price" ? () => { setPriceInspection(null); setPriceWorkbookStructure(null); setReviewSource("base"); setSelectedSheetIndex(0); } : importNewFile} onConfirm={confirmImport} onRequestPriceReview={reviewSource === "base" ? beginPriceReview : undefined} priceMatchReport={reviewSource === "base" ? priceMatchReport : null} reviewKind={reviewSource === "price" ? "prices" : "analysis"} columnMapTemplates={reviewSource === "base" ? columnMapTemplates : []} onSaveColumnMapTemplate={reviewSource === "base" ? saveCurrentColumnMapTemplate : undefined} onDeleteColumnMapTemplate={reviewSource === "base" ? removeColumnMapTemplate : undefined} />;
   }
   if (!analytics || !inspection) return null;
 
