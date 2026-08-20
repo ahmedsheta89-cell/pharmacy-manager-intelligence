@@ -23,10 +23,10 @@ describe("ملف الصيدلية المرسل 6-8.xlsx", () => {
     expect(sheet.mappings.find((mapping) => mapping.sourceColumn === "الوحدة")).toMatchObject({ field: "unit", dataColumn: "C", headerColumn: "D" });
     expect(sheet.mappings.find((mapping) => mapping.sourceColumn === "الكمية")).toMatchObject({ field: "quantity_sold", dataColumn: "D", headerColumn: "E" });
     expect(sheet.mappings.some((mapping) => mapping.field === "employee")).toBe(false);
-    expect(sheet.layoutNote).toContain("لا يُقرأ «الموظف» كموظف هنا");
+    expect(sheet.excludedColumns).toEqual([{ dataColumn: "A", sourceColumn: "الموظف", reason: expect.stringContaining("قرار المدير") }]);
+    expect(sheet.layoutNote).toContain("استبعاد عمود A «الموظف»");
     expect(sheet.layoutNote).toContain("عنوان I «الكود» يصف قيم H");
-    // قد يمتد نطاق Excel الفعلي بعد I بسبب تنسيق محفوظ؛ ما يهم أن عمود القيم التالي للكود لا يدخل التحليل.
-    expect(sheet.mappings.find((mapping) => mapping.dataColumn === "I")).toMatchObject({ field: "unknown" });
+    expect(sheet.mappings.find((mapping) => mapping.dataColumn === "I")).toBeUndefined();
     expect(sheet.cleanRecords[0]).toMatchObject({
       "إجمالى س.بيع": 39,
       "الرصيد": 1.67,

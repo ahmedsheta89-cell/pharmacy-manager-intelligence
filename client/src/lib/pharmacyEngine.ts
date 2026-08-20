@@ -85,6 +85,8 @@ export interface SheetInspection {
   headerRowIndex: number;
   headerDataOffset: number;
   layoutNote?: string;
+  /** أعمدة ظهرت في المصدر الخام ولكن استُبعدت بقرار صريح قبل التحليل. */
+  excludedColumns?: Array<{ dataColumn: string; sourceColumn: string; reason: string }>;
   headers: string[];
   mappings: ColumnMapping[];
   rawRecords: RawRecord[];
@@ -367,15 +369,17 @@ function inspectSheet(name: string, matrix: unknown[][]): SheetInspection {
   const headerWasShifted = hasLeadingHeaderShift(rawHeaders, dataRows);
   const headerDataOffset = headerWasShifted ? 1 : 0;
   const dataColumnCount = Math.max(rawHeaders.length, ...dataRows.map((row) => row.length), 0);
-  const headers = headerWasShifted
-    ? [
-        ...rawHeaders.slice(1),
-        `عمود ${XLSX.utils.encode_col(dataColumnCount - 1)} بلا رأس مقابل`,
-      ]
-    : rawHeaders;
+  const codeHeaderIndex = headerWasShifted ? rawHeaders.findIndex((header) => scoreMapping(header).field === "item_code") : -1;
+  const shiftedHeaders = codeHeaderIndex >= 1 ? rawHeaders.slice(1, codeHeaderIndex + 1) : rawHeaders.slice(1);
+  // قرار المدير: «الموظف» عنوان زائد في A، فلا يدخل النسخة المعالجة.
+  // كل عنوان تالٍ يصف قيم العمود الذي يسبقه؛ لذلك تنتهي الخريطة عند «الكود» (I ← H).
+  const headers = headerWasShifted ? shiftedHeaders : rawHeaders;
   const headerColumns = headerWasShifted
-    ? Array.from({ length: dataColumnCount }, (_, index) => index < dataColumnCount - 1 ? XLSX.utils.encode_col(index + 1) : undefined)
+    ? headers.map((_, index) => XLSX.utils.encode_col(index + 1))
     : Array.from({ length: dataColumnCount }, (_, index) => XLSX.utils.encode_col(index));
+  const excludedColumns = headerWasShifted
+    ? [{ dataColumn: "A", sourceColumn: rawHeaders[0] ?? "الموظف", reason: "قرار المدير: استبعاد عمود الموظف الزائد من النسخة المعالجة وترحيل الحقول التالية." }]
+    : [];
   const suggestedMappings = mapColumns(headers, dataRows, headerColumns);
   const mappings = headerWasShifted
     ? suggestedMappings.map((mapping) => mapping.headerColumn
@@ -455,8 +459,9 @@ function inspectSheet(name: string, matrix: unknown[][]): SheetInspection {
     headerRowIndex,
     headerDataOffset,
     layoutNote: headerWasShifted
-      ? "قاعدة المدير المثبتة: العناوين مزاحة خانة إلى اليمين. لا يُقرأ «الموظف» كموظف هنا؛ عنوان B «إجمالي البيع» يصف قيم A، وعنوان C «الرصيد» يصف قيم B، وعنوان D «الوحدة» يصف قيم C، وعنوان E «الكمية» يصف قيم D، وعنوان F «المنشأ» يصف قيم E، وعنوان G «الشركة» يصف قيم F، وعنوان H «الاسم» يصف قيم G، وعنوان I «الكود» يصف قيم H. العمود I لا يملك عنوانًا مقابلاً، لذلك يبقى مستبعدًا ما لم يقرره المدير."
+      ? "قرار المدير المثبت: استبعاد عمود A «الموظف» من النسخة المعالجة. بعده تُرحّل الحقول هكذا: عنوان B «إجمالي البيع» يصف قيم A، عنوان C «الرصيد» يصف B، عنوان D «الوحدة» يصف C، عنوان E «الكمية» يصف D، عنوان F «المنشأ» يصف E، عنوان G «الشركة» يصف F، عنوان H «الاسم» يصف G، وعنوان I «الكود» يصف قيم H. لا تدخل قيم I الفارغة في الخريطة أو التحليل."
       : undefined,
+    excludedColumns,
     headers,
     mappings,
     rawRecords,

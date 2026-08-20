@@ -20,8 +20,9 @@ export type ImportAuditRecord = {
     hiddenRows: number;
     hiddenColumns: number;
     mergedRanges: number;
-    detectedTransformations: string[];
-    mappings: Array<{
+      detectedTransformations: string[];
+      excludedColumns: Array<{ column: string; title: string; reason: string }>;
+      mappings: Array<{
       column: string;
       sourceColumn: string;
       proposedField: string;
@@ -64,6 +65,7 @@ export function createImportAuditRecord(inspection: ImportInspection, structure?
         hiddenColumns: structural?.hiddenColumns.length ?? 0,
         mergedRanges: structural?.mergedRanges.length ?? 0,
         detectedTransformations: structural?.warnings.map((warning) => warning.message) ?? (sheet.layoutNote ? [sheet.layoutNote] : []),
+        excludedColumns: (sheet.excludedColumns ?? []).map((column) => ({ column: column.dataColumn, title: column.sourceColumn, reason: column.reason })),
         mappings: sheet.mappings.map((mapping) => ({
           column: mapping.dataColumn ?? mapping.sourceColumn,
           sourceColumn: mapping.sourceColumn,
@@ -111,6 +113,7 @@ export function exportImportAuditMap(record: ImportAuditRecord): void {
     "صفوف مخفية": sheet.hiddenRows,
     "أعمدة مخفية": sheet.hiddenColumns,
     "نطاقات مدمجة": sheet.mergedRanges,
+    "أعمدة مستبعدة": (sheet.excludedColumns ?? []).map((column) => `${column.column} «${column.title}»: ${column.reason}`).join(" | ") || "لا يوجد",
     "ملاحظات البنية": sheet.detectedTransformations.join(" | ") || "لا توجد",
   }));
   const workbook = XLSX.utils.book_new();

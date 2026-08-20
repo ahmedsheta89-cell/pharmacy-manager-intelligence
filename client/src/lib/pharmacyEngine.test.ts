@@ -21,7 +21,8 @@ describe("inspectPharmacyFile", () => {
     const sheet = inspection.sheets[0];
     const movement = analyzeProductMovement(inspection.sheets);
 
-    expect(sheet.headers).toEqual(["إجمالى س.بيع", "الرصيد", "الوحدة", "الكمية", "المنشأ", "الشركة", "الإسم", "الكود", "عمود I بلا رأس مقابل"]);
+    expect(sheet.headers).toEqual(["إجمالى س.بيع", "الرصيد", "الوحدة", "الكمية", "المنشأ", "الشركة", "الإسم", "الكود"]);
+    expect(sheet.excludedColumns).toEqual([{ dataColumn: "A", sourceColumn: "الموظف", reason: expect.stringContaining("قرار المدير") }]);
     expect(sheet.mappings.find((mapping) => mapping.sourceColumn === "الإسم")?.field).toBe("item_name");
     expect(sheet.cleanRecords[0]?.["الإسم"]).toBe("صنف برصيد صفر");
     expect(sheet.cleanRecords[0]?.["الرصيد"]).toBe(0);
