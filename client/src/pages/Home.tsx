@@ -78,11 +78,14 @@ import { InventoryOperationsCenter } from "@/components/InventoryOperationsCente
 import { ReportSettingsGate } from "@/components/ReportSettingsGate";
 import { SessionArchiveCenter } from "@/components/SessionArchiveCenter";
 import { ProductMovementCenter } from "@/components/ProductMovementCenter";
+import { InventoryFlowCenter } from "@/components/InventoryFlowCenter";
 import { applyPriceFile, inspectMonthlyFiles, monthFromFileName, type ImportedMonth, type PriceMatchReport } from "@/lib/multiPeriodImport";
 import { deleteImportTemplate, loadImportTemplates, saveImportTemplate, type ImportTemplate } from "@/lib/importTemplates";
+import { analyzeInventoryFlow } from "@/lib/inventoryFlowEngine";
+import { exportInventoryFlowWorkbook } from "@/lib/inventoryFlowExport";
 
 type Stage = "welcome" | "review" | "dashboard";
-type DashboardView = "overview" | "sales" | "products" | "movement" | "companies" | "inventory" | "branches" | "alerts" | "report" | "settings";
+type DashboardView = "overview" | "sales" | "products" | "movement" | "flow" | "companies" | "inventory" | "branches" | "alerts" | "report" | "settings";
 type MonthlyFileDraft = { file: File; month?: number; inferred: boolean };
 
 const MONTH_OPTIONS = [
@@ -108,6 +111,7 @@ const navItems: Array<{ id: DashboardView; label: string; icon: typeof LayoutDas
   { id: "sales", label: "تحليل المبيعات", icon: BarChart3 },
   { id: "products", label: "تحليل الأصناف", icon: PackageSearch },
   { id: "movement", label: "حركة الأصناف", icon: TrendingUp },
+  { id: "flow", label: "تدفق المخزون", icon: TrendingDown },
   { id: "companies", label: "الشركات والموردون", icon: Building2 },
   { id: "inventory", label: "المخزون والطلبات", icon: PackageSearch },
   { id: "branches", label: "مقارنة الفروع", icon: Building2 },
@@ -156,6 +160,8 @@ export default function Home() {
   const [pdfError, setPdfError] = useState("");
   const [movementPdfStatus, setMovementPdfStatus] = useState<"idle" | "working" | "done" | "failed">("idle");
   const [movementPdfError, setMovementPdfError] = useState("");
+  const [flowPdfStatus, setFlowPdfStatus] = useState<"idle" | "working" | "done" | "failed">("idle");
+  const [flowPdfError, setFlowPdfError] = useState("");
   const [reportPreferences, setReportPreferences] = useState<ReportPreferences>(() => loadReportPreferences());
   const [reportLock, setReportLock] = useState<ReportLockState>(() => loadReportLock());
   const [savedSessions, setSavedSessions] = useState<LocalAnalysisSession[]>(() => loadAnalysisSessions());
@@ -170,11 +176,13 @@ export default function Home() {
   const monthlyFilesInput = useRef<HTMLInputElement>(null);
   const reportRef = useRef<HTMLElement>(null);
   const movementReportRef = useRef<HTMLDivElement>(null);
+  const flowReportRef = useRef<HTMLDivElement>(null);
 
   const analytics = useMemo<DashboardAnalytics | undefined>(() => inspection && stage === "dashboard" ? analyzePharmacyData(inspection.sheets, filters) : undefined, [inspection, stage, filters]);
   const comparison = useMemo(() => inspection && stage === "dashboard" ? compareWithPreviousPeriod(inspection.sheets, filters) : { available: false, metrics: [], note: "لا توجد بيانات مقارنة بعد." }, [inspection, stage, filters]);
   const inventoryOperations = useMemo(() => inspection && stage === "dashboard" ? analyzeInventoryOperations(inspection.sheets, reorderRules) : analyzeInventoryOperations([], reorderRules), [inspection, stage, reorderRules]);
   const productMovement = useMemo(() => inspection && stage === "dashboard" ? analyzeProductMovement(inspection.sheets) : analyzeProductMovement([]), [inspection, stage]);
+  const inventoryFlow = useMemo(() => analyzeInventoryFlow(productMovement), [productMovement]);
   const selectedSheet = inspection?.sheets[selectedSheetIndex];
   useEffect(() => { saveReportPreferences(reportPreferences); }, [reportPreferences]);
 
@@ -294,6 +302,18 @@ export default function Home() {
       setMovementPdfError(caught instanceof Error ? caught.message : "تعذر إنشاء تقرير PDF لحركة الأصناف. حاول مرة أخرى.");
     }
   }
+  function exportInventoryFlow() { exportInventoryFlowWorkbook(inventoryFlow); }
+  async function exportInventoryFlowPdf() {
+    if (!flowReportRef.current) return;
+    setFlowPdfStatus("working"); setFlowPdfError("");
+    try {
+      await exportManagerReportPdf(flowReportRef.current, `تقرير_تدفق_المخزون_${new Date().toISOString().slice(0, 10)}.pdf`, { footerLabel: `${reportPreferences.profile.pharmacyName} · تدفق المخزون` });
+      setFlowPdfStatus("done");
+    } catch (caught) {
+      setFlowPdfStatus("failed");
+      setFlowPdfError(caught instanceof Error ? caught.message : "تعذر إنشاء تقرير PDF لتدفق المخزون. حاول مرة أخرى.");
+    }
+  }
   async function setReportPasscode(passcode: string) { setReportLock(await setLocalReportPasscode(passcode)); }
   async function verifyReportPasscode(passcode: string) { return verifyLocalReportPasscode(passcode, reportLock); }
   function clearReportPasscode() { setReportLock(removeLocalReportPasscode()); }
@@ -327,7 +347,7 @@ export default function Home() {
       </header>
 
       {showFilters && <FilterPanel analytics={analytics} filters={filters} companies={availableCompanies} onChange={setFilters} onReset={() => setFilters({})} />}
-      <section className="px-4 py-5 sm:px-7 sm:py-7">{renderDashboardView({ view, analytics, sheet, inspection, tableSearch, setTableSearch, question, setQuestion, answer, askData, exportProducts, exportManagerPdf, pdfStatus, pdfError, reportRef, exportProductMovement, exportProductMovementPdf, movementPdfStatus, movementPdfError, movementReportRef, setView, reportPreferences, setReportPreferences, comparison, inventoryOperations, productMovement, reorderRules, reorderHistory, saveItemReorderRule, clearItemReorderRule, exportInventoryOperations, importReorderRules, exportAuditLog, reportLock, setReportPasscode, verifyReportPasscode, clearReportPasscode })}</section>
+      <section className="px-4 py-5 sm:px-7 sm:py-7">{renderDashboardView({ view, analytics, sheet, inspection, tableSearch, setTableSearch, question, setQuestion, answer, askData, exportProducts, exportManagerPdf, pdfStatus, pdfError, reportRef, exportProductMovement, exportProductMovementPdf, movementPdfStatus, movementPdfError, movementReportRef, inventoryFlow, exportInventoryFlow, exportInventoryFlowPdf, flowPdfStatus, flowPdfError, flowReportRef, setView, reportPreferences, setReportPreferences, comparison, inventoryOperations, productMovement, reorderRules, reorderHistory, saveItemReorderRule, clearItemReorderRule, exportInventoryOperations, importReorderRules, exportAuditLog, reportLock, setReportPasscode, verifyReportPasscode, clearReportPasscode })}</section>
     </main>
   </div>;
 }
@@ -386,11 +406,12 @@ function FilterPanel({ analytics, filters, companies, onChange, onReset }: { ana
   return <div className="no-print border-b border-[#dce8e1] bg-[#f4f8f4] px-4 py-4 sm:px-7"><div className="mx-auto flex max-w-[1350px] flex-wrap items-end gap-3"><div className="ml-auto flex items-center gap-2 text-xs font-bold text-[#31574d]"><Filter className="size-4 text-[#0b6b5b]" />فلاتر التحليل</div>{analytics.dateRange && <><label className="text-[10px] font-semibold text-[#71837c]">من تاريخ<input type="date" value={toInputDate(filters.from)} onChange={(event) => onChange({ ...filters, from: event.target.value ? new Date(event.target.value) : undefined })} className="mt-1 block rounded-lg border border-[#cedfd7] bg-white px-2 py-2 text-xs text-[#285148]" /></label><label className="text-[10px] font-semibold text-[#71837c]">إلى تاريخ<input type="date" value={toInputDate(filters.to)} onChange={(event) => onChange({ ...filters, to: event.target.value ? new Date(`${event.target.value}T23:59:59`) : undefined })} className="mt-1 block rounded-lg border border-[#cedfd7] bg-white px-2 py-2 text-xs text-[#285148]" /></label></>}{companies.length > 0 && <label className="text-[10px] font-semibold text-[#71837c]">الشركة<select value={filters.company ?? "all"} onChange={(event) => onChange({ ...filters, company: event.target.value === "all" ? undefined : event.target.value })} className="mt-1 block min-w-[150px] rounded-lg border border-[#cedfd7] bg-white px-2 py-2 text-xs text-[#285148]"><option value="all">كل الشركات</option>{companies.map((company) => <option key={company} value={company}>{company}</option>)}</select></label>}<button onClick={onReset} className="rounded-lg px-3 py-2 text-xs font-bold text-[#59736a] hover:bg-white">إعادة الضبط</button></div></div>;
 }
 
-function renderDashboardView(props: { view: DashboardView; analytics: DashboardAnalytics; sheet: SheetInspection; inspection: ImportInspection; tableSearch: string; setTableSearch: (value: string) => void; question: string; setQuestion: (value: string) => void; answer: string; askData: () => void; exportProducts: () => void; exportManagerPdf: () => void; pdfStatus: "idle" | "working" | "done" | "failed"; pdfError: string; reportRef: React.RefObject<HTMLElement | null>; exportProductMovement: () => void; exportProductMovementPdf: () => void; movementPdfStatus: "idle" | "working" | "done" | "failed"; movementPdfError: string; movementReportRef: React.RefObject<HTMLDivElement | null>; setView: (view: DashboardView) => void; reportPreferences: ReportPreferences; setReportPreferences: (value: ReportPreferences) => void; comparison: ReturnType<typeof compareWithPreviousPeriod>; inventoryOperations: ReturnType<typeof analyzeInventoryOperations>; productMovement: ReturnType<typeof analyzeProductMovement>; reorderRules: ReorderRules; reorderHistory: ReorderRuleHistoryEntry[]; saveItemReorderRule: (itemId: string, reorderLevel: number, targetStock?: number) => void; clearItemReorderRule: (itemId: string) => void; exportInventoryOperations: () => void; importReorderRules: (file: File) => Promise<ReorderRulesImportResult>; exportAuditLog: () => void; reportLock: ReportLockState; setReportPasscode: (code: string) => Promise<void>; verifyReportPasscode: (code: string) => Promise<boolean>; clearReportPasscode: () => void; }) {
+function renderDashboardView(props: { view: DashboardView; analytics: DashboardAnalytics; sheet: SheetInspection; inspection: ImportInspection; tableSearch: string; setTableSearch: (value: string) => void; question: string; setQuestion: (value: string) => void; answer: string; askData: () => void; exportProducts: () => void; exportManagerPdf: () => void; pdfStatus: "idle" | "working" | "done" | "failed"; pdfError: string; reportRef: React.RefObject<HTMLElement | null>; exportProductMovement: () => void; exportProductMovementPdf: () => void; movementPdfStatus: "idle" | "working" | "done" | "failed"; movementPdfError: string; movementReportRef: React.RefObject<HTMLDivElement | null>; inventoryFlow: ReturnType<typeof analyzeInventoryFlow>; exportInventoryFlow: () => void; exportInventoryFlowPdf: () => void; flowPdfStatus: "idle" | "working" | "done" | "failed"; flowPdfError: string; flowReportRef: React.RefObject<HTMLDivElement | null>; setView: (view: DashboardView) => void; reportPreferences: ReportPreferences; setReportPreferences: (value: ReportPreferences) => void; comparison: ReturnType<typeof compareWithPreviousPeriod>; inventoryOperations: ReturnType<typeof analyzeInventoryOperations>; productMovement: ReturnType<typeof analyzeProductMovement>; reorderRules: ReorderRules; reorderHistory: ReorderRuleHistoryEntry[]; saveItemReorderRule: (itemId: string, reorderLevel: number, targetStock?: number) => void; clearItemReorderRule: (itemId: string) => void; exportInventoryOperations: () => void; importReorderRules: (file: File) => Promise<ReorderRulesImportResult>; exportAuditLog: () => void; reportLock: ReportLockState; setReportPasscode: (code: string) => Promise<void>; verifyReportPasscode: (code: string) => Promise<boolean>; clearReportPasscode: () => void; }) {
   const { view, analytics } = props;
   if (view === "sales") return <SalesView analytics={analytics} />;
   if (view === "products") return <ProductsView analytics={analytics} search={props.tableSearch} setSearch={props.setTableSearch} exportProducts={props.exportProducts} />;
   if (view === "movement") return <ProductMovementCenter analysis={props.productMovement} onExportExcel={props.exportProductMovement} onExportPdf={props.exportProductMovementPdf} pdfStatus={props.movementPdfStatus} pdfError={props.movementPdfError} reportRef={props.movementReportRef} />;
+  if (view === "flow") return <InventoryFlowCenter analysis={props.inventoryFlow} onExportExcel={props.exportInventoryFlow} onExportPdf={props.exportInventoryFlowPdf} pdfStatus={props.flowPdfStatus} pdfError={props.flowPdfError} reportRef={props.flowReportRef} />;
   if (view === "companies") return <CompaniesView analytics={analytics} />;
   if (view === "inventory") return <InventoryOperationsCenter operations={props.inventoryOperations} mode="inventory" rules={props.reorderRules} history={props.reorderHistory} onSaveRule={props.saveItemReorderRule} onRemoveRule={props.clearItemReorderRule} onExport={props.exportInventoryOperations} onImportRules={props.importReorderRules} onExportAudit={props.exportAuditLog} />;
   if (view === "branches") return <InventoryOperationsCenter operations={props.inventoryOperations} mode="branches" />;
