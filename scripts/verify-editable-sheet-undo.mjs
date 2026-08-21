@@ -36,6 +36,36 @@ try {
   await page.waitForFunction((input) => document.querySelector(input.selector)?.value === input.expected, { selector: `input[aria-label="${cellLabel}"]`, expected: "999999" }, { timeout: 2_000 });
   if (await cell.inputValue() !== "999999") throw new Error("لم تُستعد قيمة الخلية المعدّلة بعد الإعادة.");
 
+  const undoButton = page.getByRole("button", { name: "تراجع" });
+  await editor.getByRole("button", { name: "إضافة صف محلي" }).click();
+  const historyAfterAddingRow = Number(await undoButton.getAttribute("data-history-count"));
+  const localRowCell = editor.locator('input[aria-label^="خلية A"]').last();
+  await localRowCell.waitFor({ state: "visible" });
+  const localRowCellLabel = await localRowCell.getAttribute("aria-label");
+  if (!localRowCellLabel) throw new Error("تعذر تحديد خلية الصف المحلي الجديد.");
+  await localRowCell.fill("ROW-LOCAL");
+  await editor.getByText("إدارة الأعمدة المحلية").click();
+  await page.waitForFunction((count) => Number(document.querySelector('button[data-history-count]')?.getAttribute("data-history-count")) > count, historyAfterAddingRow, { timeout: 2_000 });
+  await undoButton.click();
+  await page.waitForFunction((input) => document.querySelector(input.selector)?.value === "", { selector: `input[aria-label="${localRowCellLabel}"]` }, { timeout: 2_000 });
+  await page.getByRole("button", { name: "إعادة" }).click();
+  await page.waitForFunction((input) => document.querySelector(input.selector)?.value === "ROW-LOCAL", { selector: `input[aria-label="${localRowCellLabel}"]` }, { timeout: 2_000 });
+  await editor.getByRole("button", { name: "حذف آخر صف محلي" }).click();
+
+  await editor.getByRole("button", { name: "إضافة عمود محلي" }).click();
+  const localHeader = editor.locator('input[aria-label^="عنوان العمود "]').last();
+  await localHeader.waitFor({ state: "visible" });
+  await localHeader.fill("تصنيف المدير");
+  await localHeader.press("Tab");
+  const localCell = editor.locator('input[aria-label^="خلية "]').last();
+  await localCell.fill("حرج");
+  await localCell.press("Tab");
+  await editor.getByRole("button", { name: "استبعد أعمدة النطاق" }).click();
+  const restoredColumn = editor.getByRole("button", { name: /العمود [A-Z]+ مستبعد/ }).first();
+  await restoredColumn.waitFor({ state: "visible" });
+  await restoredColumn.click();
+  await editor.getByRole("button", { name: "حذف آخر عمود محلي" }).click();
+
   console.log("VERIFY_EDITABLE_SHEET_UNDO_OK");
 } finally {
   await browser.close();

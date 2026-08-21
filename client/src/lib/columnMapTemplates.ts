@@ -33,7 +33,7 @@ export type ColumnMapTemplateSheet = {
   headerOrder: ColumnMapTemplateHeader[];
   mappings: ColumnMapTemplateMapping[];
   removedHeaders: Array<{ headerColumn: string; title: string }>;
-  editorConfig?: Pick<SheetEditorConfig, "headerRowIndex" | "dataStartRowIndex" | "firstDataColumnIndex" | "lastDataRowIndex" | "lastDataColumnIndex" | "excludedRowNumbers" | "textTransforms" | "headerOverrides">;
+  editorConfig?: Pick<SheetEditorConfig, "headerRowIndex" | "dataStartRowIndex" | "firstDataColumnIndex" | "lastDataRowIndex" | "lastDataColumnIndex" | "excludedRowNumbers" | "textTransforms" | "headerOverrides" | "ignoredColumnIndexes" | "manualColumns">;
 };
 
 export type ColumnMapTemplate = {
@@ -140,6 +140,13 @@ function normalizeSheets(value: unknown): ColumnMapTemplateSheet[] {
             const value = String(title ?? "").trim().slice(0, 120);
             return columnIndex >= 0 && value ? [[String(columnIndex), value]] : [];
           })),
+          ignoredColumnIndexes: Array.from(new Set((Array.isArray(editor.ignoredColumnIndexes) ? editor.ignoredColumnIndexes : []).map((item) => Math.trunc(Number(item))).filter((item) => item >= 0))).sort((a, b) => a - b).slice(0, 120),
+          manualColumns: (Array.isArray(editor.manualColumns) ? editor.manualColumns : []).flatMap((column, index) => {
+            const item = column as SheetEditorConfig["manualColumns"][number];
+            const id = String(item?.id ?? `template-manual-${index + 1}`).trim().slice(0, 80);
+            const title = String(item?.title ?? "عمود محلي").trim().slice(0, 120);
+            return id && title ? [{ id, title }] : [];
+          }).slice(0, 12),
           textTransforms: (Array.isArray(editor.textTransforms) ? editor.textTransforms : []).flatMap<SheetEditorConfig["textTransforms"][number]>((transform, index) => {
             const item = transform as SheetEditorConfig["textTransforms"][number];
             const id = String(item?.id ?? `template-transform-${index + 1}`).trim();
@@ -214,6 +221,8 @@ function serializeSheet(sheet: SheetInspection, structure?: WorkbookStructureRev
           lastDataColumnIndex: sheet.editorConfig.lastDataColumnIndex,
           excludedRowNumbers: sheet.editorConfig.excludedRowNumbers,
           headerOverrides: sheet.editorConfig.headerOverrides,
+          ignoredColumnIndexes: sheet.editorConfig.ignoredColumnIndexes,
+          manualColumns: sheet.editorConfig.manualColumns,
           textTransforms: sheet.editorConfig.textTransforms,
     } : undefined,
   };

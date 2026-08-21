@@ -180,4 +180,56 @@ describe("inspectPharmacyFile", () => {
     expect(sheet.sourceMatrix?.[0]?.[0]).toBe("اسم الشركة");
     expect(sheet.sourceMatrix?.[1]?.[2]).toBe(42);
   });
+
+  it("يستبعد أعمدة محددة ويضيف عمودًا محليًا للمعاينة من دون المساس بورقة المصدر", async () => {
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([
+      ["كود الصنف", "اسم الصنف", "ملاحظة داخلية", "الرصيد"],
+      ["C-300", "صنف تحكم كامل", "لا تدخل التحليل", 6],
+    ]), "Sheet1");
+    const bytes = XLSX.write(workbook, { type: "array", bookType: "xlsx" });
+    const inspection = await inspectPharmacyFile(new File([bytes], "local-columns.xlsx", { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+    const edited = applySheetEditorConfig(inspection, "Sheet1", {
+      headerRowIndex: 0,
+      dataStartRowIndex: 1,
+      firstDataColumnIndex: 0,
+      lastDataColumnIndex: 4,
+      ignoredColumnIndexes: [2],
+      manualColumns: [{ id: "priority", title: "تصنيف المدير" }],
+      cellOverrides: { "1:4": "حرج" },
+    });
+    const sheet = edited.sheets[0];
+
+    expect(sheet.headers).toEqual(expect.arrayContaining(["كود الصنف", "اسم الصنف", "الرصيد", "تصنيف المدير"]));
+    expect(sheet.headers).not.toContain("ملاحظة داخلية");
+    expect(sheet.cleanRecords[0]?.["تصنيف المدير"]).toBe("حرج");
+    expect(sheet.excludedColumns).toEqual(expect.arrayContaining([expect.objectContaining({ dataColumn: "C", sourceColumn: "ملاحظة داخلية" })]));
+    expect(sheet.sourceMatrix?.[0]?.[2]).toBe("ملاحظة داخلية");
+    expect(sheet.sourceMatrix?.[1]?.[2]).toBe("لا تدخل التحليل");
+  });
+
+  it("يضيف صفًا محليًا قابلاً للتحرير إلى القراءة من دون تعديل صفوف Excel الأصلية", async () => {
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([
+      ["كود الصنف", "اسم الصنف", "الرصيد"],
+      ["C-400", "صنف المصدر", 3],
+    ]), "Sheet1");
+    const bytes = XLSX.write(workbook, { type: "array", bookType: "xlsx" });
+    const inspection = await inspectPharmacyFile(new File([bytes], "local-row.xlsx", { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+    const edited = applySheetEditorConfig(inspection, "Sheet1", {
+      headerRowIndex: 0,
+      dataStartRowIndex: 1,
+      firstDataColumnIndex: 0,
+      lastDataRowIndex: 2,
+      manualRows: [{ id: "director-row" }],
+      cellOverrides: { "2:0": "C-401", "2:1": "صنف محلي", "2:2": "8" },
+    });
+    const sheet = edited.sheets[0];
+
+    expect(sheet.cleanRecords).toHaveLength(2);
+    expect(sheet.cleanRecords[1]).toMatchObject({ "كود الصنف": "C-401", "اسم الصنف": "صنف محلي", "الرصيد": 8 });
+    expect(sheet.editorConfig?.manualRows).toEqual([{ id: "director-row" }]);
+    expect(sheet.sourceMatrix).toHaveLength(2);
+    expect(sheet.sourceMatrix?.[1]).toEqual(["C-400", "صنف المصدر", 3]);
+  });
 });

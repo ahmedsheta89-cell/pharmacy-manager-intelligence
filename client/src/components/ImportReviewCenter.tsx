@@ -72,7 +72,21 @@ function snapshotEditorConfig(config: SheetEditorConfig): SheetEditorConfig {
     textTransforms: config.textTransforms.map((transform) => structuredClone(transform)),
     headerOverrides: { ...config.headerOverrides },
     cellOverrides: { ...config.cellOverrides },
+    ignoredColumnIndexes: [...config.ignoredColumnIndexes],
+    manualColumns: config.manualColumns.map((column) => ({ ...column })),
+    manualRows: config.manualRows.map((row) => ({ ...row })),
   };
+}
+
+function excelColumnLetter(index: number) {
+  let value = index + 1;
+  let output = "";
+  while (value > 0) {
+    const remainder = (value - 1) % 26;
+    output = String.fromCharCode(65 + remainder) + output;
+    value = Math.floor((value - 1) / 26);
+  }
+  return output;
 }
 
 function normalizeRange(selection: CellRange) {
@@ -121,6 +135,7 @@ export function ImportReviewCenter({ inspection, structure, selectedSheetIndex, 
   const allSheetsReviewed = comparedSheets.length > 0 && comparedSheets.every((name) => reviewedSheets[name]);
   const canConfirm = readiness.ready && allSheetsReviewed;
   const sourceMatrix = sheet.sourceMatrix ?? rawRows;
+  const sourceColumnCount = Math.max(...sourceMatrix.map((row) => row.length), 1);
   const editorConfig: SheetEditorConfig = sheet.editorConfig ?? {
     headerRowIndex: headerRow,
     dataStartRowIndex: headerRow + 1,
@@ -131,6 +146,9 @@ export function ImportReviewCenter({ inspection, structure, selectedSheetIndex, 
     textTransforms: [],
     headerOverrides: {},
     cellOverrides: {},
+    ignoredColumnIndexes: [],
+    manualColumns: [],
+    manualRows: [],
   };
   const comparisonStart = Math.min(Math.max(editorConfig.dataStartRowIndex, 0), sourceMatrix.length);
   const comparisonSourceRows = sourceMatrix.slice(comparisonStart).map((row, index) => ({ values: row, rowNumber: comparisonStart + index + 1 }))
@@ -169,23 +187,28 @@ export function ImportReviewCenter({ inspection, structure, selectedSheetIndex, 
   const editorSources = Array.from(new Set(sheet.mappings.map((mapping) => mapping.sourceColumn).filter(Boolean)));
   const activeRange = cellRange ? normalizeRange(cellRange) : null;
   const previewRangeRows = Math.min(sourceMatrix.length, 18);
-  const previewRangeColumns = Math.min(Math.max(...sourceMatrix.map((row) => row.length), 1), 12);
+  const previewRowIndexes = [
+    ...Array.from({ length: previewRangeRows }, (_, rowIndex) => rowIndex),
+    ...editorConfig.manualRows.map((_, index) => sourceMatrix.length + index),
+  ];
+  const previewRangeColumns = Math.min(sourceColumnCount + editorConfig.manualColumns.length, 12);
+  const columnLetter = (index: number) => originalColumns[index]?.letter ?? excelColumnLetter(index);
   const rangeReference = activeRange
     ? `${originalColumns[activeRange.firstColumn]?.letter ?? activeRange.firstColumn + 1}${activeRange.firstRow + 1}:${originalColumns[activeRange.lastColumn]?.letter ?? activeRange.lastColumn + 1}${activeRange.lastRow + 1}`
     : "لم يحدد نطاق بعد";
   const historyForSheet = editorHistory.filter((entry) => entry.sheetName === sheet.name);
   const futureForSheet = editorFuture.filter((entry) => entry.sheetName === sheet.name);
-  const editableHeaderValue = (columnIndex: number) => String(editorConfig.headerOverrides[columnIndex] ?? sourceMatrix[editorConfig.headerRowIndex]?.[columnIndex] ?? "");
-  const editableCellValue = (rowIndex: number, columnIndex: number) => valueText(editorConfig.cellOverrides[`${rowIndex}:${columnIndex}`] ?? sourceMatrix[rowIndex]?.[columnIndex]);
+  const editableHeaderValue = (columnIndex: number) => String(editorConfig.headerOverrides[columnIndex] ?? editorConfig.manualColumns[columnIndex - sourceColumnCount]?.title ?? sourceMatrix[editorConfig.headerRowIndex]?.[columnIndex] ?? "");
+  const editableCellValue = (rowIndex: number, columnIndex: number) => String(editorConfig.cellOverrides[`${rowIndex}:${columnIndex}`] ?? sourceMatrix[rowIndex]?.[columnIndex] ?? "");
   const commitHeaderOverride = (columnIndex: number, value: string) => {
     const cleanValue = value.trim();
-    const originalValue = valueText(sourceMatrix[editorConfig.headerRowIndex]?.[columnIndex]).trim();
+    const originalValue = String(editorConfig.manualColumns[columnIndex - sourceColumnCount]?.title ?? sourceMatrix[editorConfig.headerRowIndex]?.[columnIndex] ?? "").trim();
     const nextValue = !cleanValue || cleanValue === originalValue ? undefined : cleanValue;
     if (editorConfig.headerOverrides[columnIndex] === nextValue) return;
     const headerOverrides = { ...editorConfig.headerOverrides };
     if (nextValue === undefined) delete headerOverrides[columnIndex];
     else headerOverrides[columnIndex] = nextValue;
-    updateEditor({ headerOverrides }, `تعديل عنوان العمود ${originalColumns[columnIndex]?.letter ?? columnIndex + 1} إلى «${cleanValue || originalValue}»`);
+    updateEditor({ headerOverrides }, `تعديل عنوان العمود ${columnLetter(columnIndex)} إلى «${cleanValue || originalValue}»`);
   };
   const commitCellOverride = (rowIndex: number, columnIndex: number, value: string) => {
     const originalValue = valueText(sourceMatrix[rowIndex]?.[columnIndex]);
@@ -195,7 +218,55 @@ export function ImportReviewCenter({ inspection, structure, selectedSheetIndex, 
     if (editorConfig.cellOverrides[key] === nextValue) return;
     if (nextValue === undefined) delete cellOverrides[key];
     else cellOverrides[key] = nextValue;
-    updateEditor({ cellOverrides }, `تعديل الخلية ${originalColumns[columnIndex]?.letter ?? columnIndex + 1}${rowIndex + 1}`);
+    updateEditor({ cellOverrides }, `تعديل الخلية ${columnLetter(columnIndex)}${rowIndex + 1}`);
+  };
+  const addManualColumn = () => {
+    const columnIndex = sourceColumnCount + editorConfig.manualColumns.length;
+    const title = `عمود محلي ${editorConfig.manualColumns.length + 1}`;
+    updateEditor({
+      manualColumns: [...editorConfig.manualColumns, { id: `manual-${Date.now()}`, title }],
+      lastDataColumnIndex: Math.max(editorConfig.lastDataColumnIndex, columnIndex),
+    }, `إضافة ${title}`);
+  };
+  const removeLastManualColumn = () => {
+    if (!editorConfig.manualColumns.length) return;
+    const columnIndex = sourceColumnCount + editorConfig.manualColumns.length - 1;
+    const headerOverrides = { ...editorConfig.headerOverrides };
+    delete headerOverrides[columnIndex];
+    const cellOverrides = Object.fromEntries(Object.entries(editorConfig.cellOverrides).filter(([key]) => Number(key.split(":")[1]) !== columnIndex));
+    updateEditor({
+      manualColumns: editorConfig.manualColumns.slice(0, -1),
+      lastDataColumnIndex: Math.min(editorConfig.lastDataColumnIndex, Math.max(editorConfig.firstDataColumnIndex, columnIndex - 1)),
+      ignoredColumnIndexes: editorConfig.ignoredColumnIndexes.filter((index) => index !== columnIndex),
+      headerOverrides,
+      cellOverrides,
+    }, `حذف العمود المحلي الأخير ${columnLetter(columnIndex)}`);
+  };
+  const addManualRow = () => {
+    const rowIndex = sourceMatrix.length + editorConfig.manualRows.length;
+    updateEditor({
+      manualRows: [...editorConfig.manualRows, { id: `manual-row-${Date.now()}` }],
+      lastDataRowIndex: Math.max(editorConfig.lastDataRowIndex, rowIndex),
+    }, `إضافة صف محلي ${rowIndex + 1}`);
+  };
+  const removeLastManualRow = () => {
+    if (!editorConfig.manualRows.length) return;
+    const rowIndex = sourceMatrix.length + editorConfig.manualRows.length - 1;
+    const cellOverrides = Object.fromEntries(Object.entries(editorConfig.cellOverrides).filter(([key]) => Number(key.split(":")[0]) !== rowIndex));
+    updateEditor({
+      manualRows: editorConfig.manualRows.slice(0, -1),
+      lastDataRowIndex: Math.min(editorConfig.lastDataRowIndex, Math.max(editorConfig.dataStartRowIndex, rowIndex - 1)),
+      excludedRowNumbers: editorConfig.excludedRowNumbers.filter((rowNumber) => rowNumber !== rowIndex + 1),
+      cellOverrides,
+    }, `حذف الصف المحلي الأخير ${rowIndex + 1}`);
+  };
+  const updateRangeColumnVisibility = (ignored: boolean) => {
+    if (!activeRange) return;
+    const columns = Array.from({ length: activeRange.lastColumn - activeRange.firstColumn + 1 }, (_, index) => activeRange.firstColumn + index);
+    const ignoredColumnIndexes = ignored
+      ? Array.from(new Set([...editorConfig.ignoredColumnIndexes, ...columns])).sort((first, second) => first - second)
+      : editorConfig.ignoredColumnIndexes.filter((index) => !columns.includes(index));
+    updateEditor({ ignoredColumnIndexes }, `${ignored ? "استبعاد" : "استعادة"} أعمدة النطاق ${rangeReference}`);
   };
 
   // حقول المعاينة تستخدم defaultValue كي لا يعاد بناؤها أثناء الكتابة. بعد التراجع
@@ -203,7 +274,7 @@ export function ImportReviewCenter({ inspection, structure, selectedSheetIndex, 
   useLayoutEffect(() => {
     const editorRoot = document.querySelector("#sheet-manual-editor");
     if (!editorRoot) return;
-    const columnByLetter = new Map(originalColumns.map((column) => [column.letter, column.index]));
+    const columnByLetter = new Map(Array.from({ length: previewRangeColumns }, (_, index) => [columnLetter(index), index]));
     editorRoot.querySelectorAll<HTMLInputElement>("input[aria-label]").forEach((input) => {
       const label = input.getAttribute("aria-label") ?? "";
       const headerMatch = /^عنوان العمود ([A-Z]+)$/.exec(label);
@@ -215,7 +286,7 @@ export function ImportReviewCenter({ inspection, structure, selectedSheetIndex, 
         : editableCellValue(Number(cellMatch?.[2]) - 1, columnIndex);
       if (input.value !== expected) input.value = expected;
     });
-  }, [sheet.name, editorConfig.headerRowIndex, editorConfig.headerOverrides, editorConfig.cellOverrides, originalColumns, sourceMatrix]);
+  }, [sheet.name, editorConfig.headerRowIndex, editorConfig.headerOverrides, editorConfig.cellOverrides, editorConfig.manualColumns, editorConfig.manualRows, originalColumns, previewRangeColumns, previewRangeRows, sourceMatrix]);
 
   return <main className="app-canvas min-h-screen p-3 sm:p-6" dir="rtl">
     <div className="mx-auto max-w-[1640px]">
@@ -257,22 +328,23 @@ export function ImportReviewCenter({ inspection, structure, selectedSheetIndex, 
           {(structural?.warnings ?? []).length > 0 && <section className="order-1 rounded-2xl border border-[#ead8ad] bg-[#fffaf0] p-4"><div className="flex items-center gap-2"><AlertCircle className="size-4 text-[#a67520]" /><p className="text-sm font-bold text-[#725817]">تنبيهات بنية الملف — لم يُطبق أي تعديل</p></div><div className="mt-3 grid gap-2 lg:grid-cols-2">{structural?.warnings.map((item, index) => <p key={`${item.kind}-${index}`} className="rounded-xl border border-[#f1e5c7] bg-white/80 px-3 py-2.5 text-[11px] leading-5 text-[#725f35]"><b>{item.severity === "attention" ? "تدقيق مطلوب:" : item.severity === "review" ? "مراجعة:" : "ملاحظة:"}</b> {item.message}</p>)}</div></section>}
 
           <section id="sheet-manual-editor" className="order-2 overflow-hidden rounded-2xl border border-[#bddbcf] bg-[#fcfcf8] shadow-[0_10px_30px_rgba(28,73,61,.06)]">
-            <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#dceae2] bg-[#eef8f2] px-4 py-4 sm:px-5"><div><div className="flex items-center gap-2"><SlidersHorizontal className="size-4 text-[#0b6b5b]" /><h2 className="font-bold text-[#214a41]">محرر الشيت اليدوي — اضبط القراءة قبل الاعتماد</h2></div><p className="mt-1 max-w-3xl text-[11px] leading-5 text-[#637b71]">اختر موضع الرأس وبداية البيانات وعمود القراءة، واستبعد الصفوف التي لا تريد إدخالها. هذه قرارات قراءة محلية للمعاينة فقط: لا تغيّر ملف Excel الأصلي، ولا يبدأ التحليل قبل إعادة اعتماد الخريطة.</p></div><span className="rounded-lg border border-[#b9dfcd] bg-white px-2.5 py-1.5 text-[10px] font-bold text-[#23705a]">تحكم يدوي كامل</span></div>
+            <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#dceae2] bg-[#eef8f2] px-4 py-4 sm:px-5"><div><div className="flex items-center gap-2"><SlidersHorizontal className="size-4 text-[#0b6b5b]" /><h2 className="font-bold text-[#214a41]">ورقة العمل المحلية — عدّل ثم راجع ثم اعتمد</h2></div><p className="mt-1 max-w-3xl text-[11px] leading-5 text-[#637b71]">عدّل العناوين والقيم، أضف أو استبعد صفوفًا وأعمدة، ثم راجع خريطة الحقول واعتمدها. كل ما تراه هنا نسخة محلية؛ ملف Excel الأصلي لا يتغير.</p></div><span className="rounded-lg border border-[#b9dfcd] bg-white px-2.5 py-1.5 text-[10px] font-bold text-[#23705a]">تحكم يدوي كامل</span></div>
             <div className="grid gap-3 p-4 lg:grid-cols-3"><label className="rounded-xl border border-[#dce9e2] bg-white p-3"><span className="block text-[10px] font-bold text-[#53746a]">صف الرأس</span><span className="mt-1 block text-[9px] text-[#7d8f87]">الصف الذي يحتوي أسماء الأعمدة.</span><input type="number" min={1} max={Math.max(sourceMatrix.length, 1)} value={editorConfig.headerRowIndex + 1} onChange={(event) => updateEditor({ headerRowIndex: Math.max(0, Number(event.target.value) - 1) })} className="mt-2 w-full rounded-lg border border-[#ccded5] bg-[#fbfdfb] px-2.5 py-2 text-xs font-bold text-[#264f45]" /></label><label className="rounded-xl border border-[#dce9e2] bg-white p-3"><span className="block text-[10px] font-bold text-[#53746a]">ابدأ قراءة البيانات من صف</span><span className="mt-1 block text-[9px] text-[#7d8f87]">يمكنك تجاوز عناوين فرعية أو ملاحظات أعلى الجدول.</span><input type="number" min={editorConfig.headerRowIndex + 2} max={Math.max(sourceMatrix.length, 1)} value={editorConfig.dataStartRowIndex + 1} onChange={(event) => updateEditor({ dataStartRowIndex: Math.max(0, Number(event.target.value) - 1) })} className="mt-2 w-full rounded-lg border border-[#ccded5] bg-[#fbfdfb] px-2.5 py-2 text-xs font-bold text-[#264f45]" /></label><label className="rounded-xl border border-[#dce9e2] bg-white p-3"><span className="block text-[10px] font-bold text-[#53746a]">ابدأ من العمود</span><span className="mt-1 block text-[9px] text-[#7d8f87]">لتجاوز أعمدة جانبية لا تخص التحليل.</span><select value={editorConfig.firstDataColumnIndex} onChange={(event) => updateEditor({ firstDataColumnIndex: Number(event.target.value) })} className="mt-2 w-full rounded-lg border border-[#ccded5] bg-[#fbfdfb] px-2.5 py-2 text-xs font-bold text-[#264f45]">{originalColumns.map((column) => <option key={column.letter} value={column.index}>{column.letter} · {column.rawHeader || "بلا عنوان"}</option>)}</select></label></div>
-            <div className="border-t border-[#e2ede6] bg-[#fbfdfb] px-4 py-3.5"><div className="flex flex-wrap items-end justify-between gap-3"><div><p className="text-xs font-bold text-[#315a4f]">استبعاد صف محدد من القراءة</p><p className="mt-1 text-[10px] text-[#74877f]">أدخل رقم صف Excel كما يظهر في الملف. تبقى الصفوف المستبعدة مرئية في المصدر ولا تدخل التحليل.</p></div><div className="flex w-full gap-2 sm:w-auto"><input value={rowToToggle} inputMode="numeric" placeholder="مثال: 7" onChange={(event) => setRowToToggle(event.target.value)} className="min-w-0 flex-1 rounded-lg border border-[#ccded5] bg-white px-2.5 py-2 text-xs font-bold text-[#264f45] sm:w-28" aria-label="رقم صف Excel للاستبعاد" /><button onClick={() => { const rowNumber = Math.trunc(Number(rowToToggle)); if (!Number.isFinite(rowNumber) || rowNumber <= editorConfig.dataStartRowIndex || rowNumber > sourceMatrix.length) return; const existing = editorConfig.excludedRowNumbers.includes(rowNumber); updateEditor({ excludedRowNumbers: existing ? editorConfig.excludedRowNumbers.filter((item) => item !== rowNumber) : [...editorConfig.excludedRowNumbers, rowNumber] }); setRowToToggle(""); }} className="rounded-lg bg-[#173f38] px-3.5 py-2 text-[11px] font-bold text-white hover:bg-[#17564c]">إضافة أو استعادة</button></div></div>{editorConfig.excludedRowNumbers.length > 0 ? <div className="mt-3 flex flex-wrap gap-2">{editorConfig.excludedRowNumbers.map((rowNumber) => <button key={rowNumber} onClick={() => updateEditor({ excludedRowNumbers: editorConfig.excludedRowNumbers.filter((item) => item !== rowNumber) })} className="rounded-lg border border-[#e9c2b9] bg-[#fff4f1] px-2.5 py-1.5 text-[10px] font-bold text-[#9a4838] hover:bg-[#ffebe7]">صف {rowNumber} مستبعد <X className="mr-1 inline size-3" /></button>)}</div> : <p className="mt-3 text-[10px] text-[#71857d]">لا توجد صفوف مستبعدة يدويًا.</p>}</div>
+            <div className="border-t border-[#e2ede6] bg-[#fbfdfb] px-4 py-3.5"><div className="flex flex-wrap items-end justify-between gap-3"><div><p className="text-xs font-bold text-[#315a4f]">إدارة الصفوف المحلية</p><p className="mt-1 text-[10px] text-[#74877f]">أضف صفًا فارغًا لتكتب بياناته محليًا، أو أدخل رقم صف ظاهر لاستبعاده أو استعادته من القراءة.</p></div><div className="flex flex-wrap gap-2"><button type="button" onClick={addManualRow} className="rounded-lg bg-[#173f38] px-3 py-2 text-[10px] font-bold text-white hover:bg-[#17564c]">إضافة صف محلي</button><button type="button" onClick={removeLastManualRow} disabled={!editorConfig.manualRows.length} className="rounded-lg border border-[#e9c2b9] bg-[#fff5f2] px-3 py-2 text-[10px] font-bold text-[#9a4838] disabled:cursor-not-allowed disabled:opacity-45">حذف آخر صف محلي</button><input value={rowToToggle} inputMode="numeric" placeholder="رقم صف" onChange={(event) => setRowToToggle(event.target.value)} className="w-20 rounded-lg border border-[#ccded5] bg-white px-2.5 py-2 text-xs font-bold text-[#264f45]" aria-label="رقم صف Excel للاستبعاد" /><button onClick={() => { const rowNumber = Math.trunc(Number(rowToToggle)); const maximumRowNumber = sourceMatrix.length + editorConfig.manualRows.length; if (!Number.isFinite(rowNumber) || rowNumber <= editorConfig.dataStartRowIndex || rowNumber > maximumRowNumber) return; const existing = editorConfig.excludedRowNumbers.includes(rowNumber); updateEditor({ excludedRowNumbers: existing ? editorConfig.excludedRowNumbers.filter((item) => item !== rowNumber) : [...editorConfig.excludedRowNumbers, rowNumber] }, existing ? `استعادة الصف ${rowNumber}` : `استبعاد الصف ${rowNumber}`); setRowToToggle(""); }} className="rounded-lg border border-[#b9d8c9] bg-white px-3 py-2 text-[10px] font-bold text-[#23705a] hover:bg-[#f2faf5]">استبعاد أو استعادة</button></div></div>{editorConfig.excludedRowNumbers.length > 0 ? <div className="mt-3 flex flex-wrap gap-2">{editorConfig.excludedRowNumbers.map((rowNumber) => <button key={rowNumber} onClick={() => updateEditor({ excludedRowNumbers: editorConfig.excludedRowNumbers.filter((item) => item !== rowNumber) }, `استعادة الصف ${rowNumber}`)} className="rounded-lg border border-[#e9c2b9] bg-[#fff4f1] px-2.5 py-1.5 text-[10px] font-bold text-[#9a4838] hover:bg-[#ffebe7]">صف {rowNumber} مستبعد <X className="mr-1 inline size-3" /></button>)}</div> : <p className="mt-3 text-[10px] text-[#71857d]">لا توجد صفوف مستبعدة يدويًا.</p>}</div>
+            <div className="flex flex-wrap items-start justify-between gap-3 border-t border-[#e2ede6] bg-white px-4 py-3.5"><div><p className="text-xs font-bold text-[#315a4f]">إدارة الأعمدة المحلية</p><p className="mt-1 max-w-2xl text-[10px] leading-5 text-[#74877f]">أضف عمودًا فارغًا لتكتب قيمه محليًا، أو استبعد أعمدة المصدر من القراءة عبر النطاق أدناه. لا يُحذف أو يُرفع أي شيء إلى خارج المتصفح.</p></div><div className="flex flex-wrap gap-2"><button type="button" onClick={addManualColumn} className="rounded-lg bg-[#173f38] px-3 py-2 text-[10px] font-bold text-white hover:bg-[#17564c]">إضافة عمود محلي</button><button type="button" onClick={removeLastManualColumn} disabled={!editorConfig.manualColumns.length} className="rounded-lg border border-[#e9c2b9] bg-[#fff5f2] px-3 py-2 text-[10px] font-bold text-[#9a4838] disabled:cursor-not-allowed disabled:opacity-45">حذف آخر عمود محلي</button></div>{editorConfig.ignoredColumnIndexes.length > 0 && <div className="w-full border-t border-[#e7eee9] pt-3"><p className="mb-2 text-[9px] font-bold text-[#6d7f77]">أعمدة مستبعدة محليًا من القراءة</p><div className="flex flex-wrap gap-2">{editorConfig.ignoredColumnIndexes.map((index) => <button key={index} type="button" onClick={() => updateEditor({ ignoredColumnIndexes: editorConfig.ignoredColumnIndexes.filter((item) => item !== index) }, `استعادة العمود ${columnLetter(index)}`)} className="rounded-lg border border-[#e9c2b9] bg-[#fff4f1] px-2.5 py-1.5 text-[10px] font-bold text-[#9a4838]">العمود {columnLetter(index)} مستبعد <X className="mr-1 inline size-3" /></button>)}</div></div>}</div>
             <div className="border-t border-[#dceae2] bg-[#f7fbf8] p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div><div className="flex items-center gap-2"><MousePointer2 className="size-4 text-[#0b6b5b]" /><h3 className="text-xs font-bold text-[#315a4f]">تحديد نطاق خلايا بالسحب</h3></div><p className="mt-1 text-[10px] leading-5 text-[#71857d]">اضغط واسحب فوق الخلايا لاختيار نطاق من المصدر، ثم طبّقه كنطاق القراءة أو استبعد صفوفه. النطاق لا يغيّر أي قيمة داخل ملف Excel.</p></div>
-                <div className="flex flex-wrap items-center gap-2"><button type="button" onClick={undoEditor} disabled={!historyForSheet.length} className="rounded-lg border border-[#c9dcd4] bg-white px-2.5 py-2 text-[10px] font-bold text-[#386257] disabled:cursor-not-allowed disabled:opacity-45"><Undo2 className="ml-1 inline size-3.5" />تراجع</button><button type="button" onClick={redoEditor} disabled={!futureForSheet.length} className="rounded-lg border border-[#c9dcd4] bg-white px-2.5 py-2 text-[10px] font-bold text-[#386257] disabled:cursor-not-allowed disabled:opacity-45"><Redo2 className="ml-1 inline size-3.5" />إعادة</button></div>
+                <div className="flex flex-wrap items-center gap-2"><button type="button" onClick={undoEditor} disabled={!historyForSheet.length} data-history-count={historyForSheet.length} className="rounded-lg border border-[#c9dcd4] bg-white px-2.5 py-2 text-[10px] font-bold text-[#386257] disabled:cursor-not-allowed disabled:opacity-45"><Undo2 className="ml-1 inline size-3.5" />تراجع</button><button type="button" onClick={redoEditor} disabled={!futureForSheet.length} data-future-count={futureForSheet.length} className="rounded-lg border border-[#c9dcd4] bg-white px-2.5 py-2 text-[10px] font-bold text-[#386257] disabled:cursor-not-allowed disabled:opacity-45"><Redo2 className="ml-1 inline size-3.5" />إعادة</button></div>
               </div>
               <div className="mt-3 overflow-auto rounded-xl border border-[#d4e3db] bg-white" onPointerUp={() => setRangeDragging(false)}>
-                <table className="min-w-max select-none text-right text-[10px]"><thead><tr><th className="sticky right-0 z-10 min-w-10 border-b border-l border-[#dce9e2] bg-[#eef7f1] px-2 py-2 text-[#6c8279]">#</th>{Array.from({ length: previewRangeColumns }, (_, columnIndex) => <th key={columnIndex} className="min-w-32 border-b border-l border-[#dce9e2] bg-[#e6f4ec] p-1.5 text-[#42675b]"><div className="mb-1 flex items-center justify-between px-1"><span>{originalColumns[columnIndex]?.letter ?? columnIndex + 1}</span><span className="text-[8px] text-[#7b9187]">عنوان قابل للتعديل</span></div><input key={`header-${columnIndex}-${editableHeaderValue(columnIndex)}`} defaultValue={editableHeaderValue(columnIndex)} onBlur={(event) => commitHeaderOverride(columnIndex, event.target.value)} aria-label={`عنوان العمود ${originalColumns[columnIndex]?.letter ?? columnIndex + 1}`} className="w-full rounded-md border border-[#bdd8cb] bg-white px-2 py-1.5 text-[10px] font-bold text-[#234f44] outline-none focus:border-[#0d765e] focus:ring-2 focus:ring-[#c5ead9]" /></th>)}</tr></thead><tbody>{Array.from({ length: previewRangeRows }, (_, rowIndex) => <tr key={rowIndex}><th className="sticky right-0 z-[1] border-b border-l border-[#e4eee8] bg-[#f7faf8] px-2 py-1.5 text-[#6f837a]">{rowIndex + 1}</th>{Array.from({ length: previewRangeColumns }, (_, columnIndex) => {
+                <table className="min-w-max select-none text-right text-[10px]"><thead><tr><th className="sticky right-0 z-10 min-w-10 border-b border-l border-[#dce9e2] bg-[#eef7f1] px-2 py-2 text-[#6c8279]">#</th>{Array.from({ length: previewRangeColumns }, (_, columnIndex) => <th key={columnIndex} className="min-w-32 border-b border-l border-[#dce9e2] bg-[#e6f4ec] p-1.5 text-[#42675b]"><div className="mb-1 flex items-center justify-between px-1"><span>{columnLetter(columnIndex)}</span><span className="text-[8px] text-[#7b9187]">عنوان قابل للتعديل</span></div><input key={`header-${columnIndex}-${editableHeaderValue(columnIndex)}`} defaultValue={editableHeaderValue(columnIndex)} onBlur={(event) => commitHeaderOverride(columnIndex, event.target.value)} aria-label={`عنوان العمود ${columnLetter(columnIndex)}`} className="w-full rounded-md border border-[#bdd8cb] bg-white px-2 py-1.5 text-[10px] font-bold text-[#234f44] outline-none focus:border-[#0d765e] focus:ring-2 focus:ring-[#c5ead9]" /></th>)}</tr></thead><tbody>{previewRowIndexes.map((rowIndex) => <tr key={rowIndex}><th className="sticky right-0 z-[1] border-b border-l border-[#e4eee8] bg-[#f7faf8] px-2 py-1.5 text-[#6f837a]">{rowIndex + 1}</th>{Array.from({ length: previewRangeColumns }, (_, columnIndex) => {
                   const isSelected = activeRange && rowIndex >= activeRange.firstRow && rowIndex <= activeRange.lastRow && columnIndex >= activeRange.firstColumn && columnIndex <= activeRange.lastColumn;
                   const isHeaderRow = rowIndex === editorConfig.headerRowIndex;
-                  return <td key={columnIndex} className={`border-b border-l border-[#eef3ef] p-0 ${isHeaderRow ? "bg-[#f0f8f3]" : isSelected ? "bg-[#ccebdd]" : "bg-white"}`}>{isHeaderRow ? <div className="min-h-8 px-2 py-1.5 text-[9px] font-bold text-[#507368]">صف العناوين — عدّله من الحقول أعلاه</div> : <input key={`cell-${rowIndex}-${columnIndex}-${editableCellValue(rowIndex, columnIndex)}`} defaultValue={editableCellValue(rowIndex, columnIndex)} aria-label={`خلية ${originalColumns[columnIndex]?.letter ?? columnIndex + 1}${rowIndex + 1}`} onFocus={() => { setCellRange({ startRow: rowIndex, startColumn: columnIndex, endRow: rowIndex, endColumn: columnIndex }); setRangeDragging(true); }} onPointerEnter={() => { if (rangeDragging) setCellRange((current) => current ? { ...current, endRow: rowIndex, endColumn: columnIndex } : current); }} onBlur={(event) => { setRangeDragging(false); commitCellOverride(rowIndex, columnIndex, event.target.value); }} className={`block min-h-8 w-full max-w-36 truncate bg-transparent px-2 py-1.5 text-right outline-none focus:bg-[#e8f6ee] focus:ring-1 focus:ring-inset focus:ring-[#65a78e] ${isSelected ? "font-bold text-[#1e604b]" : "text-[#597168]"}`} />}</td>;
+                  return <td key={columnIndex} className={`border-b border-l border-[#eef3ef] p-0 ${isHeaderRow ? "bg-[#f0f8f3]" : isSelected ? "bg-[#ccebdd]" : "bg-white"}`}>{isHeaderRow ? <div className="min-h-8 px-2 py-1.5 text-[9px] font-bold text-[#507368]">صف العناوين — عدّله من الحقول أعلاه</div> : <input key={`cell-${rowIndex}-${columnIndex}-${editableCellValue(rowIndex, columnIndex)}`} defaultValue={editableCellValue(rowIndex, columnIndex)} aria-label={`خلية ${columnLetter(columnIndex)}${rowIndex + 1}`} onFocus={() => { setCellRange({ startRow: rowIndex, startColumn: columnIndex, endRow: rowIndex, endColumn: columnIndex }); setRangeDragging(true); }} onPointerEnter={() => { if (rangeDragging) setCellRange((current) => current ? { ...current, endRow: rowIndex, endColumn: columnIndex } : current); }} onBlur={(event) => { setRangeDragging(false); commitCellOverride(rowIndex, columnIndex, event.target.value); }} className={`block min-h-8 w-full max-w-36 truncate bg-transparent px-2 py-1.5 text-right outline-none focus:bg-[#e8f6ee] focus:ring-1 focus:ring-inset focus:ring-[#65a78e] ${isSelected ? "font-bold text-[#1e604b]" : "text-[#597168]"}`} />}</td>;
                 })}</tr>)}</tbody></table>
               </div>
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#dce9e2] bg-white px-3 py-2.5"><span className="text-[11px] font-bold text-[#315a4f]">النطاق المختار: <b className="text-[#0f735d]">{rangeReference}</b></span><div className="flex flex-wrap gap-2"><button type="button" disabled={!activeRange} onClick={() => activeRange && updateEditor({ dataStartRowIndex: Math.max(editorConfig.headerRowIndex + 1, activeRange.firstRow), firstDataColumnIndex: activeRange.firstColumn, lastDataRowIndex: activeRange.lastRow, lastDataColumnIndex: activeRange.lastColumn }, `تحديد نطاق القراءة ${rangeReference}`)} className="rounded-lg bg-[#173f38] px-2.5 py-1.5 text-[10px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-45">استخدم النطاق للقراءة</button><button type="button" disabled={!activeRange} onClick={() => activeRange && updateEditor({ excludedRowNumbers: Array.from(new Set([...editorConfig.excludedRowNumbers, ...Array.from({ length: activeRange.lastRow - activeRange.firstRow + 1 }, (_, index) => activeRange.firstRow + index + 1).filter((rowNumber) => rowNumber > editorConfig.dataStartRowIndex)])) }, `استبعاد صفوف النطاق ${rangeReference}`)} className="rounded-lg border border-[#ebc9bf] bg-[#fff5f2] px-2.5 py-1.5 text-[10px] font-bold text-[#a25040] disabled:cursor-not-allowed disabled:opacity-45">استبعد صفوف النطاق</button><button type="button" onClick={() => setCellRange(null)} className="rounded-lg border border-[#ceded6] bg-white px-2.5 py-1.5 text-[10px] font-bold text-[#48695f]">إلغاء التحديد</button></div></div>
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#dce9e2] bg-white px-3 py-2.5"><span className="text-[11px] font-bold text-[#315a4f]">النطاق المختار: <b className="text-[#0f735d]">{rangeReference}</b></span><div className="flex flex-wrap gap-2"><button type="button" disabled={!activeRange} onClick={() => activeRange && updateEditor({ dataStartRowIndex: Math.max(editorConfig.headerRowIndex + 1, activeRange.firstRow), firstDataColumnIndex: activeRange.firstColumn, lastDataRowIndex: activeRange.lastRow, lastDataColumnIndex: activeRange.lastColumn }, `تحديد نطاق القراءة ${rangeReference}`)} className="rounded-lg bg-[#173f38] px-2.5 py-1.5 text-[10px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-45">استخدم النطاق للقراءة</button><button type="button" disabled={!activeRange} onClick={() => activeRange && updateEditor({ excludedRowNumbers: Array.from(new Set([...editorConfig.excludedRowNumbers, ...Array.from({ length: activeRange.lastRow - activeRange.firstRow + 1 }, (_, index) => activeRange.firstRow + index + 1).filter((rowNumber) => rowNumber > editorConfig.dataStartRowIndex)])) }, `استبعاد صفوف النطاق ${rangeReference}`)} className="rounded-lg border border-[#ebc9bf] bg-[#fff5f2] px-2.5 py-1.5 text-[10px] font-bold text-[#a25040] disabled:cursor-not-allowed disabled:opacity-45">استبعد صفوف النطاق</button><button type="button" disabled={!activeRange} onClick={() => activeRange && updateEditor({ excludedRowNumbers: editorConfig.excludedRowNumbers.filter((rowNumber) => rowNumber < activeRange.firstRow + 1 || rowNumber > activeRange.lastRow + 1) }, `استعادة صفوف النطاق ${rangeReference}`)} className="rounded-lg border border-[#c9dcd4] bg-white px-2.5 py-1.5 text-[10px] font-bold text-[#386257] disabled:cursor-not-allowed disabled:opacity-45">استعد صفوف النطاق</button><button type="button" disabled={!activeRange} onClick={() => updateRangeColumnVisibility(true)} className="rounded-lg border border-[#ebc9bf] bg-[#fff5f2] px-2.5 py-1.5 text-[10px] font-bold text-[#a25040] disabled:cursor-not-allowed disabled:opacity-45">استبعد أعمدة النطاق</button><button type="button" disabled={!activeRange} onClick={() => updateRangeColumnVisibility(false)} className="rounded-lg border border-[#c9dcd4] bg-white px-2.5 py-1.5 text-[10px] font-bold text-[#386257] disabled:cursor-not-allowed disabled:opacity-45">استعد أعمدة النطاق</button><button type="button" onClick={() => setCellRange(null)} className="rounded-lg border border-[#ceded6] bg-white px-2.5 py-1.5 text-[10px] font-bold text-[#48695f]">إلغاء التحديد</button></div></div>
               <div className="mt-2 flex flex-wrap gap-2 text-[9px] text-[#71857d]">{historyForSheet.slice(-3).reverse().map((entry, index) => <span key={`${entry.description}-${index}`} className="rounded-md bg-[#edf6f1] px-2 py-1">{entry.description}</span>)}{!historyForSheet.length && <span>لا توجد تعديلات قابلة للتراجع بعد.</span>}</div>
             </div>
 

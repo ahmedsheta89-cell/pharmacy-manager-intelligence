@@ -95,6 +95,12 @@ export interface SheetEditorConfig {
   headerOverrides: Record<number, string>;
   /** قيم يصححها المدير في نسخة المعاينة فقط، ومفتاحها «رقم الصف الصفري:رقم العمود الصفري». */
   cellOverrides: Record<string, DataValue>;
+  /** أعمدة اختار المدير استبعادها من القراءة والتحليل، بفهرس Excel الصفري. */
+  ignoredColumnIndexes: number[];
+  /** أعمدة محلية تضاف إلى المعاينة فقط؛ لا تضاف أو ترفع إلى ملف Excel الأصلي. */
+  manualColumns: Array<{ id: string; title: string }>;
+  /** صفوف محلية تضاف إلى نهاية المعاينة فقط؛ لا تضاف أو ترفع إلى ملف Excel الأصلي. */
+  manualRows: Array<{ id: string }>;
   updatedAt?: string;
 }
 
@@ -292,7 +298,7 @@ function scoreMapping(header: string): { field: CanonicalField | "unknown"; scor
   return { field: topScore >= 38 ? winner : "unknown", score: topScore, reason };
 }
 
-function mapColumns(headers: string[], rawRows: unknown[][], headerColumns?: Array<string | undefined>, dataColumnOffset = 0): ColumnMapping[] {
+function mapColumns(headers: string[], rawRows: unknown[][], headerColumns?: Array<string | undefined>, dataColumnOffset = 0, dataColumns?: Array<string | undefined>): ColumnMapping[] {
   return headers.map((header, index) => {
     const result = scoreMapping(header);
     const sample = rawRows.slice(0, 5).map((row) => row[index]).find((value) => value !== undefined && value !== null && value !== "");
@@ -306,16 +312,26 @@ function mapColumns(headers: string[], rawRows: unknown[][], headerColumns?: Arr
       reason: result.reason,
       sample: sample === undefined ? "—" : String(sample).slice(0, 40),
       approvalStatus: "suggested",
-      dataColumn: XLSX.utils.encode_col(index + dataColumnOffset),
+      dataColumn: dataColumns?.[index] ?? XLSX.utils.encode_col(index + dataColumnOffset),
       headerColumn,
-      adjustedForHeaderShift: headerColumn !== XLSX.utils.encode_col(index + dataColumnOffset),
+      adjustedForHeaderShift: headerColumn !== (dataColumns?.[index] ?? XLSX.utils.encode_col(index + dataColumnOffset)),
     };
   });
 }
 
 function normalizeEditorConfig(matrix: DataValue[][], requested?: Partial<SheetEditorConfig>): SheetEditorConfig {
-  const maxRow = Math.max(matrix.length - 1, 0);
-  const maxColumn = Math.max(matrix.reduce((max, row) => Math.max(max, row.length), 0) - 1, 0);
+  const manualRows = (requested?.manualRows ?? []).flatMap((row, index) => {
+    const id = String(row?.id ?? `manual-row-${index + 1}`).trim().slice(0, 80);
+    return id ? [{ id }] : [];
+  }).slice(0, 50);
+  const maxRow = Math.max(matrix.length + manualRows.length - 1, 0);
+  const sourceColumnCount = Math.max(matrix.reduce((max, row) => Math.max(max, row.length), 0), 1);
+  const manualColumns = (requested?.manualColumns ?? []).flatMap((column, index) => {
+    const id = String(column?.id ?? `manual-${index + 1}`).trim().slice(0, 80);
+    const title = String(column?.title ?? "عمود محلي").trim().slice(0, 120);
+    return id && title ? [{ id, title }] : [];
+  }).slice(0, 12);
+  const maxColumn = sourceColumnCount + manualColumns.length - 1;
   const headerRowIndex = Math.min(Math.max(Math.trunc(requested?.headerRowIndex ?? getHeaderRow(matrix)), 0), maxRow);
   const dataStartRowIndex = Math.min(Math.max(Math.trunc(requested?.dataStartRowIndex ?? headerRowIndex + 1), headerRowIndex + 1), matrix.length);
   const firstDataColumnIndex = Math.min(Math.max(Math.trunc(requested?.firstDataColumnIndex ?? 0), 0), maxColumn);
@@ -351,12 +367,21 @@ function normalizeEditorConfig(matrix: DataValue[][], requested?: Partial<SheetE
     if (rowIndex >= dataStartRowIndex && rowIndex <= lastDataRowIndex && columnIndex >= firstDataColumnIndex && columnIndex <= lastDataColumnIndex) next[key] = value;
     return next;
   }, {});
-  return { headerRowIndex, dataStartRowIndex, firstDataColumnIndex, lastDataRowIndex, lastDataColumnIndex, excludedRowNumbers, textTransforms, headerOverrides, cellOverrides, updatedAt: requested?.updatedAt };
+  const ignoredColumnIndexes = Array.from(new Set((requested?.ignoredColumnIndexes ?? [])
+    .map((item) => Math.trunc(item))
+    .filter((item) => item >= firstDataColumnIndex && item <= lastDataColumnIndex))).sort((a, b) => a - b);
+  return { headerRowIndex, dataStartRowIndex, firstDataColumnIndex, lastDataRowIndex, lastDataColumnIndex, excludedRowNumbers, textTransforms, headerOverrides, cellOverrides, ignoredColumnIndexes, manualColumns, manualRows, updatedAt: requested?.updatedAt };
 }
 
 /** يبني سطح معاينة قابلًا للتحرير؛ تظل مصفوفة Excel الأصلية محفوظة بلا تغيير. */
 function buildEditablePreviewMatrix(matrix: DataValue[][], editorConfig: SheetEditorConfig): DataValue[][] {
-  const preview = matrix.map((row) => [...row]);
+  const sourceColumnCount = Math.max(matrix.reduce((max, row) => Math.max(max, row.length), 0), 1);
+  const preview = matrix.map((row) => [...row, ...editorConfig.manualColumns.map(() => null)]);
+  editorConfig.manualRows.forEach(() => preview.push(Array.from({ length: sourceColumnCount + editorConfig.manualColumns.length }, () => null)));
+  preview[editorConfig.headerRowIndex] ??= [];
+  editorConfig.manualColumns.forEach((column, index) => {
+    preview[editorConfig.headerRowIndex][sourceColumnCount + index] = column.title;
+  });
   Object.entries(editorConfig.headerOverrides).forEach(([column, value]) => {
     const columnIndex = Number(column);
     preview[editorConfig.headerRowIndex] ??= [];
@@ -524,17 +549,23 @@ function inspectSheet(name: string, matrix: DataValue[][], requestedEditorConfig
   const dataRows = dataRowEntries.map((item) => item.row);
   const headerWasShifted = hasLeadingHeaderShift(rawHeaders, dataRows);
   const headerDataOffset = headerWasShifted ? 1 : 0;
-  const dataColumnCount = Math.max(rawHeaders.length, ...dataRows.map((row) => row.length), 0);
   const codeHeaderIndex = headerWasShifted ? rawHeaders.findIndex((header) => scoreMapping(header).field === "item_code") : -1;
-  const shiftedHeaders = codeHeaderIndex >= 1 ? rawHeaders.slice(1, codeHeaderIndex + 1) : rawHeaders.slice(1);
+  const headerEntries = (headerWasShifted
+    ? (codeHeaderIndex >= 1 ? rawHeaders.slice(1, codeHeaderIndex + 1) : rawHeaders.slice(1)).map((title, index) => ({ title, headerIndex: firstDataColumnIndex + index + 1, dataIndex: firstDataColumnIndex + index }))
+    : rawHeaders.map((title, index) => ({ title, headerIndex: firstDataColumnIndex + index, dataIndex: firstDataColumnIndex + index })))
+    .filter((entry) => !editorConfig.ignoredColumnIndexes.includes(entry.dataIndex));
   // قرار المدير: «الموظف» رأس زائد في A وليس عمود بيانات.
   // كل عنوان تالٍ يصف قيم العمود الذي يسبقه؛ لذلك تبقى قيم A محفوظة وتُسمى «إجمالي البيع».
   // تنتهي الخريطة عند «الكود» (I ← H) ولا تدخل قيم I الفارغة في التحليل.
-  const headers = headerWasShifted ? shiftedHeaders : rawHeaders;
-  const headerColumns = headerWasShifted
-    ? headers.map((_, index) => XLSX.utils.encode_col(firstDataColumnIndex + index + 1))
-    : Array.from({ length: dataColumnCount }, (_, index) => XLSX.utils.encode_col(firstDataColumnIndex + index));
-  const excludedColumns: Array<{ dataColumn: string; sourceColumn: string; reason: string }> = [];
+  const headers = headerEntries.map((entry) => entry.title);
+  const headerColumns = headerEntries.map((entry) => XLSX.utils.encode_col(entry.headerIndex));
+  const dataColumns = headerEntries.map((entry) => XLSX.utils.encode_col(entry.dataIndex));
+  const readableRows = dataRows.map((row) => headerEntries.map((entry) => row[entry.dataIndex - firstDataColumnIndex]));
+  const excludedColumns = (headerWasShifted
+    ? (codeHeaderIndex >= 1 ? rawHeaders.slice(1, codeHeaderIndex + 1) : rawHeaders.slice(1)).map((title, index) => ({ title, dataIndex: firstDataColumnIndex + index }))
+    : rawHeaders.map((title, index) => ({ title, dataIndex: firstDataColumnIndex + index })))
+    .filter((entry) => editorConfig.ignoredColumnIndexes.includes(entry.dataIndex))
+    .map((entry) => ({ dataColumn: XLSX.utils.encode_col(entry.dataIndex), sourceColumn: entry.title, reason: "قرار المدير: استبعاد العمود من القراءة والتحليل في النسخة المحلية." }));
   const removedHeaders = headerWasShifted
     ? [{
         headerColumn: "A",
@@ -542,7 +573,7 @@ function inspectSheet(name: string, matrix: DataValue[][], requestedEditorConfig
         reason: "قرار المدير: إزالة رأس «الموظف» الوهمي فقط. قيم العمود A محفوظة وتُفسر بعنوان B «إجمالي البيع».",
       }]
     : [];
-  const suggestedMappings = mapColumns(headers, dataRows, headerColumns, firstDataColumnIndex).map((mapping) => {
+  const suggestedMappings = mapColumns(headers, readableRows, headerColumns, firstDataColumnIndex, dataColumns).map((mapping) => {
     const headerLetter = mapping.headerColumn ?? mapping.dataColumn;
     const headerIndex = headerLetter ? XLSX.utils.decode_col(headerLetter) : -1;
     const hasManagerHeader = headerIndex >= 0 && Boolean(editorConfig.headerOverrides[headerIndex]?.trim());
@@ -565,10 +596,10 @@ function inspectSheet(name: string, matrix: DataValue[][], requestedEditorConfig
     : suggestedMappings).concat(editorTransformMappings(editorConfig.textTransforms));
   const mapsByField = approvedFieldMap(mappings);
 
-  const rawRecordEntries = dataRowEntries.map(({ row, rowNumber }) => ({
+  const rawRecordEntries = dataRowEntries.map(({ rowNumber }, rowIndex) => ({
     rowNumber,
     record: applyTextTransforms(headers.reduce<RawRecord>((record, header, index) => {
-      record[header] = row[index] as DataValue;
+      record[header] = readableRows[rowIndex]?.[index] as DataValue;
       return record;
     }, {}), editorConfig.textTransforms),
   }));
