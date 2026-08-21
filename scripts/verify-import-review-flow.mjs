@@ -43,6 +43,13 @@ try {
 
   const manualEditor = page.locator("#sheet-manual-editor");
   await page.getByRole("heading", { name: "محرر الشيت اليدوي — اضبط القراءة قبل الاعتماد" }).waitFor();
+  const editableHeader = manualEditor.getByLabel("عنوان العمود A");
+  const originalHeader = await editableHeader.inputValue();
+  await editableHeader.fill("إجمالي البيع");
+  await editableHeader.press("Tab");
+  if (await editableHeader.inputValue() !== "إجمالي البيع") throw new Error("لم يقبل صف العناوين العلوي كتابة اسم العمود الذي يحدده المدير.");
+  await manualEditor.getByRole("button", { name: "تراجع" }).click();
+  if (await editableHeader.inputValue() !== originalHeader) throw new Error("لم يستعد التراجع عنوان العمود الأصلي بعد تعديله.");
   await manualEditor.getByLabel("رقم صف Excel للاستبعاد").fill("6");
   await manualEditor.getByRole("button", { name: "إضافة أو استعادة" }).click();
   await manualEditor.getByRole("button", { name: /صف 6 مستبعد/ }).waitFor();

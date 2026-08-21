@@ -91,6 +91,10 @@ export interface SheetEditorConfig {
   excludedRowNumbers: number[];
   /** تحويلات نصية محلية على نسخة المعاينة فقط، ولا تعدّل ملف المصدر. */
   textTransforms: SheetTextTransform[];
+  /** تسميات يكتبها المدير في خلايا صف العناوين، مفهرسة بترقيم عمود Excel الصفري. */
+  headerOverrides: Record<number, string>;
+  /** قيم يصححها المدير في نسخة المعاينة فقط، ومفتاحها «رقم الصف الصفري:رقم العمود الصفري». */
+  cellOverrides: Record<string, DataValue>;
   updatedAt?: string;
 }
 
@@ -333,7 +337,37 @@ function normalizeEditorConfig(matrix: DataValue[][], requested?: Partial<SheetE
     const parts = Math.min(6, Math.max(2, Math.trunc(transform.parts ?? 2)));
     return source ? [{ id, type: "split", source, target, separator, parts }] : [];
   });
-  return { headerRowIndex, dataStartRowIndex, firstDataColumnIndex, lastDataRowIndex, lastDataColumnIndex, excludedRowNumbers, textTransforms, updatedAt: requested?.updatedAt };
+  const headerOverrides = Object.entries(requested?.headerOverrides ?? {}).reduce<Record<number, string>>((next, [column, value]) => {
+    const columnIndex = Number(column);
+    const title = String(value ?? "").trim().slice(0, 120);
+    if (Number.isInteger(columnIndex) && columnIndex >= 0 && columnIndex <= maxColumn && title) next[columnIndex] = title;
+    return next;
+  }, {});
+  const cellOverrides = Object.entries(requested?.cellOverrides ?? {}).reduce<Record<string, DataValue>>((next, [key, value]) => {
+    const match = /^(\d+):(\d+)$/.exec(key);
+    if (!match) return next;
+    const rowIndex = Number(match[1]);
+    const columnIndex = Number(match[2]);
+    if (rowIndex >= dataStartRowIndex && rowIndex <= lastDataRowIndex && columnIndex >= firstDataColumnIndex && columnIndex <= lastDataColumnIndex) next[key] = value;
+    return next;
+  }, {});
+  return { headerRowIndex, dataStartRowIndex, firstDataColumnIndex, lastDataRowIndex, lastDataColumnIndex, excludedRowNumbers, textTransforms, headerOverrides, cellOverrides, updatedAt: requested?.updatedAt };
+}
+
+/** يبني سطح معاينة قابلًا للتحرير؛ تظل مصفوفة Excel الأصلية محفوظة بلا تغيير. */
+function buildEditablePreviewMatrix(matrix: DataValue[][], editorConfig: SheetEditorConfig): DataValue[][] {
+  const preview = matrix.map((row) => [...row]);
+  Object.entries(editorConfig.headerOverrides).forEach(([column, value]) => {
+    const columnIndex = Number(column);
+    preview[editorConfig.headerRowIndex] ??= [];
+    preview[editorConfig.headerRowIndex][columnIndex] = value;
+  });
+  Object.entries(editorConfig.cellOverrides).forEach(([key, value]) => {
+    const [rowIndex, columnIndex] = key.split(":").map(Number);
+    preview[rowIndex] ??= [];
+    preview[rowIndex][columnIndex] = value;
+  });
+  return preview;
 }
 
 function splitTargetName(target: string, index: number) {
@@ -426,6 +460,22 @@ function calculateMetrics(record: RawRecord, mapsByField: Partial<Record<Canonic
   return { sales, quantity, cost, profit, unitSalePrice, unitCost, profitMargin, discount, date, priceSource: externalSalePrice !== undefined || externalCostPrice !== undefined ? "price_file" : undefined };
 }
 
+/**
+ * مدخلات حقول التحرير في المتصفح نصية دائمًا. عند تسمية المدير للعمود باسم
+ * حقل رقمي، تُطبَّع القيمة القابلة للقراءة في نسخة السجل المصححة فقط. أما
+ * القيمة غير القابلة للتحويل فتظل كما كتبها المدير حتى تظهر ضمن تقرير الجودة.
+ */
+function coerceEditedNumericValues(record: RawRecord, mappings: ColumnMapping[]): RawRecord {
+  return mappings.reduce<RawRecord>((next, mapping) => {
+    if (mapping.field === "unknown" || FIELD_DEFINITIONS[mapping.field].kind !== "number") return next;
+    const value = next[mapping.sourceColumn];
+    if (value === "" || value === null || value === undefined) return next;
+    const numericValue = toNumber(value);
+    if (numericValue !== undefined) next[mapping.sourceColumn] = numericValue;
+    return next;
+  }, { ...record });
+}
+
 /** تحفظ الجلسات القديمة التي لا تحمل حالة اعتماد، أما الفحوص الجديدة فلا تمرر إلا ما اعتمده المدير صراحة. */
 function approvedFieldMap(mappings: ColumnMapping[]): Partial<Record<CanonicalField, string>> {
   return mappings.reduce((acc, mapping) => {
@@ -465,9 +515,10 @@ export function refreshImportedInspection(inspection: ImportInspection): ImportI
 
 function inspectSheet(name: string, matrix: DataValue[][], requestedEditorConfig?: Partial<SheetEditorConfig>): SheetInspection {
   const editorConfig = normalizeEditorConfig(matrix, requestedEditorConfig);
+  const previewMatrix = buildEditablePreviewMatrix(matrix, editorConfig);
   const { headerRowIndex, dataStartRowIndex, firstDataColumnIndex, lastDataRowIndex, lastDataColumnIndex } = editorConfig;
-  const rawHeaders = (matrix[headerRowIndex] ?? []).slice(firstDataColumnIndex, lastDataColumnIndex + 1).map((value, index) => String(value ?? `عمود ${firstDataColumnIndex + index + 1}`).trim() || `عمود ${firstDataColumnIndex + index + 1}`);
-  const dataRowEntries = matrix.slice(dataStartRowIndex, lastDataRowIndex + 1).map((row, index) => ({ row: row.slice(firstDataColumnIndex, lastDataColumnIndex + 1), rowNumber: dataStartRowIndex + index + 1 }))
+  const rawHeaders = (previewMatrix[headerRowIndex] ?? []).slice(firstDataColumnIndex, lastDataColumnIndex + 1).map((value, index) => String(value ?? `عمود ${firstDataColumnIndex + index + 1}`).trim() || `عمود ${firstDataColumnIndex + index + 1}`);
+  const dataRowEntries = previewMatrix.slice(dataStartRowIndex, lastDataRowIndex + 1).map((row, index) => ({ row: row.slice(firstDataColumnIndex, lastDataColumnIndex + 1), rowNumber: dataStartRowIndex + index + 1 }))
     .filter((item) => !editorConfig.excludedRowNumbers.includes(item.rowNumber))
     .filter((item) => item.row.some((cell) => cell !== undefined && cell !== null && String(cell).trim() !== ""));
   const dataRows = dataRowEntries.map((item) => item.row);
@@ -491,7 +542,19 @@ function inspectSheet(name: string, matrix: DataValue[][], requestedEditorConfig
         reason: "قرار المدير: إزالة رأس «الموظف» الوهمي فقط. قيم العمود A محفوظة وتُفسر بعنوان B «إجمالي البيع».",
       }]
     : [];
-  const suggestedMappings = mapColumns(headers, dataRows, headerColumns, firstDataColumnIndex);
+  const suggestedMappings = mapColumns(headers, dataRows, headerColumns, firstDataColumnIndex).map((mapping) => {
+    const headerLetter = mapping.headerColumn ?? mapping.dataColumn;
+    const headerIndex = headerLetter ? XLSX.utils.decode_col(headerLetter) : -1;
+    const hasManagerHeader = headerIndex >= 0 && Boolean(editorConfig.headerOverrides[headerIndex]?.trim());
+    if (!hasManagerHeader || mapping.field === "unknown") return mapping;
+    return {
+      ...mapping,
+      confidence: "عالية" as const,
+      score: 100,
+      approvalStatus: "overridden" as const,
+      reason: "تسمية مدير الصيدلية في صف العناوين العلوي",
+    };
+  });
   const mappings = (headerWasShifted
     ? suggestedMappings.map((mapping) => mapping.headerColumn
       ? {
@@ -515,7 +578,10 @@ function inspectSheet(name: string, matrix: DataValue[][], requestedEditorConfig
   const candidateRecords = rawRecordEntries.filter((item) => !looksLikeTotalRow(item.record));
   const cleanRecords = candidateRecords
     .filter((item) => Object.values(item.record).some((value) => value !== null && value !== undefined && String(value).trim() !== ""))
-    .map<CleanRecord>(({ record, rowNumber }) => ({ ...record, __rowIndex: rowNumber, __sheetName: name, __metrics: calculateMetrics(record, mapsByField) }));
+    .map<CleanRecord>(({ record, rowNumber }) => {
+      const coercedRecord = coerceEditedNumericValues(record, mappings);
+      return { ...coercedRecord, __rowIndex: rowNumber, __sheetName: name, __metrics: calculateMetrics(coercedRecord, mapsByField) };
+    });
 
   const criticalFields = ["item_name", "sales_total", "quantity_sold", "sale_date"] as CanonicalField[];
   const emptyCriticalCells = criticalFields.reduce((count, field) => {

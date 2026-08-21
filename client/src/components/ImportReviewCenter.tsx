@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useLayoutEffect, useMemo, useState } from "react";
 import { AlertCircle, ArrowLeft, Check, ChevronLeft, Download, Eye, FileSpreadsheet, LockKeyhole, MousePointer2, Redo2, Save, ShieldCheck, SlidersHorizontal, Split, TableProperties, Trash2, Undo2, X } from "lucide-react";
 import {
   approveAllSuggestions,
@@ -65,6 +65,16 @@ function valueText(value: unknown) {
 type CellRange = { startRow: number; startColumn: number; endRow: number; endColumn: number };
 type EditorHistoryEntry = { sheetName: string; config: SheetEditorConfig; description: string };
 
+function snapshotEditorConfig(config: SheetEditorConfig): SheetEditorConfig {
+  return {
+    ...config,
+    excludedRowNumbers: [...config.excludedRowNumbers],
+    textTransforms: config.textTransforms.map((transform) => structuredClone(transform)),
+    headerOverrides: { ...config.headerOverrides },
+    cellOverrides: { ...config.cellOverrides },
+  };
+}
+
 function normalizeRange(selection: CellRange) {
   return {
     firstRow: Math.min(selection.startRow, selection.endRow),
@@ -119,6 +129,8 @@ export function ImportReviewCenter({ inspection, structure, selectedSheetIndex, 
     lastDataColumnIndex: Math.max(...sourceMatrix.map((row) => row.length), 1) - 1,
     excludedRowNumbers: [],
     textTransforms: [],
+    headerOverrides: {},
+    cellOverrides: {},
   };
   const comparisonStart = Math.min(Math.max(editorConfig.dataStartRowIndex, 0), sourceMatrix.length);
   const comparisonSourceRows = sourceMatrix.slice(comparisonStart).map((row, index) => ({ values: row, rowNumber: comparisonStart + index + 1 }))
@@ -133,7 +145,7 @@ export function ImportReviewCenter({ inspection, structure, selectedSheetIndex, 
     applyInspectionChange(applySheetEditorConfig(inspection, sheet.name, patch), true);
   };
   const updateEditor = (patch: Partial<SheetEditorConfig>, description = "تعديل إعدادات قراءة الشيت") => {
-    setEditorHistory((current) => [...current, { sheetName: sheet.name, config: editorConfig, description }].slice(-40));
+    setEditorHistory((current) => [...current, { sheetName: sheet.name, config: snapshotEditorConfig(editorConfig), description }].slice(-40));
     setEditorFuture([]);
     applyEditorConfig(patch);
   };
@@ -144,15 +156,15 @@ export function ImportReviewCenter({ inspection, structure, selectedSheetIndex, 
       const index = current.map((entry) => entry.sheetName).lastIndexOf(sheet.name);
       return index < 0 ? current : current.filter((_, entryIndex) => entryIndex !== index);
     });
-    setEditorFuture((current) => [{ sheetName: sheet.name, config: editorConfig, description: previous.description }, ...current].slice(0, 40));
-    applyEditorConfig(previous.config);
+    setEditorFuture((current) => [{ sheetName: sheet.name, config: snapshotEditorConfig(editorConfig), description: previous.description }, ...current].slice(0, 40));
+    applyEditorConfig(snapshotEditorConfig(previous.config));
   };
   const redoEditor = () => {
     const next = editorFuture.find((entry) => entry.sheetName === sheet.name);
     if (!next) return;
     setEditorFuture((current) => current.filter((entry, index) => !(entry.sheetName === sheet.name && index === current.findIndex((candidate) => candidate.sheetName === sheet.name))));
-    setEditorHistory((current) => [...current, { sheetName: sheet.name, config: editorConfig, description: next.description }].slice(-40));
-    applyEditorConfig(next.config);
+    setEditorHistory((current) => [...current, { sheetName: sheet.name, config: snapshotEditorConfig(editorConfig), description: next.description }].slice(-40));
+    applyEditorConfig(snapshotEditorConfig(next.config));
   };
   const editorSources = Array.from(new Set(sheet.mappings.map((mapping) => mapping.sourceColumn).filter(Boolean)));
   const activeRange = cellRange ? normalizeRange(cellRange) : null;
@@ -163,6 +175,47 @@ export function ImportReviewCenter({ inspection, structure, selectedSheetIndex, 
     : "لم يحدد نطاق بعد";
   const historyForSheet = editorHistory.filter((entry) => entry.sheetName === sheet.name);
   const futureForSheet = editorFuture.filter((entry) => entry.sheetName === sheet.name);
+  const editableHeaderValue = (columnIndex: number) => String(editorConfig.headerOverrides[columnIndex] ?? sourceMatrix[editorConfig.headerRowIndex]?.[columnIndex] ?? "");
+  const editableCellValue = (rowIndex: number, columnIndex: number) => valueText(editorConfig.cellOverrides[`${rowIndex}:${columnIndex}`] ?? sourceMatrix[rowIndex]?.[columnIndex]);
+  const commitHeaderOverride = (columnIndex: number, value: string) => {
+    const cleanValue = value.trim();
+    const originalValue = valueText(sourceMatrix[editorConfig.headerRowIndex]?.[columnIndex]).trim();
+    const nextValue = !cleanValue || cleanValue === originalValue ? undefined : cleanValue;
+    if (editorConfig.headerOverrides[columnIndex] === nextValue) return;
+    const headerOverrides = { ...editorConfig.headerOverrides };
+    if (nextValue === undefined) delete headerOverrides[columnIndex];
+    else headerOverrides[columnIndex] = nextValue;
+    updateEditor({ headerOverrides }, `تعديل عنوان العمود ${originalColumns[columnIndex]?.letter ?? columnIndex + 1} إلى «${cleanValue || originalValue}»`);
+  };
+  const commitCellOverride = (rowIndex: number, columnIndex: number, value: string) => {
+    const originalValue = valueText(sourceMatrix[rowIndex]?.[columnIndex]);
+    const cellOverrides = { ...editorConfig.cellOverrides };
+    const key = `${rowIndex}:${columnIndex}`;
+    const nextValue = value === originalValue ? undefined : value;
+    if (editorConfig.cellOverrides[key] === nextValue) return;
+    if (nextValue === undefined) delete cellOverrides[key];
+    else cellOverrides[key] = nextValue;
+    updateEditor({ cellOverrides }, `تعديل الخلية ${originalColumns[columnIndex]?.letter ?? columnIndex + 1}${rowIndex + 1}`);
+  };
+
+  // حقول المعاينة تستخدم defaultValue كي لا يعاد بناؤها أثناء الكتابة. بعد التراجع
+  // أو الإعادة نعيد مزامنة القيمة المرئية من لقطة الإعدادات المستعادة فورًا.
+  useLayoutEffect(() => {
+    const editorRoot = document.querySelector("#sheet-manual-editor");
+    if (!editorRoot) return;
+    const columnByLetter = new Map(originalColumns.map((column) => [column.letter, column.index]));
+    editorRoot.querySelectorAll<HTMLInputElement>("input[aria-label]").forEach((input) => {
+      const label = input.getAttribute("aria-label") ?? "";
+      const headerMatch = /^عنوان العمود ([A-Z]+)$/.exec(label);
+      const cellMatch = /^خلية ([A-Z]+)(\d+)$/.exec(label);
+      const columnIndex = headerMatch ? columnByLetter.get(headerMatch[1]) : cellMatch ? columnByLetter.get(cellMatch[1]) : undefined;
+      if (columnIndex === undefined || document.activeElement === input) return;
+      const expected = headerMatch
+        ? editableHeaderValue(columnIndex)
+        : editableCellValue(Number(cellMatch?.[2]) - 1, columnIndex);
+      if (input.value !== expected) input.value = expected;
+    });
+  }, [sheet.name, editorConfig.headerRowIndex, editorConfig.headerOverrides, editorConfig.cellOverrides, originalColumns, sourceMatrix]);
 
   return <main className="app-canvas min-h-screen p-3 sm:p-6" dir="rtl">
     <div className="mx-auto max-w-[1640px]">
@@ -213,9 +266,10 @@ export function ImportReviewCenter({ inspection, structure, selectedSheetIndex, 
                 <div className="flex flex-wrap items-center gap-2"><button type="button" onClick={undoEditor} disabled={!historyForSheet.length} className="rounded-lg border border-[#c9dcd4] bg-white px-2.5 py-2 text-[10px] font-bold text-[#386257] disabled:cursor-not-allowed disabled:opacity-45"><Undo2 className="ml-1 inline size-3.5" />تراجع</button><button type="button" onClick={redoEditor} disabled={!futureForSheet.length} className="rounded-lg border border-[#c9dcd4] bg-white px-2.5 py-2 text-[10px] font-bold text-[#386257] disabled:cursor-not-allowed disabled:opacity-45"><Redo2 className="ml-1 inline size-3.5" />إعادة</button></div>
               </div>
               <div className="mt-3 overflow-auto rounded-xl border border-[#d4e3db] bg-white" onPointerUp={() => setRangeDragging(false)}>
-                <table className="min-w-max select-none text-right text-[10px]"><thead><tr><th className="sticky right-0 z-10 min-w-10 border-b border-l border-[#dce9e2] bg-[#eef7f1] px-2 py-2 text-[#6c8279]">#</th>{Array.from({ length: previewRangeColumns }, (_, columnIndex) => <th key={columnIndex} className="min-w-24 border-b border-l border-[#dce9e2] bg-[#eef7f1] px-2 py-2 text-[#42675b]">{originalColumns[columnIndex]?.letter ?? columnIndex + 1}<span className="mr-1 text-[#81948c]">{String(sourceMatrix[editorConfig.headerRowIndex]?.[columnIndex] ?? "")}</span></th>)}</tr></thead><tbody>{Array.from({ length: previewRangeRows }, (_, rowIndex) => <tr key={rowIndex}><th className="sticky right-0 z-[1] border-b border-l border-[#e4eee8] bg-[#f7faf8] px-2 py-1.5 text-[#6f837a]">{rowIndex + 1}</th>{Array.from({ length: previewRangeColumns }, (_, columnIndex) => {
+                <table className="min-w-max select-none text-right text-[10px]"><thead><tr><th className="sticky right-0 z-10 min-w-10 border-b border-l border-[#dce9e2] bg-[#eef7f1] px-2 py-2 text-[#6c8279]">#</th>{Array.from({ length: previewRangeColumns }, (_, columnIndex) => <th key={columnIndex} className="min-w-32 border-b border-l border-[#dce9e2] bg-[#e6f4ec] p-1.5 text-[#42675b]"><div className="mb-1 flex items-center justify-between px-1"><span>{originalColumns[columnIndex]?.letter ?? columnIndex + 1}</span><span className="text-[8px] text-[#7b9187]">عنوان قابل للتعديل</span></div><input key={`header-${columnIndex}-${editableHeaderValue(columnIndex)}`} defaultValue={editableHeaderValue(columnIndex)} onBlur={(event) => commitHeaderOverride(columnIndex, event.target.value)} aria-label={`عنوان العمود ${originalColumns[columnIndex]?.letter ?? columnIndex + 1}`} className="w-full rounded-md border border-[#bdd8cb] bg-white px-2 py-1.5 text-[10px] font-bold text-[#234f44] outline-none focus:border-[#0d765e] focus:ring-2 focus:ring-[#c5ead9]" /></th>)}</tr></thead><tbody>{Array.from({ length: previewRangeRows }, (_, rowIndex) => <tr key={rowIndex}><th className="sticky right-0 z-[1] border-b border-l border-[#e4eee8] bg-[#f7faf8] px-2 py-1.5 text-[#6f837a]">{rowIndex + 1}</th>{Array.from({ length: previewRangeColumns }, (_, columnIndex) => {
                   const isSelected = activeRange && rowIndex >= activeRange.firstRow && rowIndex <= activeRange.lastRow && columnIndex >= activeRange.firstColumn && columnIndex <= activeRange.lastColumn;
-                  return <td key={columnIndex} className={`border-b border-l border-[#eef3ef] p-0 ${isSelected ? "bg-[#ccebdd]" : "bg-white"}`}><button type="button" aria-label={`خلية ${originalColumns[columnIndex]?.letter ?? columnIndex + 1}${rowIndex + 1}`} onPointerDown={() => { setCellRange({ startRow: rowIndex, startColumn: columnIndex, endRow: rowIndex, endColumn: columnIndex }); setRangeDragging(true); }} onPointerEnter={() => { if (rangeDragging) setCellRange((current) => current ? { ...current, endRow: rowIndex, endColumn: columnIndex } : current); }} className={`block min-h-8 w-full max-w-36 truncate px-2 py-1.5 text-right ${isSelected ? "font-bold text-[#1e604b]" : "text-[#597168]"}`}>{valueText(sourceMatrix[rowIndex]?.[columnIndex])}</button></td>;
+                  const isHeaderRow = rowIndex === editorConfig.headerRowIndex;
+                  return <td key={columnIndex} className={`border-b border-l border-[#eef3ef] p-0 ${isHeaderRow ? "bg-[#f0f8f3]" : isSelected ? "bg-[#ccebdd]" : "bg-white"}`}>{isHeaderRow ? <div className="min-h-8 px-2 py-1.5 text-[9px] font-bold text-[#507368]">صف العناوين — عدّله من الحقول أعلاه</div> : <input key={`cell-${rowIndex}-${columnIndex}-${editableCellValue(rowIndex, columnIndex)}`} defaultValue={editableCellValue(rowIndex, columnIndex)} aria-label={`خلية ${originalColumns[columnIndex]?.letter ?? columnIndex + 1}${rowIndex + 1}`} onFocus={() => { setCellRange({ startRow: rowIndex, startColumn: columnIndex, endRow: rowIndex, endColumn: columnIndex }); setRangeDragging(true); }} onPointerEnter={() => { if (rangeDragging) setCellRange((current) => current ? { ...current, endRow: rowIndex, endColumn: columnIndex } : current); }} onBlur={(event) => { setRangeDragging(false); commitCellOverride(rowIndex, columnIndex, event.target.value); }} className={`block min-h-8 w-full max-w-36 truncate bg-transparent px-2 py-1.5 text-right outline-none focus:bg-[#e8f6ee] focus:ring-1 focus:ring-inset focus:ring-[#65a78e] ${isSelected ? "font-bold text-[#1e604b]" : "text-[#597168]"}`} />}</td>;
                 })}</tr>)}</tbody></table>
               </div>
               <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#dce9e2] bg-white px-3 py-2.5"><span className="text-[11px] font-bold text-[#315a4f]">النطاق المختار: <b className="text-[#0f735d]">{rangeReference}</b></span><div className="flex flex-wrap gap-2"><button type="button" disabled={!activeRange} onClick={() => activeRange && updateEditor({ dataStartRowIndex: Math.max(editorConfig.headerRowIndex + 1, activeRange.firstRow), firstDataColumnIndex: activeRange.firstColumn, lastDataRowIndex: activeRange.lastRow, lastDataColumnIndex: activeRange.lastColumn }, `تحديد نطاق القراءة ${rangeReference}`)} className="rounded-lg bg-[#173f38] px-2.5 py-1.5 text-[10px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-45">استخدم النطاق للقراءة</button><button type="button" disabled={!activeRange} onClick={() => activeRange && updateEditor({ excludedRowNumbers: Array.from(new Set([...editorConfig.excludedRowNumbers, ...Array.from({ length: activeRange.lastRow - activeRange.firstRow + 1 }, (_, index) => activeRange.firstRow + index + 1).filter((rowNumber) => rowNumber > editorConfig.dataStartRowIndex)])) }, `استبعاد صفوف النطاق ${rangeReference}`)} className="rounded-lg border border-[#ebc9bf] bg-[#fff5f2] px-2.5 py-1.5 text-[10px] font-bold text-[#a25040] disabled:cursor-not-allowed disabled:opacity-45">استبعد صفوف النطاق</button><button type="button" onClick={() => setCellRange(null)} className="rounded-lg border border-[#ceded6] bg-white px-2.5 py-1.5 text-[10px] font-bold text-[#48695f]">إلغاء التحديد</button></div></div>

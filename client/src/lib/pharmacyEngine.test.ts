@@ -154,4 +154,30 @@ describe("inspectPharmacyFile", () => {
     expect(sheet.sourceMatrix?.[4]?.[0]).toBe("صف خارج النطاق");
     expect(sheet.editorConfig).toMatchObject({ lastDataRowIndex: 3, lastDataColumnIndex: 3, textTransforms: expect.arrayContaining([expect.objectContaining({ id: "full-name" })]) });
   });
+
+  it("يقرأ العمود وفق عنوانه الذي يكتبه المدير ويطبق تعديل الخلية على المعاينة لا على المصدر", async () => {
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([
+      ["اسم الشركة", "اسم الصنف", "سعر الشراء"],
+      ["C-900", "صنف قابل للتصحيح", 42],
+    ]), "Sheet1");
+    const bytes = XLSX.write(workbook, { type: "array", bookType: "xlsx" });
+    const inspection = await inspectPharmacyFile(new File([bytes], "editable-header.xlsx", { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+    const edited = applySheetEditorConfig(inspection, "Sheet1", {
+      headerRowIndex: 0,
+      dataStartRowIndex: 1,
+      firstDataColumnIndex: 0,
+      headerOverrides: { 0: "كود الصنف", 2: "سعر البيع" },
+      cellOverrides: { "1:2": "65" },
+    });
+    const sheet = edited.sheets[0];
+
+    expect(sheet.headers).toEqual(["كود الصنف", "اسم الصنف", "سعر البيع"]);
+    expect(sheet.mappings.find((mapping) => mapping.sourceColumn === "كود الصنف")?.field).toBe("item_code");
+    expect(sheet.mappings.find((mapping) => mapping.sourceColumn === "سعر البيع")?.field).toBe("sale_price");
+    expect(sheet.cleanRecords[0]?.["كود الصنف"]).toBe("C-900");
+    expect(sheet.cleanRecords[0]?.["سعر البيع"]).toBe(65);
+    expect(sheet.sourceMatrix?.[0]?.[0]).toBe("اسم الشركة");
+    expect(sheet.sourceMatrix?.[1]?.[2]).toBe(42);
+  });
 });

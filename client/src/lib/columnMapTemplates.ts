@@ -33,7 +33,7 @@ export type ColumnMapTemplateSheet = {
   headerOrder: ColumnMapTemplateHeader[];
   mappings: ColumnMapTemplateMapping[];
   removedHeaders: Array<{ headerColumn: string; title: string }>;
-  editorConfig?: Pick<SheetEditorConfig, "headerRowIndex" | "dataStartRowIndex" | "firstDataColumnIndex" | "lastDataRowIndex" | "lastDataColumnIndex" | "excludedRowNumbers" | "textTransforms">;
+  editorConfig?: Pick<SheetEditorConfig, "headerRowIndex" | "dataStartRowIndex" | "firstDataColumnIndex" | "lastDataRowIndex" | "lastDataColumnIndex" | "excludedRowNumbers" | "textTransforms" | "headerOverrides">;
 };
 
 export type ColumnMapTemplate = {
@@ -135,6 +135,11 @@ function normalizeSheets(value: unknown): ColumnMapTemplateSheet[] {
           lastDataRowIndex: Math.max(0, Number.isInteger(editor.lastDataRowIndex) ? Number(editor.lastDataRowIndex) : Number(editor.dataStartRowIndex)),
           lastDataColumnIndex: Math.max(0, Number.isInteger(editor.lastDataColumnIndex) ? Number(editor.lastDataColumnIndex) : Number(editor.firstDataColumnIndex)),
           excludedRowNumbers: Array.from(new Set((Array.isArray(editor.excludedRowNumbers) ? editor.excludedRowNumbers : []).map((item) => Math.trunc(Number(item))).filter((item) => item > 0))).sort((a, b) => a - b).slice(0, 500),
+          headerOverrides: Object.fromEntries(Object.entries(editor.headerOverrides ?? {}).flatMap(([index, title]) => {
+            const columnIndex = Math.trunc(Number(index));
+            const value = String(title ?? "").trim().slice(0, 120);
+            return columnIndex >= 0 && value ? [[String(columnIndex), value]] : [];
+          })),
           textTransforms: (Array.isArray(editor.textTransforms) ? editor.textTransforms : []).flatMap<SheetEditorConfig["textTransforms"][number]>((transform, index) => {
             const item = transform as SheetEditorConfig["textTransforms"][number];
             const id = String(item?.id ?? `template-transform-${index + 1}`).trim();
@@ -206,9 +211,10 @@ function serializeSheet(sheet: SheetInspection, structure?: WorkbookStructureRev
       dataStartRowIndex: sheet.editorConfig.dataStartRowIndex,
       firstDataColumnIndex: sheet.editorConfig.firstDataColumnIndex,
       lastDataRowIndex: sheet.editorConfig.lastDataRowIndex,
-      lastDataColumnIndex: sheet.editorConfig.lastDataColumnIndex,
-      excludedRowNumbers: sheet.editorConfig.excludedRowNumbers,
-      textTransforms: sheet.editorConfig.textTransforms,
+          lastDataColumnIndex: sheet.editorConfig.lastDataColumnIndex,
+          excludedRowNumbers: sheet.editorConfig.excludedRowNumbers,
+          headerOverrides: sheet.editorConfig.headerOverrides,
+          textTransforms: sheet.editorConfig.textTransforms,
     } : undefined,
   };
 }
