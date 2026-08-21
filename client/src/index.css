@@ -113,6 +113,25 @@
   .status-review { color: #a55d13; background: #fff3df; border-color: #f4dbaf; }
   .status-watch { color: #85640b; background: #fff9d9; border-color: #efe7a4; }
   .status-positive { color: #23715a; background: #e4f5ee; border-color: #bde6d6; }
+  /* يظل محرر الاستيراد في خطوة واحدة هادئة بدل عرض كل أدوات الضبط دفعة واحدة. */
+  #sheet-manual-editor[data-editor-panel="columns"] > :nth-child(n + 3),
+  #sheet-manual-editor[data-editor-panel="review"] > :nth-child(n + 3) { display: none; }
+  #sheet-manual-editor[data-editor-panel="data"] > :nth-child(2),
+  #sheet-manual-editor[data-editor-panel="data"] > :nth-child(3),
+  #sheet-manual-editor[data-editor-panel="data"] > :nth-child(4),
+  #sheet-manual-editor[data-editor-panel="data"] > :nth-child(5),
+  #sheet-manual-editor[data-editor-panel="data"] > :nth-child(n + 7) { display: none; }
+  #sheet-manual-editor[data-editor-panel="rows"] > :nth-child(2),
+  #sheet-manual-editor[data-editor-panel="rows"] > :nth-child(6),
+  #sheet-manual-editor[data-editor-panel="rows"] > :nth-child(7),
+  #sheet-manual-editor[data-editor-panel="rows"] > :nth-child(8),
+  #sheet-manual-editor[data-editor-panel="rows"] > :nth-child(9),
+  #sheet-manual-editor[data-editor-panel="rows"] > :nth-child(10) { display: none; }
+  #sheet-manual-editor[data-editor-panel="advanced"] > :nth-child(2),
+  #sheet-manual-editor[data-editor-panel="advanced"] > :nth-child(3),
+  #sheet-manual-editor[data-editor-panel="advanced"] > :nth-child(4),
+  #sheet-manual-editor[data-editor-panel="advanced"] > :nth-child(5),
+  #sheet-manual-editor[data-editor-panel="advanced"] > :nth-child(6) { display: none; }
 }
 
 @media (prefers-reduced-motion: no-preference) {
