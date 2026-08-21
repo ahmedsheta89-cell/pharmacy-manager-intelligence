@@ -13,6 +13,7 @@ import type { WorkbookStructureReview } from "@/lib/excelInspector";
 import { createImportAuditRecord, exportImportAuditMap, loadImportAuditLog, type ImportAuditRecord } from "@/lib/importAuditLog";
 import type { PriceMatchReport } from "@/lib/multiPeriodImport";
 import type { ColumnMapTemplate } from "@/lib/columnMapTemplates";
+import { deleteManagerColumnLayout, isCompatibleManagerLayout, loadManagerColumnLayouts, managerLayoutPatch, saveManagerColumnLayout, type ManagerColumnLayout } from "@/lib/managerColumnLayouts";
 
 const ALL_FIELDS = Object.entries(fieldArabicName) as Array<[CanonicalField, string]>;
 
@@ -119,6 +120,12 @@ export function ImportReviewCenter({ inspection, structure, selectedSheetIndex, 
   const [editorFuture, setEditorFuture] = useState<EditorHistoryEntry[]>([]);
   const [editorPanel, setEditorPanel] = useState<"columns" | "data" | "rows" | "review" | "advanced">("columns");
   const [selectedColumnIndex, setSelectedColumnIndex] = useState(0);
+  const [managerLayouts, setManagerLayouts] = useState<ManagerColumnLayout[]>(() => loadManagerColumnLayouts());
+  const [managerName, setManagerName] = useState("");
+  const [managerLayoutNotice, setManagerLayoutNotice] = useState("");
+  const [selectedManagerLayoutId, setSelectedManagerLayoutId] = useState("");
+  const [draggedColumnIndex, setDraggedColumnIndex] = useState<number | null>(null);
+  const [showAutoCorrection, setShowAutoCorrection] = useState(false);
   const sheet = inspection.sheets[selectedSheetIndex] ?? inspection.sheets[0];
   const structural = structure?.sheets.find((item) => item.name === sheet?.name);
   const readiness = useMemo(() => getImportReadiness(inspection), [inspection]);
@@ -205,6 +212,17 @@ export function ImportReviewCenter({ inspection, structure, selectedSheetIndex, 
   const activeColumnIndex = Math.min(Math.max(selectedColumnIndex, 0), Math.max(previewRangeColumns - 1, 0));
   const activeColumnTitle = editableHeaderValue(activeColumnIndex) || `العمود ${columnLetter(activeColumnIndex)}`;
   const activeColumnExample = previewRowIndexes.find((rowIndex) => rowIndex !== editorConfig.headerRowIndex && valueText(editableCellValue(rowIndex, activeColumnIndex)) !== "—");
+  const originalHeaderValue = (columnIndex: number) => String(editorConfig.manualColumns[columnIndex - sourceColumnCount]?.title ?? sourceMatrix[editorConfig.headerRowIndex]?.[columnIndex] ?? "").trim();
+  const normalizedHeader = (value: string) => value.trim().replace(/\s+/g, " ").toLocaleLowerCase("ar");
+  const autoCorrectionSuggestions = sheet.mappings.flatMap((mapping) => {
+    const suggestedField = mapping.field !== "unknown" ? mapping.field : mapping.proposedField;
+    const headerIndex = columnIndex(mapping.headerColumn ?? mapping.dataColumn);
+    if (!suggestedField || suggestedField === "unknown" || headerIndex < 0 || headerIndex >= previewRangeColumns || editorConfig.ignoredColumnIndexes.includes(headerIndex)) return [];
+    const currentTitle = editableHeaderValue(headerIndex).trim();
+    const suggestedTitle = fieldArabicName[suggestedField];
+    if (!currentTitle || normalizedHeader(currentTitle) === normalizedHeader(suggestedTitle)) return [];
+    return [{ headerIndex, currentTitle, suggestedTitle, confidence: mapping.score }];
+  });
   const commitHeaderOverride = (columnIndex: number, value: string) => {
     const cleanValue = value.trim();
     const originalValue = String(editorConfig.manualColumns[columnIndex - sourceColumnCount]?.title ?? sourceMatrix[editorConfig.headerRowIndex]?.[columnIndex] ?? "").trim();
@@ -241,6 +259,59 @@ export function ImportReviewCenter({ inspection, structure, selectedSheetIndex, 
     writeTitle(targetIndex, sourceTitle);
     updateEditor({ headerOverrides }, `نقل اسم «${sourceTitle || columnLetter(selectedColumnIndex)}» ${visualDirection === "right" ? "يمينًا" : "يسارًا"}`);
     setSelectedColumnIndex(targetIndex);
+  };
+  const swapColumnTitles = (sourceIndex: number, targetIndex: number, description: string) => {
+    if (sourceIndex === targetIndex || sourceIndex < 0 || targetIndex < 0 || sourceIndex >= previewRangeColumns || targetIndex >= previewRangeColumns) return;
+    const sourceTitle = editableHeaderValue(sourceIndex);
+    const targetTitle = editableHeaderValue(targetIndex);
+    const headerOverrides = { ...editorConfig.headerOverrides };
+    const writeTitle = (index: number, value: string) => {
+      if (!value || value.trim() === originalHeaderValue(index)) delete headerOverrides[index];
+      else headerOverrides[index] = value;
+    };
+    writeTitle(sourceIndex, targetTitle);
+    writeTitle(targetIndex, sourceTitle);
+    updateEditor({ headerOverrides }, description);
+    setSelectedColumnIndex(targetIndex);
+  };
+  const saveCurrentManagerLayout = () => {
+    try {
+      const layout = saveManagerColumnLayout(managerName, sourceColumnCount, editorConfig);
+      setManagerLayouts(loadManagerColumnLayouts());
+      setSelectedManagerLayoutId(layout.id);
+      setManagerName("");
+      setManagerLayoutNotice(`حُفظ ترتيب «${layout.managerName}» محليًا في هذا المتصفح فقط.`);
+    } catch (error) {
+      setManagerLayoutNotice(error instanceof Error ? error.message : "تعذر حفظ ترتيب الأعمدة.");
+    }
+  };
+  const applySelectedManagerLayout = (layoutId: string) => {
+    setSelectedManagerLayoutId(layoutId);
+    if (!layoutId) return;
+    const layout = managerLayouts.find((item) => item.id === layoutId);
+    if (!layout) return;
+    if (!isCompatibleManagerLayout(layout, sourceColumnCount)) {
+      setManagerLayoutNotice(`ترتيب «${layout.managerName}» يحتاج ${layout.sourceColumnCount} أعمدة، بينما الشيت الحالي يحتوي ${sourceColumnCount}. لم يُطبّق أي تغيير.`);
+      return;
+    }
+    updateEditor(managerLayoutPatch(layout), `تطبيق ترتيب المدير «${layout.managerName}»`);
+    setManagerLayoutNotice(`طُبّق ترتيب «${layout.managerName}» محليًا. راجع النتيجة ثم اعتمدها.`);
+  };
+  const removeManagerLayout = (layout: ManagerColumnLayout) => {
+    deleteManagerColumnLayout(layout.id);
+    setManagerLayouts(loadManagerColumnLayouts());
+    if (selectedManagerLayoutId === layout.id) setSelectedManagerLayoutId("");
+    setManagerLayoutNotice(`حُذف ترتيب «${layout.managerName}» من هذا المتصفح.`);
+  };
+  const applyAutoCorrectionSuggestions = () => {
+    if (!autoCorrectionSuggestions.length) return;
+    const headerOverrides = { ...editorConfig.headerOverrides };
+    autoCorrectionSuggestions.forEach((suggestion) => {
+      if (suggestion.suggestedTitle === originalHeaderValue(suggestion.headerIndex)) delete headerOverrides[suggestion.headerIndex];
+      else headerOverrides[suggestion.headerIndex] = suggestion.suggestedTitle;
+    });
+    updateEditor({ headerOverrides }, `تطبيق ${autoCorrectionSuggestions.length} اقتراحات تصحيح بعد موافقة المدير`);
+    setShowAutoCorrection(false);
   };
   const excludeSelectedColumn = () => {
     if (editorConfig.ignoredColumnIndexes.includes(selectedColumnIndex)) return;
@@ -365,6 +436,20 @@ export function ImportReviewCenter({ inspection, structure, selectedSheetIndex, 
               </div>
             </div>
             {editorPanel === "columns" && <div className="border-b border-[#dceae2] bg-[#f7fbf8] p-4 sm:p-5" data-testid="column-arrangement-screen">
+              <section className="mb-4 rounded-xl border border-[#c7e2d2] bg-white p-3.5" data-testid="manager-column-layouts">
+                <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-bold text-[#214a41]">ترتيب المدير المحفوظ</p><p className="mt-1 text-[10px] leading-5 text-[#71857d]">يحفظ أسماء الأعمدة والاستبعادات فقط داخل هذا المتصفح؛ لا يحفظ محتوى ملف Excel أو يرفعه.</p></div><span className="rounded-lg bg-[#f0f8f3] px-2 py-1 text-[9px] font-bold text-[#23705a]">{managerLayouts.length} ترتيب محلي</span></div>
+                <div className="mt-3 grid gap-2 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]"><input value={managerName} onChange={(event) => setManagerName(event.target.value)} placeholder="اسم المدير لحفظ الترتيب" aria-label="اسم المدير لحفظ ترتيب الأعمدة" className="min-w-0 rounded-lg border border-[#ccded5] bg-[#fbfdfb] px-3 py-2 text-xs font-bold text-[#264f45] outline-none focus:border-[#0d765e]" /><button type="button" onClick={saveCurrentManagerLayout} data-testid="save-manager-layout" className="rounded-lg bg-[#173f38] px-3 py-2 text-[10px] font-bold text-white hover:bg-[#17564c]"><Save className="ml-1 inline size-3.5" />حفظ الترتيب</button><select value={selectedManagerLayoutId || "none"} onChange={(event) => { const value = event.target.value; if (value === "none") { setSelectedManagerLayoutId(""); setManagerLayoutNotice(""); } else applySelectedManagerLayout(value); }} aria-label="تحميل ترتيب مدير محفوظ" data-testid="load-manager-layout" className="min-w-0 rounded-lg border border-[#ccded5] bg-[#fbfdfb] px-3 py-2 text-xs font-bold text-[#264f45] outline-none focus:border-[#0d765e]"><option value="none">تحميل ترتيب محفوظ</option>{managerLayouts.map((layout) => <option key={layout.id} value={layout.id} disabled={!isCompatibleManagerLayout(layout, sourceColumnCount)}>{layout.managerName}{isCompatibleManagerLayout(layout, sourceColumnCount) ? "" : " — عدد أعمدة مختلف"}</option>)}</select></div>
+                {managerLayoutNotice && <p role="status" className="mt-2 rounded-lg bg-[#f4faf6] px-2.5 py-2 text-[10px] leading-5 text-[#386257]">{managerLayoutNotice}</p>}
+                {managerLayouts.length > 0 && <div className="mt-3 flex flex-wrap gap-2 border-t border-[#e6eee9] pt-3">{managerLayouts.map((layout) => <span key={layout.id} className="inline-flex items-center gap-1 rounded-lg border border-[#d7e7dd] bg-[#fbfdfb] px-2 py-1.5 text-[9px] font-bold text-[#43655b]">{layout.managerName}<span className="font-normal text-[#71857d]">· {new Date(layout.savedAt).toLocaleDateString("ar-EG")}</span><button type="button" onClick={() => removeManagerLayout(layout)} aria-label={`حذف ترتيب ${layout.managerName}`} className="mr-1 rounded p-0.5 text-[#a25040] hover:bg-[#fff0eb]"><Trash2 className="size-3" /></button></span>)}</div>}
+              </section>
+              <section className="mb-4 rounded-xl border border-[#ead9ad] bg-[#fffaf0] p-3.5" data-testid="auto-correction-panel">
+                <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-bold text-[#5d4c19]">تصحيح تلقائي مقترح</p><p className="mt-1 text-[10px] leading-5 text-[#7c6a2e]">يفحص التسمية المقترحة من محرك القراءة ويعرض الفروق فقط. لا يُطبّق أي تعديل من دون موافقة المدير في الخطوة التالية.</p></div><button type="button" onClick={() => setShowAutoCorrection(true)} disabled={!autoCorrectionSuggestions.length} data-testid="auto-correction-button" className="rounded-lg border border-[#dccb92] bg-white px-3 py-2 text-[10px] font-bold text-[#7b641b] hover:bg-[#fff5d8] disabled:cursor-not-allowed disabled:opacity-45">عرض {autoCorrectionSuggestions.length ? `${autoCorrectionSuggestions.length} اقتراحات` : "الاقتراحات"}</button></div>
+                {showAutoCorrection && <div className="mt-3 rounded-lg border border-[#ead9ad] bg-white p-3"><p className="text-[10px] font-bold text-[#5d4c19]">راجع فرق العناوين قبل التطبيق</p><div className="mt-2 space-y-1.5">{autoCorrectionSuggestions.map((suggestion) => <div key={suggestion.headerIndex} className="grid gap-1 rounded-md bg-[#fffaf0] px-2.5 py-2 text-[10px] sm:grid-cols-[70px_1fr_auto_1fr]"><span className="font-bold text-[#6b7d75]">{columnLetter(suggestion.headerIndex)}</span><span className="font-bold text-[#9a5949]">{suggestion.currentTitle}</span><span className="text-center text-[#9c7b26]">←</span><span className="font-bold text-[#23705a]">{suggestion.suggestedTitle}</span></div>)}</div><div className="mt-3 flex flex-wrap gap-2"><button type="button" onClick={applyAutoCorrectionSuggestions} data-testid="approve-auto-correction" className="rounded-lg bg-[#173f38] px-3 py-2 text-[10px] font-bold text-white hover:bg-[#17564c]"><Check className="ml-1 inline size-3.5" />موافق وتطبيق المقترحات</button><button type="button" onClick={() => setShowAutoCorrection(false)} className="rounded-lg border border-[#d7dfdb] bg-white px-3 py-2 text-[10px] font-bold text-[#587068]">إلغاء</button></div></div>}
+              </section>
+              <section className="mb-4 rounded-xl border border-dashed border-[#9fcbb4] bg-[#f3faf6] p-3.5" aria-label="سحب وإفلات ترتيب الأعمدة">
+                <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-xs font-bold text-[#214a41]">رتّب بالسحب والإفلات</p><p className="mt-1 text-[10px] text-[#71857d]">اسحب بطاقة عنوان فوق بطاقة أخرى لتبديل العنوانين محليًا. يمكنك التراجع عن النتيجة في أي وقت.</p></div><span className="rounded-lg bg-white px-2 py-1 text-[9px] font-bold text-[#23705a]">سحب ↔ إسقاط</span></div>
+                <div className="mt-3 flex flex-wrap gap-2">{Array.from({ length: previewRangeColumns }, (_, columnIndex) => { const title = editableHeaderValue(columnIndex) || "بلا عنوان"; const ignored = editorConfig.ignoredColumnIndexes.includes(columnIndex); const dragging = draggedColumnIndex === columnIndex; return <button key={`drag-column-${columnIndex}`} type="button" draggable onClick={() => setSelectedColumnIndex(columnIndex)} onDragStart={(event) => { event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", String(columnIndex)); setDraggedColumnIndex(columnIndex); }} onDragEnd={() => setDraggedColumnIndex(null)} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const sourceIndex = Number(event.dataTransfer.getData("text/plain")); if (Number.isFinite(sourceIndex)) swapColumnTitles(sourceIndex, columnIndex, `سحب وإفلات: تبديل «${editableHeaderValue(sourceIndex) || columnLetter(sourceIndex)}» مع «${title}»`); setDraggedColumnIndex(null); }} className={`max-w-48 rounded-lg border px-2.5 py-2 text-right text-[10px] font-bold transition ${dragging ? "border-[#0d765e] bg-[#d9f0e2] opacity-50" : ignored ? "border-[#ead5ce] bg-[#fff7f4] text-[#9a5949]" : "border-[#b9d8c9] bg-white text-[#315a4f] hover:border-[#0d765e]"}`}><span className="ml-1 text-[9px] opacity-70">{columnLetter(columnIndex)}</span>{title}</button>; })}</div>
+              </section>
               <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-sm font-bold text-[#214a41]">رتّب أسماء الأعمدة بصريًا</p><p className="mt-1 max-w-2xl text-[11px] leading-5 text-[#627a70]">اضغط على العمود ثم حرّك <b>اسمه</b> يمينًا أو يسارًا بالسهم. تبقى الأرقام والبيانات في مكانها وملف Excel الأصلي لا يتغير.</p></div><span className="rounded-lg border border-[#b9dfcd] bg-white px-2.5 py-1.5 text-[10px] font-bold text-[#23705a]">لا نسخ ولا لصق</span></div>
               <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">{Array.from({ length: previewRangeColumns }, (_, columnIndex) => { const title = editableHeaderValue(columnIndex) || "بلا عنوان"; const ignored = editorConfig.ignoredColumnIndexes.includes(columnIndex); const selected = activeColumnIndex === columnIndex; return <button key={`column-choice-${columnIndex}`} data-testid={`column-choice-${columnIndex}`} type="button" onClick={() => setSelectedColumnIndex(columnIndex)} className={`min-h-16 rounded-xl border p-3 text-right transition ${selected ? "border-[#0d765e] bg-[#e5f5eb] ring-2 ring-[#bfe4cf]" : ignored ? "border-[#ead5ce] bg-[#fff7f4] text-[#9a5949]" : "border-[#d8e7de] bg-white text-[#315a4f] hover:border-[#8fc7ab]"}`}><span className="block text-[9px] font-bold opacity-70">العمود {columnLetter(columnIndex)}</span><span className="mt-1 block truncate text-[11px] font-bold">{title}</span><span className="mt-1 block text-[9px] opacity-70">{ignored ? "مستبعد من القراءة" : "اضغط للاختيار"}</span></button>; })}</div>
               <div className="mt-4 grid gap-3 rounded-xl border border-[#c7e2d2] bg-white p-3.5 lg:grid-cols-[1fr_auto] lg:items-center"><div><div className="flex flex-wrap items-center gap-2"><span className="rounded-md bg-[#173f38] px-2 py-1 text-[10px] font-bold text-white">{columnLetter(activeColumnIndex)}</span><p className="text-xs font-bold text-[#214a41]">العمود المختار: {activeColumnTitle}</p></div><p className="mt-1 text-[10px] text-[#71857d]">مثال من البيانات: <b className="text-[#315a4f]">{activeColumnExample === undefined ? "لا توجد قيمة ظاهرة بعد" : valueText(editableCellValue(activeColumnExample, activeColumnIndex))}</b></p></div><div className="flex flex-wrap gap-2"><button type="button" onClick={() => moveSelectedColumnTitle("right")} disabled={activeColumnIndex === 0} className="rounded-lg border border-[#b9d8c9] bg-white px-3 py-2 text-[10px] font-bold text-[#23705a] disabled:cursor-not-allowed disabled:opacity-40"><ArrowRight className="ml-1 inline size-3.5" />حرّك الاسم يمينًا</button><button type="button" onClick={() => moveSelectedColumnTitle("left")} disabled={activeColumnIndex >= previewRangeColumns - 1} className="rounded-lg border border-[#b9d8c9] bg-white px-3 py-2 text-[10px] font-bold text-[#23705a] disabled:cursor-not-allowed disabled:opacity-40"><ArrowLeft className="ml-1 inline size-3.5" />حرّك الاسم يسارًا</button>{editorConfig.ignoredColumnIndexes.includes(activeColumnIndex) ? <button type="button" onClick={() => updateEditor({ ignoredColumnIndexes: editorConfig.ignoredColumnIndexes.filter((index) => index !== activeColumnIndex) }, `استعادة العمود ${columnLetter(activeColumnIndex)}`)} className="rounded-lg border border-[#b9d8c9] bg-[#f2faf5] px-3 py-2 text-[10px] font-bold text-[#23705a]">استعادة العمود</button> : <button type="button" onClick={excludeSelectedColumn} className="rounded-lg border border-[#ebc9bf] bg-[#fff5f2] px-3 py-2 text-[10px] font-bold text-[#a25040]"><X className="ml-1 inline size-3.5" />استبعاد العمود</button>}</div></div>

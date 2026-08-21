@@ -25,6 +25,28 @@ try {
   await editor.getByRole("button", { name: "تراجع آخر قرار" }).click();
   if (await columnA.locator("span").nth(1).innerText() !== initialTitleA) throw new Error("لم يُستعد ترتيب أسماء الأعمدة بعد التراجع.");
 
+  await editor.getByLabel("اسم المدير لحفظ ترتيب الأعمدة").fill("مدير اختبار ترتيب الأعمدة");
+  await editor.getByTestId("save-manager-layout").click();
+  await page.waitForFunction(() => Array.from(document.querySelectorAll('[data-testid="load-manager-layout"] option')).some((option) => option.textContent === "مدير اختبار ترتيب الأعمدة"), undefined, { timeout: 2_000 });
+
+  const dragZone = editor.locator('[aria-label="سحب وإفلات ترتيب الأعمدة"]');
+  const dragCards = dragZone.locator('button[draggable="true"]');
+  await dragCards.nth(1).dragTo(dragCards.nth(0));
+  if (await columnA.locator("span").nth(1).innerText() !== initialTitleB) throw new Error("لم يبدل السحب والإفلات عنوان العمود عند الإسقاط.");
+  await editor.getByTestId("load-manager-layout").selectOption({ label: "مدير اختبار ترتيب الأعمدة" });
+  if (await columnA.locator("span").nth(1).innerText() !== initialTitleA) throw new Error("لم يستعد تحميل ترتيب المدير عنوان العمود المحفوظ.");
+
+  const titleBBeforeSuggestion = await columnB.locator("span").nth(1).innerText();
+  const suggestionButton = editor.getByTestId("auto-correction-button");
+  if (await suggestionButton.isEnabled()) {
+    await suggestionButton.click();
+    if (await columnB.locator("span").nth(1).innerText() !== titleBBeforeSuggestion) throw new Error("طُبق التصحيح المقترح قبل موافقة المدير.");
+    await editor.getByTestId("approve-auto-correction").click();
+    if (await columnB.locator("span").nth(1).innerText() === titleBBeforeSuggestion) throw new Error("لم يطبق التصحيح المقترح بعد موافقة المدير.");
+    await editor.getByTestId("load-manager-layout").selectOption({ label: "مدير اختبار ترتيب الأعمدة" });
+    if (await columnB.locator("span").nth(1).innerText() !== titleBBeforeSuggestion) throw new Error("لم يستعد ترتيب المدير حالة العناوين المحفوظة.");
+  }
+
   await editor.getByRole("tab", { name: "2. عدّل البيانات" }).click();
   const header = editor.getByLabel("عنوان العمود A");
   await header.waitFor({ state: "visible" });
