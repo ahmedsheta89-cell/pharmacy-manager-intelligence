@@ -88,6 +88,10 @@
   .decision-preview { background: linear-gradient(135deg, #fffdf8 0%, #f4f8f3 62%, #fbf7ed 100%); box-shadow: 0 8px 22px rgba(19, 68, 56, .055); }
   .decision-preview--anchor { position: relative; border-right: 4px solid #0b6b5b; box-shadow: 0 10px 26px rgba(16, 76, 61, .075), inset 0 0 0 1px rgba(255,255,255,.76); }
   .decision-preview--hero::before { content: ""; position: absolute; inset: 0 0 auto; height: 3px; background: linear-gradient(90deg, #0b6b5b 0 38%, #d8a345 38% 62%, #77a9ba 62% 100%); opacity: .75; }
+  .welcome-workspace { background: linear-gradient(110deg, rgba(255,253,248,.96), rgba(247,250,246,.9)); }
+  .source-context { box-shadow: inset 1px 0 0 rgba(211, 236, 225, .16), inset 18px 0 40px rgba(5, 39, 33, .1); }
+  .session-drawer { transition: background-color 180ms cubic-bezier(.23,1,.32,1); }
+  .session-drawer[open] { background: #f1f7f3; }
   .decision-trace--clinical { opacity: .92; }
   .decision-priority { min-height: 74px; border-top: 2px solid #b9d9ce; background: rgba(255, 255, 255, .78); padding: .55rem .65rem; }
   .decision-priority span { display: block; color: #8ba49a; font-size: .56rem; font-weight: 800; letter-spacing: .08em; }

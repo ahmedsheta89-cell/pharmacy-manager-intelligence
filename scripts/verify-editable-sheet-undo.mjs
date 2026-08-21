@@ -9,7 +9,8 @@ const page = await browser.newPage({ viewport: { width: 1440, height: 1050 }, lo
 try {
   await page.goto(baseUrl, { waitUntil: "networkidle" });
   await page.locator('input[type="file"]').first().setInputFiles(sourceFile);
-  await page.getByRole("heading", { name: "مراجعة الاستيراد" }).waitFor({ timeout: 20_000 });
+  await page.getByText("المرحلة 2: تدقيق وتحرير مصدر القرار", { exact: true }).waitFor({ timeout: 20_000 });
+  await page.getByRole("navigation", { name: "مسار التحليل" }).getByText("راجع الورقة وخريطة الحقول", { exact: true }).waitFor({ timeout: 20_000 });
 
   const editor = page.locator("#sheet-manual-editor");
   const header = editor.getByLabel("عنوان العمود A");
