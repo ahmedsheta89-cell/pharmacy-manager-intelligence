@@ -5,6 +5,8 @@ const STORAGE_KEY = "pharmacy-manager-column-layouts-v1";
 export type ManagerColumnLayout = {
   id: string;
   managerName: string;
+  layoutName?: string;
+  description?: string;
   savedAt: number;
   sourceColumnCount: number;
   headerOverrides: Record<number, string>;
@@ -33,19 +35,27 @@ function saveAll(layouts: ManagerColumnLayout[]) {
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(layouts));
 }
 
-export function saveManagerColumnLayout(managerName: string, sourceColumnCount: number, config: SheetEditorConfig): ManagerColumnLayout {
+export function saveManagerColumnLayout(managerName: string, sourceColumnCount: number, config: SheetEditorConfig, layoutName = "", description = ""): ManagerColumnLayout {
   const cleanName = managerName.trim();
   if (!cleanName) throw new Error("اكتب اسم المدير أولًا لحفظ الترتيب.");
+  const cleanLayoutName = layoutName.trim();
+  const cleanDescription = description.trim();
   const now = Date.now();
   const layout: ManagerColumnLayout = {
     id: `manager-layout-${now}-${Math.random().toString(36).slice(2, 8)}`,
     managerName: cleanName,
+    ...(cleanLayoutName ? { layoutName: cleanLayoutName } : {}),
+    ...(cleanDescription ? { description: cleanDescription } : {}),
     savedAt: now,
     sourceColumnCount,
     headerOverrides: { ...config.headerOverrides },
     ignoredColumnIndexes: [...config.ignoredColumnIndexes],
   };
-  const previous = loadManagerColumnLayouts().filter((entry) => entry.managerName.trim().toLocaleLowerCase("ar") !== cleanName.toLocaleLowerCase("ar"));
+  const previous = loadManagerColumnLayouts().filter((entry) => {
+    const sameManager = entry.managerName.trim().toLocaleLowerCase("ar") === cleanName.toLocaleLowerCase("ar");
+    const sameLayoutName = (entry.layoutName ?? "").trim().toLocaleLowerCase("ar") === cleanLayoutName.toLocaleLowerCase("ar");
+    return !(sameManager && sameLayoutName);
+  });
   saveAll([layout, ...previous].slice(0, 20));
   return layout;
 }

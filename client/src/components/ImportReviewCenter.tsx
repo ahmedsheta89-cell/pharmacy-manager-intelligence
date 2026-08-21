@@ -63,6 +63,10 @@ function valueText(value: unknown) {
   return value === null || value === undefined || value === "" ? "—" : String(value);
 }
 
+function managerLayoutDisplayName(layout: ManagerColumnLayout) {
+  return layout.layoutName?.trim() || layout.managerName;
+}
+
 type CellRange = { startRow: number; startColumn: number; endRow: number; endColumn: number };
 type EditorHistoryEntry = { sheetName: string; config: SheetEditorConfig; description: string };
 
@@ -122,6 +126,8 @@ export function ImportReviewCenter({ inspection, structure, selectedSheetIndex, 
   const [selectedColumnIndex, setSelectedColumnIndex] = useState(0);
   const [managerLayouts, setManagerLayouts] = useState<ManagerColumnLayout[]>(() => loadManagerColumnLayouts());
   const [managerName, setManagerName] = useState("");
+  const [managerLayoutName, setManagerLayoutName] = useState("");
+  const [managerLayoutDescription, setManagerLayoutDescription] = useState("");
   const [managerLayoutNotice, setManagerLayoutNotice] = useState("");
   const [selectedManagerLayoutId, setSelectedManagerLayoutId] = useState("");
   const [draggedColumnIndex, setDraggedColumnIndex] = useState<number | null>(null);
@@ -276,11 +282,13 @@ export function ImportReviewCenter({ inspection, structure, selectedSheetIndex, 
   };
   const saveCurrentManagerLayout = () => {
     try {
-      const layout = saveManagerColumnLayout(managerName, sourceColumnCount, editorConfig);
+      const layout = saveManagerColumnLayout(managerName, sourceColumnCount, editorConfig, managerLayoutName, managerLayoutDescription);
       setManagerLayouts(loadManagerColumnLayouts());
       setSelectedManagerLayoutId(layout.id);
       setManagerName("");
-      setManagerLayoutNotice(`حُفظ ترتيب «${layout.managerName}» محليًا في هذا المتصفح فقط.`);
+      setManagerLayoutName("");
+      setManagerLayoutDescription("");
+      setManagerLayoutNotice(`حُفظ ترتيب «${managerLayoutDisplayName(layout)}» لمدير «${layout.managerName}» محليًا في هذا المتصفح فقط.`);
     } catch (error) {
       setManagerLayoutNotice(error instanceof Error ? error.message : "تعذر حفظ ترتيب الأعمدة.");
     }
@@ -291,17 +299,17 @@ export function ImportReviewCenter({ inspection, structure, selectedSheetIndex, 
     const layout = managerLayouts.find((item) => item.id === layoutId);
     if (!layout) return;
     if (!isCompatibleManagerLayout(layout, sourceColumnCount)) {
-      setManagerLayoutNotice(`ترتيب «${layout.managerName}» يحتاج ${layout.sourceColumnCount} أعمدة، بينما الشيت الحالي يحتوي ${sourceColumnCount}. لم يُطبّق أي تغيير.`);
+      setManagerLayoutNotice(`ترتيب «${managerLayoutDisplayName(layout)}» يحتاج ${layout.sourceColumnCount} أعمدة، بينما الشيت الحالي يحتوي ${sourceColumnCount}. لم يُطبّق أي تغيير.`);
       return;
     }
-    updateEditor(managerLayoutPatch(layout), `تطبيق ترتيب المدير «${layout.managerName}»`);
-    setManagerLayoutNotice(`طُبّق ترتيب «${layout.managerName}» محليًا. راجع النتيجة ثم اعتمدها.`);
+    updateEditor(managerLayoutPatch(layout), `تطبيق ترتيب «${managerLayoutDisplayName(layout)}» للمدير ${layout.managerName}`);
+    setManagerLayoutNotice(`طُبّق ترتيب «${managerLayoutDisplayName(layout)}» محليًا. راجع النتيجة ثم اعتمدها.`);
   };
   const removeManagerLayout = (layout: ManagerColumnLayout) => {
     deleteManagerColumnLayout(layout.id);
     setManagerLayouts(loadManagerColumnLayouts());
     if (selectedManagerLayoutId === layout.id) setSelectedManagerLayoutId("");
-    setManagerLayoutNotice(`حُذف ترتيب «${layout.managerName}» من هذا المتصفح.`);
+    setManagerLayoutNotice(`حُذف ترتيب «${managerLayoutDisplayName(layout)}» من هذا المتصفح.`);
   };
   const applyAutoCorrectionSuggestions = () => {
     if (!autoCorrectionSuggestions.length) return;
@@ -438,9 +446,9 @@ export function ImportReviewCenter({ inspection, structure, selectedSheetIndex, 
             {editorPanel === "columns" && <div className="border-b border-[#dceae2] bg-[#f7fbf8] p-4 sm:p-5" data-testid="column-arrangement-screen">
               <section className="mb-4 rounded-xl border border-[#c7e2d2] bg-white p-3.5" data-testid="manager-column-layouts">
                 <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-bold text-[#214a41]">ترتيب المدير المحفوظ</p><p className="mt-1 text-[10px] leading-5 text-[#71857d]">يحفظ أسماء الأعمدة والاستبعادات فقط داخل هذا المتصفح؛ لا يحفظ محتوى ملف Excel أو يرفعه.</p></div><span className="rounded-lg bg-[#f0f8f3] px-2 py-1 text-[9px] font-bold text-[#23705a]">{managerLayouts.length} ترتيب محلي</span></div>
-                <div className="mt-3 grid gap-2 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]"><input value={managerName} onChange={(event) => setManagerName(event.target.value)} placeholder="اسم المدير لحفظ الترتيب" aria-label="اسم المدير لحفظ ترتيب الأعمدة" className="min-w-0 rounded-lg border border-[#ccded5] bg-[#fbfdfb] px-3 py-2 text-xs font-bold text-[#264f45] outline-none focus:border-[#0d765e]" /><button type="button" onClick={saveCurrentManagerLayout} data-testid="save-manager-layout" className="rounded-lg bg-[#173f38] px-3 py-2 text-[10px] font-bold text-white hover:bg-[#17564c]"><Save className="ml-1 inline size-3.5" />حفظ الترتيب</button><select value={selectedManagerLayoutId || "none"} onChange={(event) => { const value = event.target.value; if (value === "none") { setSelectedManagerLayoutId(""); setManagerLayoutNotice(""); } else applySelectedManagerLayout(value); }} aria-label="تحميل ترتيب مدير محفوظ" data-testid="load-manager-layout" className="min-w-0 rounded-lg border border-[#ccded5] bg-[#fbfdfb] px-3 py-2 text-xs font-bold text-[#264f45] outline-none focus:border-[#0d765e]"><option value="none">تحميل ترتيب محفوظ</option>{managerLayouts.map((layout) => <option key={layout.id} value={layout.id} disabled={!isCompatibleManagerLayout(layout, sourceColumnCount)}>{layout.managerName}{isCompatibleManagerLayout(layout, sourceColumnCount) ? "" : " — عدد أعمدة مختلف"}</option>)}</select></div>
+                <div className="mt-3 grid gap-2 md:grid-cols-2"><input value={managerName} onChange={(event) => setManagerName(event.target.value)} placeholder="اسم المدير (مطلوب)" aria-label="اسم المدير لحفظ ترتيب الأعمدة" className="min-w-0 rounded-lg border border-[#ccded5] bg-[#fbfdfb] px-3 py-2 text-xs font-bold text-[#264f45] outline-none focus:border-[#0d765e]" /><input value={managerLayoutName} onChange={(event) => setManagerLayoutName(event.target.value)} placeholder="اسم اختياري للترتيب؛ مثال: جرد الصباح" aria-label="اسم اختياري للترتيب المحفوظ" data-testid="manager-layout-name" className="min-w-0 rounded-lg border border-[#ccded5] bg-[#fbfdfb] px-3 py-2 text-xs font-bold text-[#264f45] outline-none focus:border-[#0d765e]" /><input value={managerLayoutDescription} onChange={(event) => setManagerLayoutDescription(event.target.value)} placeholder="وصف اختياري يوضح الغرض من الترتيب" aria-label="وصف اختياري للترتيب المحفوظ" data-testid="manager-layout-description" className="min-w-0 md:col-span-2 rounded-lg border border-[#ccded5] bg-[#fbfdfb] px-3 py-2 text-xs text-[#264f45] outline-none focus:border-[#0d765e]" /><div className="flex flex-wrap gap-2 md:col-span-2"><button type="button" onClick={saveCurrentManagerLayout} data-testid="save-manager-layout" className="rounded-lg bg-[#173f38] px-3 py-2 text-[10px] font-bold text-white hover:bg-[#17564c]"><Save className="ml-1 inline size-3.5" />حفظ الترتيب</button><select value={selectedManagerLayoutId || "none"} onChange={(event) => { const value = event.target.value; if (value === "none") { setSelectedManagerLayoutId(""); setManagerLayoutNotice(""); } else applySelectedManagerLayout(value); }} aria-label="تحميل ترتيب مدير محفوظ" data-testid="load-manager-layout" className="min-w-0 flex-1 rounded-lg border border-[#ccded5] bg-[#fbfdfb] px-3 py-2 text-xs font-bold text-[#264f45] outline-none focus:border-[#0d765e]"><option value="none">تحميل ترتيب محفوظ</option>{managerLayouts.map((layout) => <option key={layout.id} value={layout.id} disabled={!isCompatibleManagerLayout(layout, sourceColumnCount)}>{managerLayoutDisplayName(layout)}{layout.layoutName ? ` — ${layout.managerName}` : ""}{isCompatibleManagerLayout(layout, sourceColumnCount) ? "" : " — عدد أعمدة مختلف"}</option>)}</select></div></div>
                 {managerLayoutNotice && <p role="status" className="mt-2 rounded-lg bg-[#f4faf6] px-2.5 py-2 text-[10px] leading-5 text-[#386257]">{managerLayoutNotice}</p>}
-                {managerLayouts.length > 0 && <div className="mt-3 flex flex-wrap gap-2 border-t border-[#e6eee9] pt-3">{managerLayouts.map((layout) => <span key={layout.id} className="inline-flex items-center gap-1 rounded-lg border border-[#d7e7dd] bg-[#fbfdfb] px-2 py-1.5 text-[9px] font-bold text-[#43655b]">{layout.managerName}<span className="font-normal text-[#71857d]">· {new Date(layout.savedAt).toLocaleDateString("ar-EG")}</span><button type="button" onClick={() => removeManagerLayout(layout)} aria-label={`حذف ترتيب ${layout.managerName}`} className="mr-1 rounded p-0.5 text-[#a25040] hover:bg-[#fff0eb]"><Trash2 className="size-3" /></button></span>)}</div>}
+                {managerLayouts.length > 0 && <div className="mt-3 grid gap-2 border-t border-[#e6eee9] pt-3 sm:grid-cols-2">{managerLayouts.map((layout) => <div key={layout.id} className="flex items-start justify-between gap-2 rounded-lg border border-[#d7e7dd] bg-[#fbfdfb] px-2.5 py-2 text-[9px] text-[#43655b]"><div className="min-w-0"><p className="truncate font-bold">{managerLayoutDisplayName(layout)}</p><p className="mt-0.5 truncate text-[#71857d]">المدير: {layout.managerName} · {new Date(layout.savedAt).toLocaleDateString("ar-EG")}</p>{layout.description && <p className="mt-1 line-clamp-2 text-[#587068]">{layout.description}</p>}</div><button type="button" onClick={() => removeManagerLayout(layout)} aria-label={`حذف ترتيب ${managerLayoutDisplayName(layout)}`} className="shrink-0 rounded p-0.5 text-[#a25040] hover:bg-[#fff0eb]"><Trash2 className="size-3" /></button></div>)}</div>}
               </section>
               <section className="mb-4 rounded-xl border border-[#ead9ad] bg-[#fffaf0] p-3.5" data-testid="auto-correction-panel">
                 <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-bold text-[#5d4c19]">تصحيح تلقائي مقترح</p><p className="mt-1 text-[10px] leading-5 text-[#7c6a2e]">يفحص التسمية المقترحة من محرك القراءة ويعرض الفروق فقط. لا يُطبّق أي تعديل من دون موافقة المدير في الخطوة التالية.</p></div><button type="button" onClick={() => setShowAutoCorrection(true)} disabled={!autoCorrectionSuggestions.length} data-testid="auto-correction-button" className="rounded-lg border border-[#dccb92] bg-white px-3 py-2 text-[10px] font-bold text-[#7b641b] hover:bg-[#fff5d8] disabled:cursor-not-allowed disabled:opacity-45">عرض {autoCorrectionSuggestions.length ? `${autoCorrectionSuggestions.length} اقتراحات` : "الاقتراحات"}</button></div>

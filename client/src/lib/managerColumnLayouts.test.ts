@@ -25,12 +25,12 @@ describe("manager column layouts", () => {
     vi.unstubAllGlobals();
   });
 
-  it("يحفظ ترتيب المدير محليًا من دون أي محتوى ملف ويعيد تطبيق نسخة مستقلة منه", () => {
-    const saved = saveManagerColumnLayout("مدير فرع المعادي", 8, editorConfig);
+  it("يحفظ ترتيب المدير محليًا مع الاسم والوصف الاختياريين ومن دون أي محتوى ملف", () => {
+    const saved = saveManagerColumnLayout("مدير فرع المعادي", 8, editorConfig, "جرد الصباح", "ترتيب مخصص لمراجعة بداية الوردية");
     const loaded = loadManagerColumnLayouts();
 
     expect(loaded).toHaveLength(1);
-    expect(loaded[0]).toMatchObject({ managerName: "مدير فرع المعادي", sourceColumnCount: 8, headerOverrides: editorConfig.headerOverrides, ignoredColumnIndexes: [0, 7] });
+    expect(loaded[0]).toMatchObject({ managerName: "مدير فرع المعادي", layoutName: "جرد الصباح", description: "ترتيب مخصص لمراجعة بداية الوردية", sourceColumnCount: 8, headerOverrides: editorConfig.headerOverrides, ignoredColumnIndexes: [0, 7] });
     expect(JSON.stringify(loaded[0])).not.toContain("rawRecords");
     expect(JSON.stringify(loaded[0])).not.toContain("cellOverrides");
 
@@ -41,17 +41,24 @@ describe("manager column layouts", () => {
     expect(saved.ignoredColumnIndexes).toEqual([0, 7]);
   });
 
-  it("يستبدل الترتيب السابق للاسم نفسه، ويمنع اختلاف عدد الأعمدة، ويتيح الحذف", () => {
-    const first = saveManagerColumnLayout("مدير فرع مدينة نصر", 8, editorConfig);
-    const replacement = saveManagerColumnLayout("مدير فرع مدينة نصر", 8, { ...editorConfig, headerOverrides: { 1: "اسم الصنف" } });
+  it("يحتفظ بأكثر من ترتيب مسمى للمدير نفسه ويستبدل الترتيب ذي الاسم نفسه فقط", () => {
+    const first = saveManagerColumnLayout("مدير فرع مدينة نصر", 8, editorConfig, "جرد الصباح");
+    const secondary = saveManagerColumnLayout("مدير فرع مدينة نصر", 8, editorConfig, "جرد المساء");
+    const replacement = saveManagerColumnLayout("مدير فرع مدينة نصر", 8, { ...editorConfig, headerOverrides: { 1: "اسم الصنف" } }, "جرد الصباح", "نسخة محدثة");
 
-    expect(loadManagerColumnLayouts()).toHaveLength(1);
+    expect(loadManagerColumnLayouts()).toHaveLength(2);
     expect(first.id).not.toBe(replacement.id);
+    expect(loadManagerColumnLayouts().find((layout) => layout.id === replacement.id)?.description).toBe("نسخة محدثة");
     expect(isCompatibleManagerLayout(replacement, 8)).toBe(true);
     expect(isCompatibleManagerLayout(replacement, 9)).toBe(false);
 
     deleteManagerColumnLayout(replacement.id);
-    expect(loadManagerColumnLayouts()).toEqual([]);
+    expect(loadManagerColumnLayouts()).toEqual([secondary]);
+  });
+
+  it("يقرأ الترتيبات السابقة التي لا تحتوي اسمًا أو وصفًا إضافيين", () => {
+    window.localStorage.setItem("pharmacy-manager-column-layouts-v1", JSON.stringify([{ id: "legacy", managerName: "مدير قديم", savedAt: 1, sourceColumnCount: 8, headerOverrides: {}, ignoredColumnIndexes: [] }]));
+    expect(loadManagerColumnLayouts()).toMatchObject([{ id: "legacy", managerName: "مدير قديم" }]);
   });
 
   it("يتطلب اسمًا واضحًا قبل حفظ الترتيب", () => {
