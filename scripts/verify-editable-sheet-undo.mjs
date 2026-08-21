@@ -14,16 +14,21 @@ try {
 
   const editor = page.locator("#sheet-manual-editor");
   await editor.getByTestId("column-arrangement-screen").waitFor({ timeout: 20_000 });
+  if (process.env.CAPTURE_EDITOR_SCREEN === "1") {
+    await page.screenshot({ path: "/home/ubuntu/pharmacy-manager-intelligence-preview-columns.png", fullPage: true });
+  }
 
   const columnA = editor.getByTestId("column-choice-0");
   const columnB = editor.getByTestId("column-choice-1");
-  const initialTitleA = await columnA.locator("span").nth(1).innerText();
-  const initialTitleB = await columnB.locator("span").nth(1).innerText();
+  const titleA = editor.getByTestId("column-title-0");
+  const titleB = editor.getByTestId("column-title-1");
+  const initialTitleA = await titleA.innerText();
+  const initialTitleB = await titleB.innerText();
   await columnB.click();
-  await editor.getByRole("button", { name: "حرّك الاسم يمينًا" }).click();
-  if (await columnA.locator("span").nth(1).innerText() !== initialTitleB) throw new Error("لم ينقل سهم اليمين اسم العمود إلى موضعه المرئي الجديد.");
-  await editor.getByRole("button", { name: "تراجع آخر قرار" }).click();
-  if (await columnA.locator("span").nth(1).innerText() !== initialTitleA) throw new Error("لم يُستعد ترتيب أسماء الأعمدة بعد التراجع.");
+  await editor.getByTestId("move-column-right").click();
+  if (await titleA.innerText() !== initialTitleB) throw new Error("لم ينقل سهم اليمين اسم العمود إلى موضعه المرئي الجديد.");
+  await editor.locator("button[data-history-count]").first().click();
+  if (await titleA.innerText() !== initialTitleA) throw new Error("لم يُستعد ترتيب أسماء الأعمدة بعد التراجع.");
 
   await editor.getByLabel("اسم المدير لحفظ ترتيب الأعمدة").fill("مدير اختبار ترتيب الأعمدة");
   await editor.getByTestId("manager-layout-name").fill("ترتيب الاختبار الشهري");
@@ -36,19 +41,19 @@ try {
   const dragZone = editor.locator('[aria-label="سحب وإفلات ترتيب الأعمدة"]');
   const dragCards = dragZone.locator('button[draggable="true"]');
   await dragCards.nth(1).dragTo(dragCards.nth(0));
-  if (await columnA.locator("span").nth(1).innerText() !== initialTitleB) throw new Error("لم يبدل السحب والإفلات عنوان العمود عند الإسقاط.");
+  if (await titleA.innerText() !== initialTitleB) throw new Error("لم يبدل السحب والإفلات عنوان العمود عند الإسقاط.");
   await editor.getByTestId("load-manager-layout").selectOption({ label: savedLayoutLabel });
-  if (await columnA.locator("span").nth(1).innerText() !== initialTitleA) throw new Error("لم يستعد تحميل ترتيب المدير عنوان العمود المحفوظ.");
+  if (await titleA.innerText() !== initialTitleA) throw new Error("لم يستعد تحميل ترتيب المدير عنوان العمود المحفوظ.");
 
-  const titleBBeforeSuggestion = await columnB.locator("span").nth(1).innerText();
+  const titleBBeforeSuggestion = await titleB.innerText();
   const suggestionButton = editor.getByTestId("auto-correction-button");
   if (await suggestionButton.isEnabled()) {
     await suggestionButton.click();
-    if (await columnB.locator("span").nth(1).innerText() !== titleBBeforeSuggestion) throw new Error("طُبق التصحيح المقترح قبل موافقة المدير.");
+    if (await titleB.innerText() !== titleBBeforeSuggestion) throw new Error("طُبق التصحيح المقترح قبل موافقة المدير.");
     await editor.getByTestId("approve-auto-correction").click();
-    if (await columnB.locator("span").nth(1).innerText() === titleBBeforeSuggestion) throw new Error("لم يطبق التصحيح المقترح بعد موافقة المدير.");
+    if (await titleB.innerText() === titleBBeforeSuggestion) throw new Error("لم يطبق التصحيح المقترح بعد موافقة المدير.");
     await editor.getByTestId("load-manager-layout").selectOption({ label: savedLayoutLabel });
-    if (await columnB.locator("span").nth(1).innerText() !== titleBBeforeSuggestion) throw new Error("لم يستعد ترتيب المدير حالة العناوين المحفوظة.");
+    if (await titleB.innerText() !== titleBBeforeSuggestion) throw new Error("لم يستعد ترتيب المدير حالة العناوين المحفوظة.");
   }
 
   await editor.getByRole("tab", { name: "2. عدّل البيانات" }).click();
@@ -117,8 +122,8 @@ try {
   await localCell.press("Tab");
   await editor.getByRole("tab", { name: "1. رتّب الأعمدة" }).click();
   await editor.getByTestId("column-choice-0").click();
-  await editor.getByRole("button", { name: "استبعاد العمود" }).click();
-  await editor.getByRole("button", { name: "استعادة العمود" }).click();
+  await editor.getByTestId("exclude-column").click();
+  await editor.getByTestId("restore-column").click();
   await editor.getByRole("button", { name: "حذف آخر عمود يدوي" }).click();
 
   console.log("VERIFY_EDITABLE_SHEET_UNDO_OK");
