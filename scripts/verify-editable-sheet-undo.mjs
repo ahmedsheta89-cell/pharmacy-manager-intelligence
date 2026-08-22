@@ -57,6 +57,13 @@ try {
   await branchSuggestionButton.click();
   await organization.getByText("مقترح للفرع", { exact: true }).waitFor({ timeout: 2_000 });
   if (await titleA.innerText() !== initialTitleA) throw new Error("طُبّق الترتيب المقترح للفرع تلقائيًا بدل انتظار اختيار المستخدم.");
+  await editor.getByRole("tab", { name: "4. راجع واعتمد" }).click();
+  const quickApply = editor.getByTestId("quick-apply-layout-after-preview");
+  await quickApply.waitFor({ state: "visible", timeout: 2_000 });
+  await quickApply.click();
+  await editor.getByTestId("column-arrangement-screen").waitFor({ state: "visible", timeout: 2_000 });
+  if (await titleA.innerText() !== initialTitleA) throw new Error("لم يطبق الاختصار اليدوي الترتيب المحفوظ كما تمت معاينته.");
+  await editor.getByTestId("branch-usage-فرع الاختبار").getByText("1 تطبيقات يدوية", { exact: true }).waitFor({ timeout: 2_000 });
   if (process.env.CAPTURE_LAYOUT_ORGANIZATION === "1") {
     await page.screenshot({ path: "/home/ubuntu/pharmacy-manager-intelligence-layout-organization.png", fullPage: true });
   }
