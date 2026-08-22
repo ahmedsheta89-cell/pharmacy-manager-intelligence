@@ -149,6 +149,26 @@ try {
   await editor.getByTestId("restore-column").click();
   await editor.getByRole("button", { name: "حذف آخر عمود يدوي" }).click();
 
+  await page.getByRole("button", { name: "اعتماد جميع الاقتراحات بعد المراجعة" }).click();
+  await page.getByText("أؤكد أنني راجعت مقارنة هذا الشيت", { exact: true }).click();
+  await page.getByRole("button", { name: /بدء التحليل بعد الاعتماد/ }).click();
+  await page.getByRole("button", { name: /أوافق وأبدأ التحليل/ }).click();
+  await page.getByRole("button", { name: "فواتير الموردين", exact: true }).click();
+  const invoiceCenter = page.getByTestId("invoice-reconciliation-center");
+  await invoiceCenter.waitFor({ state: "visible", timeout: 10_000 });
+  if (process.env.CAPTURE_INVOICE_CENTER === "1") {
+    await page.screenshot({ path: "/home/ubuntu/pharmacy-manager-intelligence-invoice-center.png", fullPage: true });
+  }
+  if (await invoiceCenter.getByText("لا توجد أصناف صفراء أو طلبات مفتوحة لتسويتها بعد", { exact: true }).count()) {
+    console.log("VERIFY_INVOICE_EMPTY_STATE_OK");
+  } else {
+    await invoiceCenter.locator("textarea").fill("65057 BLESS HOLD HAIR GEL 1");
+    await invoiceCenter.getByRole("button", { name: "تحويل النص إلى بنود قابلة للمراجعة" }).click();
+    await invoiceCenter.locator('input[type="checkbox"]').check();
+    await invoiceCenter.getByTestId("approve-invoice-settlement").click();
+    await invoiceCenter.getByText("اعتمدت تسوية", { exact: false }).waitFor({ timeout: 3_000 });
+  }
+
   console.log("VERIFY_EDITABLE_SHEET_UNDO_OK");
 } finally {
   await browser.close();
