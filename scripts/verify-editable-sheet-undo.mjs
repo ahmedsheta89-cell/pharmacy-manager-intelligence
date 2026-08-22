@@ -45,6 +45,22 @@ try {
   await editor.getByTestId("load-manager-layout").selectOption({ label: savedLayoutLabel });
   if (await titleA.innerText() !== initialTitleA) throw new Error("لم يستعد تحميل ترتيب المدير عنوان العمود المحفوظ.");
 
+  const organization = editor.getByTestId("manager-layout-organization");
+  await organization.getByTestId("manager-layout-search").fill("الشهري");
+  await organization.getByText("ترتيب الاختبار الشهري", { exact: true }).first().click();
+  await organization.getByTestId("manager-layout-branch").fill("فرع الاختبار");
+  await organization.getByLabel("وسم لوني للترتيب").fill("مخزون");
+  await organization.getByTestId("add-manager-layout-tag").click();
+  await organization.getByTestId("save-layout-organization").click();
+  await organization.locator('[data-testid^="layout-organization-"]').getByText("مخزون", { exact: true }).waitFor({ timeout: 2_000 });
+  const branchSuggestionButton = organization.locator('[data-testid^="suggest-layout-"]').first();
+  await branchSuggestionButton.click();
+  await organization.getByText("مقترح للفرع", { exact: true }).waitFor({ timeout: 2_000 });
+  if (await titleA.innerText() !== initialTitleA) throw new Error("طُبّق الترتيب المقترح للفرع تلقائيًا بدل انتظار اختيار المستخدم.");
+  if (process.env.CAPTURE_LAYOUT_ORGANIZATION === "1") {
+    await page.screenshot({ path: "/home/ubuntu/pharmacy-manager-intelligence-layout-organization.png", fullPage: true });
+  }
+
   const titleBBeforeSuggestion = await titleB.innerText();
   const suggestionButton = editor.getByTestId("auto-correction-button");
   if (await suggestionButton.isEnabled()) {

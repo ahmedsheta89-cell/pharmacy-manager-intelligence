@@ -13,7 +13,7 @@ import type { WorkbookStructureReview } from "@/lib/excelInspector";
 import { createImportAuditRecord, exportImportAuditMap, loadImportAuditLog, type ImportAuditRecord } from "@/lib/importAuditLog";
 import type { PriceMatchReport } from "@/lib/multiPeriodImport";
 import type { ColumnMapTemplate } from "@/lib/columnMapTemplates";
-import { deleteManagerColumnLayout, isCompatibleManagerLayout, loadManagerColumnLayouts, managerLayoutPatch, saveManagerColumnLayout, type ManagerColumnLayout } from "@/lib/managerColumnLayouts";
+import { deleteManagerColumnLayout, isCompatibleManagerLayout, loadManagerColumnLayouts, MANAGER_LAYOUT_TAG_COLORS, managerLayoutPatch, saveManagerColumnLayout, setSuggestedManagerLayoutForBranch, updateManagerColumnLayoutMetadata, type ManagerColumnLayout, type ManagerLayoutTag, type ManagerLayoutTagColor } from "@/lib/managerColumnLayouts";
 
 const ALL_FIELDS = Object.entries(fieldArabicName) as Array<[CanonicalField, string]>;
 
@@ -65,6 +65,16 @@ function valueText(value: unknown) {
 
 function managerLayoutDisplayName(layout: ManagerColumnLayout) {
   return layout.layoutName?.trim() || layout.managerName;
+}
+
+function managerLayoutTagClass(color: ManagerLayoutTagColor) {
+  return {
+    green: "border-[#b9dfcd] bg-[#e9f7ef] text-[#207059]",
+    gold: "border-[#ead9a1] bg-[#fff8e5] text-[#8a6618]",
+    blue: "border-[#c9ddec] bg-[#f0f7fc] text-[#2d6588]",
+    rose: "border-[#eccbc4] bg-[#fff2ef] text-[#a44c3e]",
+    purple: "border-[#ddcfeb] bg-[#f7f0fc] text-[#6d4e91]",
+  }[color];
 }
 
 type CellRange = { startRow: number; startColumn: number; endRow: number; endColumn: number };
@@ -128,10 +138,26 @@ export function ImportReviewCenter({ inspection, structure, selectedSheetIndex, 
   const [managerName, setManagerName] = useState("");
   const [managerLayoutName, setManagerLayoutName] = useState("");
   const [managerLayoutDescription, setManagerLayoutDescription] = useState("");
+  const [managerLayoutSearch, setManagerLayoutSearch] = useState("");
+  const [managerLayoutTagLabel, setManagerLayoutTagLabel] = useState("");
+  const [managerLayoutTagColor, setManagerLayoutTagColor] = useState<ManagerLayoutTagColor>("green");
+  const [managerLayoutTags, setManagerLayoutTags] = useState<ManagerLayoutTag[]>([]);
+  const [managerLayoutBranchName, setManagerLayoutBranchName] = useState("");
   const [managerLayoutNotice, setManagerLayoutNotice] = useState("");
   const [selectedManagerLayoutId, setSelectedManagerLayoutId] = useState("");
   const [draggedColumnIndex, setDraggedColumnIndex] = useState<number | null>(null);
   const [showAutoCorrection, setShowAutoCorrection] = useState(false);
+  const filteredManagerLayouts = useMemo(() => {
+    const search = managerLayoutSearch.trim().toLocaleLowerCase("ar");
+    if (!search) return managerLayouts;
+    return managerLayouts.filter((layout) => [
+      managerLayoutDisplayName(layout),
+      layout.managerName,
+      layout.description ?? "",
+      layout.branchName ?? "",
+      ...(layout.tags ?? []).map((tag) => tag.label),
+    ].join(" ").toLocaleLowerCase("ar").includes(search));
+  }, [managerLayouts, managerLayoutSearch]);
   const sheet = inspection.sheets[selectedSheetIndex] ?? inspection.sheets[0];
   const structural = structure?.sheets.find((item) => item.name === sheet?.name);
   const readiness = useMemo(() => getImportReadiness(inspection), [inspection]);
@@ -282,12 +308,16 @@ export function ImportReviewCenter({ inspection, structure, selectedSheetIndex, 
   };
   const saveCurrentManagerLayout = () => {
     try {
-      const layout = saveManagerColumnLayout(managerName, sourceColumnCount, editorConfig, managerLayoutName, managerLayoutDescription);
+      let layout = saveManagerColumnLayout(managerName, sourceColumnCount, editorConfig, managerLayoutName, managerLayoutDescription);
+      const metadataLayout = updateManagerColumnLayoutMetadata(layout.id, { tags: managerLayoutTags, branchName: managerLayoutBranchName });
+      if (metadataLayout) layout = metadataLayout;
       setManagerLayouts(loadManagerColumnLayouts());
       setSelectedManagerLayoutId(layout.id);
       setManagerName("");
       setManagerLayoutName("");
       setManagerLayoutDescription("");
+      setManagerLayoutTags([]);
+      setManagerLayoutBranchName("");
       setManagerLayoutNotice(`حُفظ ترتيب «${managerLayoutDisplayName(layout)}» لمدير «${layout.managerName}» محليًا في هذا المتصفح فقط.`);
     } catch (error) {
       setManagerLayoutNotice(error instanceof Error ? error.message : "تعذر حفظ ترتيب الأعمدة.");
@@ -310,6 +340,45 @@ export function ImportReviewCenter({ inspection, structure, selectedSheetIndex, 
     setManagerLayouts(loadManagerColumnLayouts());
     if (selectedManagerLayoutId === layout.id) setSelectedManagerLayoutId("");
     setManagerLayoutNotice(`حُذف ترتيب «${managerLayoutDisplayName(layout)}» من هذا المتصفح.`);
+  };
+  const addManagerLayoutTag = () => {
+    const label = managerLayoutTagLabel.trim();
+    if (!label) return;
+    if (managerLayoutTags.some((tag) => tag.label.toLocaleLowerCase("ar") === label.toLocaleLowerCase("ar"))) return;
+    setManagerLayoutTags((current) => [...current, { id: `layout-tag-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, label, color: managerLayoutTagColor }].slice(0, 5));
+    setManagerLayoutTagLabel("");
+  };
+  const selectManagerLayoutForOrganization = (layout: ManagerColumnLayout) => {
+    setSelectedManagerLayoutId(layout.id);
+    setManagerLayoutTags(layout.tags ?? []);
+    setManagerLayoutBranchName(layout.branchName ?? "");
+    setManagerLayoutNotice(`رتّب بيانات «${managerLayoutDisplayName(layout)}» ثم احفظ التنظيم أو عيّنه مقترحًا للفرع. لن يُطبّق الترتيب على الشيت من هذه الخطوة.`);
+  };
+  const saveSelectedManagerLayoutOrganization = () => {
+    if (!selectedManagerLayoutId) {
+      setManagerLayoutNotice("اختر ترتيبًا من نتائج البحث أولًا لتحديث الوسوم أو الفرع.");
+      return;
+    }
+    const updated = updateManagerColumnLayoutMetadata(selectedManagerLayoutId, { tags: managerLayoutTags, branchName: managerLayoutBranchName });
+    if (!updated) {
+      setManagerLayoutNotice("تعذر العثور على الترتيب المطلوب تحديثه.");
+      return;
+    }
+    setManagerLayouts(loadManagerColumnLayouts());
+    setManagerLayoutNotice(`حُدّث تنظيم «${managerLayoutDisplayName(updated)}» محليًا.`);
+  };
+  const suggestSelectedManagerLayoutForBranch = (layout: ManagerColumnLayout) => {
+    const branchName = (managerLayoutBranchName || layout.branchName || "").trim();
+    try {
+      const updated = setSuggestedManagerLayoutForBranch(layout.id, branchName);
+      if (!updated) throw new Error("تعذر العثور على الترتيب المطلوب.");
+      setManagerLayouts(loadManagerColumnLayouts());
+      setSelectedManagerLayoutId(updated.id);
+      setManagerLayoutBranchName(updated.branchName ?? branchName);
+      setManagerLayoutNotice(`أصبح «${managerLayoutDisplayName(updated)}» ترتيبًا مقترحًا لفرع «${updated.branchName}». لن يطبق إلا عند اختيارك له يدويًا.`);
+    } catch (error) {
+      setManagerLayoutNotice(error instanceof Error ? error.message : "تعذر تعيين الترتيب المقترح للفرع.");
+    }
   };
   const applyAutoCorrectionSuggestions = () => {
     if (!autoCorrectionSuggestions.length) return;
@@ -465,6 +534,25 @@ export function ImportReviewCenter({ inspection, structure, selectedSheetIndex, 
                 <aside className="space-y-4">
                   <section className="rounded-2xl border border-[#ead9ad] bg-[#fffaf0] p-4" data-testid="auto-correction-panel"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-bold text-[#5d4c19]">مراجعة ذكية مقترحة</p><p className="mt-1 text-[10px] leading-5 text-[#7c6a2e]">تعرض الفروق فقط؛ التطبيق يتطلب موافقة المدير الصريحة.</p></div><span className="rounded-lg bg-white px-2 py-1 text-[9px] font-bold text-[#876f22]">{autoCorrectionSuggestions.length} فرق</span></div><button type="button" onClick={() => setShowAutoCorrection(true)} disabled={!autoCorrectionSuggestions.length} data-testid="auto-correction-button" className="mt-3 w-full rounded-lg border border-[#dccb92] bg-white px-3 py-2.5 text-[10px] font-bold text-[#7b641b] hover:bg-[#fff5d8] disabled:cursor-not-allowed disabled:opacity-45">مراجعة الاقتراحات</button>{showAutoCorrection && <div className="mt-3 rounded-lg border border-[#ead9ad] bg-white p-3"><p className="text-[10px] font-bold text-[#5d4c19]">الفرق المقترح قبل التطبيق</p><div className="mt-2 space-y-1.5">{autoCorrectionSuggestions.map((suggestion) => <div key={suggestion.headerIndex} className="grid gap-1 rounded-md bg-[#fffaf0] px-2.5 py-2 text-[10px] sm:grid-cols-[42px_1fr_auto_1fr]"><span className="font-bold text-[#6b7d75]">{columnLetter(suggestion.headerIndex)}</span><span className="font-bold text-[#9a5949]">{suggestion.currentTitle}</span><span className="text-center text-[#9c7b26]">←</span><span className="font-bold text-[#23705a]">{suggestion.suggestedTitle}</span></div>)}</div><div className="mt-3 grid gap-2"><button type="button" onClick={applyAutoCorrectionSuggestions} data-testid="approve-auto-correction" className="rounded-lg bg-[#173f38] px-3 py-2 text-[10px] font-bold text-white hover:bg-[#17564c]"><Check className="ml-1 inline size-3.5" />موافق وتطبيق المقترحات</button><button type="button" onClick={() => setShowAutoCorrection(false)} className="rounded-lg border border-[#d7dfdb] bg-white px-3 py-2 text-[10px] font-bold text-[#587068]">إلغاء</button></div></div>}</section>
                   <section className="rounded-2xl border border-[#c7e2d2] bg-white p-4" data-testid="manager-column-layouts"><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold text-[#214a41]">مكتبة ترتيبات المدير</p><p className="mt-1 text-[10px] leading-5 text-[#71857d]">تُحفظ المسميات والاستبعادات محليًا فقط.</p></div><span className="rounded-lg bg-[#f0f8f3] px-2 py-1 text-[9px] font-bold text-[#23705a]">{managerLayouts.length}</span></div><div className="mt-3 space-y-2"><input value={managerName} onChange={(event) => setManagerName(event.target.value)} placeholder="اسم المدير (مطلوب)" aria-label="اسم المدير لحفظ ترتيب الأعمدة" className="w-full rounded-lg border border-[#ccded5] bg-[#fbfdfb] px-3 py-2 text-xs font-bold text-[#264f45] outline-none focus:border-[#0d765e]" /><input value={managerLayoutName} onChange={(event) => setManagerLayoutName(event.target.value)} placeholder="اسم الترتيب؛ مثال: جرد الصباح" aria-label="اسم اختياري للترتيب المحفوظ" data-testid="manager-layout-name" className="w-full rounded-lg border border-[#ccded5] bg-[#fbfdfb] px-3 py-2 text-xs font-bold text-[#264f45] outline-none focus:border-[#0d765e]" /><input value={managerLayoutDescription} onChange={(event) => setManagerLayoutDescription(event.target.value)} placeholder="وصف مختصر اختياري" aria-label="وصف اختياري للترتيب المحفوظ" data-testid="manager-layout-description" className="w-full rounded-lg border border-[#ccded5] bg-[#fbfdfb] px-3 py-2 text-xs text-[#264f45] outline-none focus:border-[#0d765e]" /><div className="grid gap-2 sm:grid-cols-[auto_1fr]"><button type="button" onClick={saveCurrentManagerLayout} data-testid="save-manager-layout" className="rounded-lg bg-[#173f38] px-3 py-2 text-[10px] font-bold text-white hover:bg-[#17564c]"><Save className="ml-1 inline size-3.5" />حفظ</button><select value={selectedManagerLayoutId || "none"} onChange={(event) => { const value = event.target.value; if (value === "none") { setSelectedManagerLayoutId(""); setManagerLayoutNotice(""); } else applySelectedManagerLayout(value); }} aria-label="تحميل ترتيب مدير محفوظ" data-testid="load-manager-layout" className="min-w-0 rounded-lg border border-[#ccded5] bg-[#fbfdfb] px-3 py-2 text-xs font-bold text-[#264f45] outline-none focus:border-[#0d765e]"><option value="none">تحميل ترتيب محفوظ</option>{managerLayouts.map((layout) => <option key={layout.id} value={layout.id} disabled={!isCompatibleManagerLayout(layout, sourceColumnCount)}>{managerLayoutDisplayName(layout)}{layout.layoutName ? ` — ${layout.managerName}` : ""}{isCompatibleManagerLayout(layout, sourceColumnCount) ? "" : " — عدد أعمدة مختلف"}</option>)}</select></div></div>{managerLayoutNotice && <p role="status" className="mt-2 rounded-lg bg-[#f4faf6] px-2.5 py-2 text-[10px] leading-5 text-[#386257]">{managerLayoutNotice}</p>}{managerLayouts.length > 0 && <div className="scrollbar-thin mt-3 max-h-44 space-y-2 overflow-y-auto border-t border-[#e6eee9] pt-3">{managerLayouts.map((layout) => <div key={layout.id} className={`flex items-start justify-between gap-2 rounded-lg border px-2.5 py-2 text-[9px] ${selectedManagerLayoutId === layout.id ? "border-[#80b9a2] bg-[#eef8f2] text-[#315a4f]" : "border-[#d7e7dd] bg-[#fbfdfb] text-[#43655b]"}`}><div className="min-w-0"><p className="truncate font-bold">{managerLayoutDisplayName(layout)}</p><p className="mt-0.5 truncate text-[#71857d]">{layout.managerName} · {new Date(layout.savedAt).toLocaleDateString("ar-EG")}</p>{layout.description && <p className="mt-1 line-clamp-2 text-[#587068]">{layout.description}</p>}</div><button type="button" onClick={() => removeManagerLayout(layout)} aria-label={`حذف ترتيب ${managerLayoutDisplayName(layout)}`} className="shrink-0 rounded p-0.5 text-[#a25040] hover:bg-[#fff0eb]"><Trash2 className="size-3" /></button></div>)}</div>}</section>
+                  <section className="rounded-2xl border border-[#d8e7de] bg-[#fbfdfb] p-4" data-testid="manager-layout-organization">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div><p className="text-xs font-bold text-[#214a41]">تنظيم المكتبة</p><p className="mt-1 text-[10px] leading-5 text-[#71857d]">ابحث، أضف وسومًا، أو عيّن ترتيبًا مقترحًا للفرع. لا يُطبّق أي ترتيب من هذه اللوحة تلقائيًا.</p></div>
+                      <span className="rounded-lg border border-[#c7e2d2] bg-white px-2 py-1 text-[9px] font-bold text-[#23705a]">{filteredManagerLayouts.length} نتيجة</span>
+                    </div>
+                    <div className="mt-3 space-y-2">
+                      <input value={managerLayoutSearch} onChange={(event) => setManagerLayoutSearch(event.target.value)} placeholder="ابحث بالاسم أو المدير أو الفرع أو الوسم" aria-label="البحث في ترتيبات المدير" data-testid="manager-layout-search" className="w-full rounded-lg border border-[#ccded5] bg-white px-3 py-2 text-[10px] font-bold text-[#264f45] outline-none focus:border-[#0d765e]" />
+                      <input value={managerLayoutBranchName} onChange={(event) => setManagerLayoutBranchName(event.target.value)} placeholder="اسم الفرع (اختياري)" aria-label="اسم الفرع لتنظيم ترتيب المدير" data-testid="manager-layout-branch" className="w-full rounded-lg border border-[#ccded5] bg-white px-3 py-2 text-[10px] font-bold text-[#264f45] outline-none focus:border-[#0d765e]" />
+                      <div className="grid grid-cols-[1fr_auto] gap-2"><input value={managerLayoutTagLabel} onChange={(event) => setManagerLayoutTagLabel(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addManagerLayoutTag(); } }} placeholder="وسم؛ مثال: جرد" aria-label="وسم لوني للترتيب" className="min-w-0 rounded-lg border border-[#ccded5] bg-white px-3 py-2 text-[10px] font-bold text-[#264f45] outline-none focus:border-[#0d765e]" /><button type="button" onClick={addManagerLayoutTag} data-testid="add-manager-layout-tag" className="rounded-lg border border-[#b9d8c9] bg-[#eef8f2] px-3 py-2 text-[10px] font-bold text-[#23705a]">إضافة وسم</button></div>
+                      <div className="flex flex-wrap gap-1.5" aria-label="لون الوسم">{MANAGER_LAYOUT_TAG_COLORS.map((color) => <button key={color} type="button" onClick={() => setManagerLayoutTagColor(color)} className={`rounded-full border px-2 py-1 text-[9px] font-bold ${managerLayoutTagClass(color)} ${managerLayoutTagColor === color ? "ring-2 ring-[#173f38]/25" : "opacity-70"}`}>{({ green: "أخضر", gold: "ذهبي", blue: "أزرق", rose: "وردي", purple: "بنفسجي" } as Record<ManagerLayoutTagColor, string>)[color]}</button>)}</div>
+                      {managerLayoutTags.length > 0 && <div className="flex flex-wrap gap-1.5">{managerLayoutTags.map((tag) => <button key={tag.id} type="button" onClick={() => setManagerLayoutTags((current) => current.filter((item) => item.id !== tag.id))} className={`rounded-full border px-2 py-1 text-[9px] font-bold ${managerLayoutTagClass(tag.color)}`}>{tag.label} <X className="mr-0.5 inline size-2.5" /></button>)}</div>}
+                      <button type="button" onClick={saveSelectedManagerLayoutOrganization} disabled={!selectedManagerLayoutId} data-testid="save-layout-organization" className="w-full rounded-lg border border-[#b9d8c9] bg-white px-3 py-2 text-[10px] font-bold text-[#23705a] disabled:cursor-not-allowed disabled:opacity-45">حفظ تنظيم الترتيب المختار</button>
+                    </div>
+                    <div className="scrollbar-thin mt-3 max-h-64 space-y-2 overflow-y-auto border-t border-[#e6eee9] pt-3">
+                      {filteredManagerLayouts.map((layout) => <div key={`organize-${layout.id}`} data-testid={`layout-organization-${layout.id}`} className={`rounded-xl border p-2.5 text-[9px] ${selectedManagerLayoutId === layout.id ? "border-[#80b9a2] bg-[#eef8f2]" : "border-[#d7e7dd] bg-white"}`}><div className="flex items-start justify-between gap-2"><button type="button" onClick={() => selectManagerLayoutForOrganization(layout)} className="min-w-0 text-right"><p className="truncate font-bold text-[#315a4f]">{managerLayoutDisplayName(layout)}</p><p className="mt-0.5 truncate text-[#71857d]">{layout.managerName}{layout.branchName ? ` · ${layout.branchName}` : ""}</p></button>{layout.isBranchSuggested && <span className="shrink-0 rounded-md bg-[#fff4dc] px-1.5 py-1 text-[8px] font-bold text-[#8c6312]">مقترح للفرع</span>}</div>{(layout.tags?.length ?? 0) > 0 && <div className="mt-2 flex flex-wrap gap-1">{layout.tags?.map((tag) => <span key={tag.id} className={`rounded-full border px-1.5 py-0.5 text-[8px] font-bold ${managerLayoutTagClass(tag.color)}`}>{tag.label}</span>)}</div>}<div className="mt-2 flex flex-wrap gap-1.5"><button type="button" onClick={() => selectManagerLayoutForOrganization(layout)} className="rounded-md border border-[#c7dfd2] bg-white px-2 py-1.5 text-[8px] font-bold text-[#386257]">تنظيم</button><button type="button" onClick={() => suggestSelectedManagerLayoutForBranch(layout)} disabled={!(managerLayoutBranchName || layout.branchName)} data-testid={`suggest-layout-${layout.id}`} className="rounded-md border border-[#ead9a1] bg-[#fff9e9] px-2 py-1.5 text-[8px] font-bold text-[#8a6618] disabled:cursor-not-allowed disabled:opacity-45">اقتراح للفرع</button></div></div>)}
+                      {managerLayouts.length > 0 && filteredManagerLayouts.length === 0 && <p className="rounded-lg border border-dashed border-[#d7e7dd] px-3 py-3 text-center text-[10px] text-[#71857d]">لا توجد ترتيبات تطابق البحث الحالي.</p>}
+                      {managerLayouts.length === 0 && <p className="rounded-lg border border-dashed border-[#d7e7dd] px-3 py-3 text-center text-[10px] text-[#71857d]">احفظ أول ترتيب ثم نظّمه بالوسوم والفروع هنا.</p>}
+                    </div>
+                  </section>
                 </aside>
               </div>
             </div>}

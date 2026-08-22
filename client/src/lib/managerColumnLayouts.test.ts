@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { deleteManagerColumnLayout, isCompatibleManagerLayout, loadManagerColumnLayouts, managerLayoutPatch, saveManagerColumnLayout } from "./managerColumnLayouts";
+import { deleteManagerColumnLayout, getSuggestedManagerLayoutForBranch, isCompatibleManagerLayout, loadManagerColumnLayouts, managerLayoutPatch, saveManagerColumnLayout, setSuggestedManagerLayoutForBranch, updateManagerColumnLayoutMetadata } from "./managerColumnLayouts";
 import type { SheetEditorConfig } from "./pharmacyEngine";
 
 function memoryStorage() {
@@ -63,5 +63,26 @@ describe("manager column layouts", () => {
 
   it("يتطلب اسمًا واضحًا قبل حفظ الترتيب", () => {
     expect(() => saveManagerColumnLayout("   ", 8, editorConfig)).toThrow("اكتب اسم المدير أولًا لحفظ الترتيب.");
+  });
+
+  it("ينظم الترتيبات بوسوم وفرع ويحافظ على ترتيب مقترح واحد يدوي لكل فرع", () => {
+    const morning = saveManagerColumnLayout("مدير المعادي", 8, editorConfig, "جرد الصباح");
+    const evening = saveManagerColumnLayout("مدير المعادي", 8, editorConfig, "جرد المساء");
+
+    const organized = updateManagerColumnLayoutMetadata(morning.id, {
+      branchName: "فرع المعادي",
+      tags: [{ id: "stock", label: "مخزون", color: "gold" }, { id: "morning", label: "صباحي", color: "green" }],
+    });
+    expect(organized).toMatchObject({ branchName: "فرع المعادي", tags: [{ label: "مخزون", color: "gold" }, { label: "صباحي", color: "green" }] });
+
+    const firstSuggestion = setSuggestedManagerLayoutForBranch(morning.id, "فرع المعادي");
+    expect(firstSuggestion?.isBranchSuggested).toBe(true);
+    expect(getSuggestedManagerLayoutForBranch("فرع المعادي")?.id).toBe(morning.id);
+
+    const secondSuggestion = setSuggestedManagerLayoutForBranch(evening.id, "فرع المعادي");
+    expect(secondSuggestion?.isBranchSuggested).toBe(true);
+    expect(getSuggestedManagerLayoutForBranch("فرع المعادي")?.id).toBe(evening.id);
+    expect(loadManagerColumnLayouts().find((layout) => layout.id === morning.id)?.isBranchSuggested).toBe(false);
+    expect(JSON.stringify(loadManagerColumnLayouts())).not.toContain("rawRecords");
   });
 });
