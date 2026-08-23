@@ -89,8 +89,9 @@ export async function saveApprovedAnalysisSession(input: {
 }) {
   const db = getDb();
   if (!db) throw new Error("Database is not configured");
-  await db.insert(approvedAnalysisSessions).values({ ...input, periodLabel: input.periodLabel ?? null });
-  return (await db.select().from(approvedAnalysisSessions).where(and(eq(approvedAnalysisSessions.workspaceId, input.workspaceId), eq(approvedAnalysisSessions.sourceFingerprint, input.sourceFingerprint))).orderBy(desc(approvedAnalysisSessions.createdAt)).limit(1))[0];
+  const result = await db.insert(approvedAnalysisSessions).values({ ...input, periodLabel: input.periodLabel ?? null });
+  const sessionId = Number(result[0].insertId);
+  return (await db.select().from(approvedAnalysisSessions).where(eq(approvedAnalysisSessions.id, sessionId)).limit(1))[0];
 }
 
 function normalizedSupplierName(name: string) {
@@ -108,8 +109,9 @@ export async function saveInvoiceSettlementDecision(input: {
       .onDuplicateKeyUpdate({ set: { isActive: true, updatedAt: new Date() } });
     const supplier = (await tx.select().from(supplierProfiles).where(and(eq(supplierProfiles.workspaceId, input.workspaceId), eq(supplierProfiles.normalizedName, normalizedName))).limit(1))[0];
     if (!supplier) throw new Error("Unable to create supplier profile");
-    await tx.insert(invoiceSettlements).values({ workspaceId: input.workspaceId, supplierId: supplier.id, approvedByUserId: input.approvedByUserId, decision: "approved", reconciliationSummary: { invoiceDate: input.invoiceDate, lineCount: input.lines.length, source: "manager_confirmed_without_image_or_ocr" }, approvedAt: new Date() });
-    const settlement = (await tx.select().from(invoiceSettlements).where(and(eq(invoiceSettlements.workspaceId, input.workspaceId), eq(invoiceSettlements.supplierId, supplier.id))).orderBy(desc(invoiceSettlements.createdAt)).limit(1))[0];
+    const result = await tx.insert(invoiceSettlements).values({ workspaceId: input.workspaceId, supplierId: supplier.id, approvedByUserId: input.approvedByUserId, decision: "approved", reconciliationSummary: { invoiceDate: input.invoiceDate, lineCount: input.lines.length, source: "manager_confirmed_without_image_or_ocr" }, approvedAt: new Date() });
+    const settlementId = Number(result[0].insertId);
+    const settlement = (await tx.select().from(invoiceSettlements).where(eq(invoiceSettlements.id, settlementId)).limit(1))[0];
     if (!settlement) throw new Error("Unable to save settlement");
     if (input.lines.length) await tx.insert(invoiceSettlementLines).values(input.lines.map((line) => ({ settlementId: settlement.id, productCode: line.productCode ?? null, productName: line.productName, invoiceQuantity: line.invoiceQuantity, acceptedQuantity: line.acceptedQuantity, matchMethod: line.matchMethod, exceptionReason: line.exceptionReason ?? null })));
     return settlement;
@@ -161,8 +163,9 @@ export async function saveApprovedOpenOrder(input: { workspaceId: number; create
   const db = getDb();
   if (!db) throw new Error("Database is not configured");
   return db.transaction(async (tx) => {
-    await tx.insert(openOrders).values({ workspaceId: input.workspaceId, createdByUserId: input.createdByUserId, approvedByUserId: input.createdByUserId, status: "approved", reference: input.reference ?? null, note: "طلب منشأ يدويًا من قائمة مقترحات معتمدة.", approvedAt: new Date() });
-    const order = (await tx.select().from(openOrders).where(and(eq(openOrders.workspaceId, input.workspaceId), eq(openOrders.createdByUserId, input.createdByUserId))).orderBy(desc(openOrders.createdAt)).limit(1))[0];
+    const result = await tx.insert(openOrders).values({ workspaceId: input.workspaceId, createdByUserId: input.createdByUserId, approvedByUserId: input.createdByUserId, status: "approved", reference: input.reference ?? null, note: "طلب منشأ يدويًا من قائمة مقترحات معتمدة.", approvedAt: new Date() });
+    const orderId = Number(result[0].insertId);
+    const order = (await tx.select().from(openOrders).where(eq(openOrders.id, orderId)).limit(1))[0];
     if (!order) throw new Error("Unable to create approved order");
     await tx.insert(openOrderLines).values(input.lines.map((line) => ({ orderId: order.id, productCode: line.productCode ?? null, productName: line.productName, requestedQuantity: line.requestedQuantity, unitLabel: line.unitLabel ?? null })));
     return order;

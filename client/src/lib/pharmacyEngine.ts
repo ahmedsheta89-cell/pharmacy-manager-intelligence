@@ -4,6 +4,7 @@
  * ويعطي درجة ثقة واضحة لكل حقل قبل أن يُستخدم في أي قرار إداري.
  */
 import * as XLSX from "xlsx";
+import { assertSpreadsheetFileSafety, assertWorkbookSafety } from "./spreadsheetSafety";
 
 export type CanonicalField =
   | "item_code"
@@ -700,8 +701,10 @@ export function applySheetEditorConfig(inspection: ImportInspection, sheetName: 
 }
 
 export async function inspectPharmacyFile(file: File): Promise<ImportInspection> {
+  assertSpreadsheetFileSafety(file);
   const buffer = await file.arrayBuffer();
   const workbook = XLSX.read(buffer, { type: "array", cellDates: true, raw: true });
+  assertWorkbookSafety(workbook);
   const sheets = workbook.SheetNames.map((name) => {
     const sheet = workbook.Sheets[name];
     const matrix = XLSX.utils.sheet_to_json<DataValue[]>(sheet, { header: 1, defval: null, raw: true });

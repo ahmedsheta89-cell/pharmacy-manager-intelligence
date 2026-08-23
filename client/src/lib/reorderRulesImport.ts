@@ -4,6 +4,7 @@
  */
 import * as XLSX from "xlsx";
 import type { ReorderRule } from "./inventoryEngine";
+import { assertSpreadsheetFileSafety, assertWorkbookSafety } from "./spreadsheetSafety";
 
 export interface ReorderRulesImportResult {
   fileName: string;
@@ -44,8 +45,8 @@ function detectSheet(book: XLSX.WorkBook) {
 }
 
 export async function inspectReorderRulesFile(file: File): Promise<ReorderRulesImportResult> {
-  if (!/\.(xlsx|xls|csv)$/i.test(file.name)) throw new Error("اختر ملف Excel أو CSV بصيغة XLSX أو XLS أو CSV.");
-  const book = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true, raw: true }); const found = detectSheet(book);
+  assertSpreadsheetFileSafety(file);
+  const book = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true, raw: true }); assertWorkbookSafety(book); const found = detectSheet(book);
   if (!found || found.mapping.itemId === undefined || found.mapping.reorderLevel === undefined) throw new Error("لم نتعرّف على قالب القواعد. تحتاج الأعمدة إلى معرّف أو كود/اسم الصنف وإلى حد إعادة الطلب على الأقل.");
   const { sheetName, grid, headerIndex, mapping } = found; const accepted: ReorderRulesImportResult["accepted"] = []; const rejected: ReorderRulesImportResult["rejected"] = [];
   grid.slice(headerIndex + 1).forEach((row, offset) => {

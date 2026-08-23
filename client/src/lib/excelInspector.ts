@@ -3,6 +3,7 @@
  * بل تصف البنية كما وجدتها كي يراجع المديرها قبل بناء خريطة التحليل.
  */
 import * as XLSX from "xlsx";
+import { assertSpreadsheetFileSafety, assertWorkbookSafety } from "./spreadsheetSafety";
 import { toDate, toNumber } from "./pharmacyEngine";
 
 export type StructuralWarningKind = "merged_cells" | "hidden_rows" | "hidden_columns" | "multiple_header_rows" | "offset_header" | "numeric_header" | "duplicate_header" | "empty_column" | "mixed_values";
@@ -145,8 +146,10 @@ function inspectSheet(name: string, sheet: XLSX.WorkSheet, visibility: SheetStru
 }
 
 export async function inspectWorkbookStructure(file: File): Promise<WorkbookStructureReview> {
+  assertSpreadsheetFileSafety(file);
   const buffer = await file.arrayBuffer();
   const workbook = XLSX.read(buffer, { type: "array", cellDates: true, raw: true, cellStyles: true });
+  assertWorkbookSafety(workbook);
   const sheets = workbook.SheetNames.map((name) => {
     const state = workbook.Workbook?.Sheets?.[workbook.SheetNames.indexOf(name)]?.Hidden;
     const visibility: SheetStructureReview["visibility"] = state === 2 ? "veryHidden" : state === 1 ? "hidden" : "visible";
