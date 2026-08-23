@@ -194,6 +194,7 @@ export const operationalAlerts = mysqlTable("operational_alerts", {
 export const operatingDecisions = mysqlTable("operating_decisions", {
   id: int("id").autoincrement().primaryKey(),
   workspaceId: int("workspaceId").notNull().references(() => pharmacyWorkspaces.id),
+  clientDecisionKey: varchar("clientDecisionKey", { length: 180 }).notNull(),
   alertId: int("alertId").references(() => operationalAlerts.id),
   createdByUserId: int("createdByUserId").notNull().references(() => users.id),
   status: mysqlEnum("decisionStatus", ["open", "deferred", "done"]).default("open").notNull(),
@@ -206,6 +207,7 @@ export const operatingDecisions = mysqlTable("operating_decisions", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (table) => [
+  uniqueIndex("operating_decision_workspace_key_unique").on(table.workspaceId, table.clientDecisionKey),
   index("operating_decision_workspace_status_idx").on(table.workspaceId, table.status, table.priorityRank, table.updatedAt),
 ]);
 

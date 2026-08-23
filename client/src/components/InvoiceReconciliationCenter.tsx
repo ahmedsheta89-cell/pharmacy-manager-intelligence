@@ -3,6 +3,7 @@ import { AlertCircle, Check, ClipboardCheck, FileImage, FileText, LoaderCircle, 
 import type { ReorderSuggestion } from "@/lib/inventoryEngine";
 import { formatNumber } from "@/lib/pharmacyEngine";
 import { calculateInvoiceDeductions, loadInvoiceSettlementRecords, parseInvoiceText, reconcileInvoiceLines, saveInvoiceSettlementRecord, type InvoiceLineCandidate, type InvoiceSettlementRecord } from "@/lib/invoiceReconciliation";
+import { trpc } from "@/lib/trpc";
 
 type InvoiceReconciliationCenterProps = {
   openOrders: ReorderSuggestion[];
@@ -36,6 +37,13 @@ export function InvoiceReconciliationCenter({ openOrders, onApplyDeductions }: I
   const [confirmed, setConfirmed] = useState(false);
   const [records, setRecords] = useState(() => loadInvoiceSettlementRecords());
   const [applied, setApplied] = useState(false);
+  const authenticatedUser = trpc.auth.me.useQuery(undefined, { retry: false });
+  const persistentWorkspaces = trpc.workspace.list.useQuery(undefined, { enabled: Boolean(authenticatedUser.data), retry: false });
+  const activePersistentWorkspace = persistentWorkspaces.data?.[0];
+  const savePersistentSettlement = trpc.settlements.saveApproved.useMutation({
+    onSuccess: () => setNotice("اعتمدت التسوية محليًا وحُفظ قرارها وكمياتها في مساحة العمل. لم تُرفع صورة الفاتورة أو نص OCR."),
+    onError: () => setNotice("اعتمدت التسوية محليًا فقط. لم يُحفظ القرار الدائم، ولم تُرفع صورة الفاتورة أو نص OCR."),
+  });
 
   const settlementLines = useMemo(() => reconcileInvoiceLines(lines, openOrders), [lines, openOrders]);
   const settlementSignature = settlementLines.map((line) => `${line.id}:${line.proposedDeduction ?? 0}`).join("|");
@@ -106,8 +114,23 @@ export function InvoiceReconciliationCenter({ openOrders, onApplyDeductions }: I
     saveInvoiceSettlementRecord(record);
     setRecords(loadInvoiceSettlementRecords());
     onApplyDeductions(deductions, record);
+    if (activePersistentWorkspace) {
+      savePersistentSettlement.mutate({
+        workspaceId: activePersistentWorkspace.workspaceId,
+        supplierName: record.supplierName,
+        invoiceDate: record.invoiceDate,
+        lines: record.lines.map((line) => ({
+          ...(line.itemCode ? { productCode: line.itemCode } : {}),
+          productName: line.itemName,
+          invoiceQuantity: String(line.quantity ?? line.proposedDeduction ?? 0),
+          acceptedQuantity: String(line.proposedDeduction ?? 0),
+          matchMethod: line.matchMethod,
+          ...(line.remainingAfterDeduction && line.remainingAfterDeduction > 0 ? { exceptionReason: "توريد جزئي؛ بقي جزء من الطلب المفتوح." } : {}),
+        })),
+      });
+    }
     setApplied(true);
-    setNotice(`اعتمدت تسوية ${deductionCount} أصناف يدويًا. خُصمت الكميات من الطلبات المفتوحة في جلسة الشيت الحالية، ولم تُحفظ صور الفواتير.`);
+    setNotice(`اعتمدت تسوية ${deductionCount} أصناف يدويًا. خُصمت الكميات من الطلبات المفتوحة في جلسة الشيت الحالية، ولم تُحفظ صور الفواتير.${activePersistentWorkspace ? " يجري حفظ قرار التسوية وكمياتها فقط في مساحة العمل." : ""}`);
   };
 
   if (!openOrders.length) return <div data-testid="invoice-reconciliation-center" className="mx-auto max-w-[1180px] rounded-3xl border border-[#ead9ad] bg-[#fffaf0] p-8 text-center"><FileImage className="mx-auto size-8 text-[#aa7b24]" /><h2 className="mt-3 text-lg font-bold text-[#315a4f]">لا توجد أصناف صفراء أو طلبات مفتوحة لتسويتها بعد</h2><p className="mx-auto mt-2 max-w-xl text-xs leading-6 text-[#758880]">افتح «الطلبات والمخزون» أولًا وتأكد من وجود رصيد وحد إعادة طلب أو مبيعات تسمح بحساب كمية طلب مقترحة. بعدها ستظهر هنا بنود الطلب المفتوح لتخصم منها كميات الفاتورة.</p></div>;

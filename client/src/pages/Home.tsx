@@ -90,6 +90,7 @@ import { ImportReviewCenter } from "@/components/ImportReviewCenter";
 import { inspectWorkbookStructure, type WorkbookStructureReview } from "@/lib/excelInspector";
 import { recordImportAudit, type ImportAuditRecord } from "@/lib/importAuditLog";
 import { columnMapReviewStage, createColumnMapTemplate, deleteColumnMapTemplate, findColumnMapTemplateCompatibility, loadColumnMapTemplates, saveColumnMapTemplate, type ColumnMapTemplate, type ColumnMapTemplateCompatibility } from "@/lib/columnMapTemplates";
+import { trpc } from "@/lib/trpc";
 
 type Stage = "welcome" | "column-map-warning" | "review" | "dashboard";
 type DashboardView = "overview" | "operations" | "sales" | "products" | "movement" | "flow" | "companies" | "inventory" | "invoices" | "branches" | "alerts" | "report" | "settings";
@@ -161,6 +162,26 @@ function dateText(date?: Date) {
   return date ? new Intl.DateTimeFormat("ar-EG", { year: "numeric", month: "short", day: "numeric" }).format(date) : "الفترة غير محددة";
 }
 
+function approvedSessionPayload(inspection: ImportInspection, periodLabel?: string) {
+  const analysis = analyzePharmacyData(inspection.sheets, {});
+  if (!analysis) throw new Error("لا يوجد تحليل معتمد صالح لحفظ ملخصه.");
+  return {
+    sourceFileName: inspection.fileName,
+    sourceFingerprint: inspection.fileFingerprint,
+    sourceSheetCount: inspection.sheets.length,
+    sourceRowCount: inspection.sheets.reduce((sum, sheet) => sum + sheet.quality.validRecords, 0),
+    ...(periodLabel ? { periodLabel } : {}),
+    mappingDecision: {
+      sheets: inspection.sheets.map((sheet) => ({ name: sheet.name, headerRowIndex: sheet.headerRowIndex, mappings: sheet.mappings.map((mapping) => ({ sourceColumn: mapping.sourceColumn, field: mapping.field, approvalStatus: mapping.approvalStatus ?? "legacy_approved" })) })),
+    },
+    normalizedSummary: {
+      metrics: Object.fromEntries(Object.entries(analysis.metrics).map(([key, metric]) => [key, { value: metric.value, availability: metric.availability, confidence: metric.confidence, source: metric.source }])),
+      alerts: analysis.alerts.slice(0, 20).map((alert) => ({ id: alert.id, level: alert.level, title: alert.title, evidence: alert.evidence, action: alert.action })),
+      totalRows: analysis.totalRows,
+    },
+  };
+}
+
 function MiniLogo({ compact = false }: { compact?: boolean }) {
   return <div className={`flex items-center ${compact ? "justify-center" : "gap-3"}`}>
     <div className="relative grid size-10 shrink-0 place-items-center rounded-xl bg-[#f2f4ed] shadow-[0_3px_12px_rgba(0,0,0,.18)]">
@@ -217,11 +238,19 @@ export default function Home() {
   const [columnMapTemplates, setColumnMapTemplates] = useState<ColumnMapTemplate[]>(() => loadColumnMapTemplates());
   const [columnMapMismatch, setColumnMapMismatch] = useState<ColumnMapTemplateCompatibility | null>(null);
   const [mismatchAcknowledged, setMismatchAcknowledged] = useState(false);
+  const [persistenceNotice, setPersistenceNotice] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
   const monthlyFilesInput = useRef<HTMLInputElement>(null);
   const reportRef = useRef<HTMLElement>(null);
   const movementReportRef = useRef<HTMLDivElement>(null);
   const flowReportRef = useRef<HTMLDivElement>(null);
+  const authenticatedUser = trpc.auth.me.useQuery(undefined, { retry: false });
+  const persistentWorkspaces = trpc.workspace.list.useQuery(undefined, { enabled: Boolean(authenticatedUser.data), retry: false });
+  const activePersistentWorkspace = persistentWorkspaces.data?.[0];
+  const savePersistentSession = trpc.sessions.saveApproved.useMutation({
+    onSuccess: () => setPersistenceNotice("حُفظ ملخص الجلسة المعتمد وسجل القرار في مساحة العمل. بقي ملف Excel وصفوفه داخل المتصفح."),
+    onError: () => setPersistenceNotice("استمر التحليل محليًا، ولم يُحفظ الملخص الدائم. لم يُرسل ملف Excel أو صفوفه الخام."),
+  });
 
   const analytics = useMemo<DashboardAnalytics | undefined>(() => inspection && stage === "dashboard" ? analyzePharmacyData(inspection.sheets, filters) : undefined, [inspection, stage, filters]);
   const comparison = useMemo(() => inspection && stage === "dashboard" ? compareWithPreviousPeriod(inspection.sheets, filters) : { available: false, metrics: [], note: "لا توجد بيانات مقارنة بعد." }, [inspection, stage, filters]);
@@ -327,6 +356,16 @@ export default function Home() {
     if (audit) recordImportAudit(audit);
     const sessionResult = saveAnalysisSession(inspection);
     setSavedSessions(sessionResult.sessions);
+    if (activePersistentWorkspace) {
+      const periodLabel = importedMonths.length ? importedMonths.map((month) => month.label).join(" · ") : undefined;
+      try {
+        savePersistentSession.mutate({ workspaceId: activePersistentWorkspace.workspaceId, ...approvedSessionPayload(inspection, periodLabel) });
+      } catch {
+        setPersistenceNotice("استمر التحليل محليًا، ولم يُحفظ الملخص الدائم. لم يُرسل ملف Excel أو صفوفه الخام.");
+      }
+    } else if (authenticatedUser.data) {
+      setPersistenceNotice("تم اعتماد التحليل محليًا. جهّز مساحة العمل من غرفة العمليات لتفعيل حفظ الملخصات المعتمدة.");
+    }
     setFilters({}); setView("overview"); setStage("dashboard");
   }
 
@@ -424,6 +463,7 @@ export default function Home() {
 
       {mobileNavOpen && <nav className="no-print lg:hidden border-b border-[#dce8e1] bg-[#fbfdfb] px-4 py-3 shadow-[0_12px_22px_rgba(22,63,53,.08)]" aria-label="أقسام التحليل على الهاتف"><div className="mx-auto grid max-w-lg grid-cols-2 gap-2">{navItems.map((item) => { const Icon = item.icon; const selected = item.id === view; return <button key={item.id} type="button" onClick={() => { setView(item.id); setMobileNavOpen(false); }} className={`flex min-h-11 items-center gap-2 rounded-xl border px-3 py-2 text-right text-[10px] font-bold ${selected ? "border-[#a9d4c2] bg-[#e8f5ef] text-[#175f50]" : "border-[#e0eae4] bg-white text-[#496b60]"}`}><Icon className="size-3.5" />{item.label}</button>; })}</div></nav>}
       {showFilters && <FilterPanel analytics={analytics} filters={filters} companies={availableCompanies} onChange={setFilters} onReset={() => setFilters({})} />}
+      {persistenceNotice && <div className="no-print border-b border-[#cfe1d7] bg-[#eff9f3] px-4 py-2.5 text-right text-[10px] leading-5 text-[#2d6757] sm:px-7"><ShieldCheck className="ml-1 inline size-3.5" />{persistenceNotice}</div>}
       <section className="px-4 py-5 sm:px-7 sm:py-7">{renderDashboardView({ view, analytics, sheet, inspection, tableSearch, setTableSearch, question, setQuestion, answer, askData, exportProducts, exportManagerPdf, pdfStatus, pdfError, reportRef, exportProductMovement, exportProductMovementPdf, movementPdfStatus, movementPdfError, movementReportRef, inventoryFlow, exportInventoryFlow, exportInventoryFlowPdf, flowPdfStatus, flowPdfError, flowReportRef, setView, reportPreferences, setReportPreferences, comparison, inventoryOperations: settledInventoryOperations, productMovement, reorderRules, reorderHistory, saveItemReorderRule, clearItemReorderRule, exportInventoryOperations, importReorderRules, exportAuditLog, reportLock, setReportPasscode, verifyReportPasscode, clearReportPasscode, applyInvoiceDeductions: (deductions) => setInvoiceDeductions((current) => Object.entries(deductions).reduce<Record<string, number>>((next, [id, quantity]) => ({ ...next, [id]: (next[id] ?? 0) + quantity }), { ...current })) })}</section>
     </main>
   </div>;
