@@ -1,8 +1,7 @@
 /** سجل خفيف ومحلي لقرارات الاستيراد؛ لا يخزن صفوف الأصناف أو محتوى الملف. */
-import * as XLSX from "xlsx";
 import type { ImportInspection } from "./pharmacyEngine";
 import type { WorkbookStructureReview } from "./excelInspector";
-import { fieldArabicName } from "./pharmacyEngine";
+import { fieldArabicName } from "./fieldLabels";
 
 const STORAGE_KEY = "pmi-import-audit-log-v1";
 const MAX_AUDIT_RECORDS = 50;
@@ -87,7 +86,8 @@ export function recordImportAudit(record: ImportAuditRecord): ImportAuditRecord[
   return next;
 }
 
-export function exportImportAuditMap(record: ImportAuditRecord): void {
+export async function exportImportAuditMap(record: ImportAuditRecord): Promise<void> {
+  const XLSX = await import("xlsx");
   const overview = [{
     "اسم الملف": record.fileName,
     "وقت الاعتماد": new Date(record.timestamp).toLocaleString("ar-EG"),

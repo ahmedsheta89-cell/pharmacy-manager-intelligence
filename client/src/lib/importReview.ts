@@ -3,13 +3,10 @@
  * الاقتراح الآلي لا يساوي قراراً: تظل كل المطابقات الجديدة في حالة «مقترح»
  * حتى يعتمدها المدير أو يبدلها أو يتجاهلها صراحةً.
  */
-import {
-  fieldArabicName,
-  refreshImportedInspection,
-  type CanonicalField,
-  type ColumnMapping,
-  type ImportInspection,
-} from "./pharmacyEngine";
+import { fieldArabicName } from "./fieldLabels";
+import { isApprovedMapping as approvedMapping } from "./mappingApproval";
+export { isApprovedMapping } from "./mappingApproval";
+import { refreshImportedInspection, type CanonicalField, type ColumnMapping, type ImportInspection } from "./pharmacyEngine";
 
 export type MappingApprovalStatus = "suggested" | "approved" | "overridden" | "ignored";
 export type MappingChoice = CanonicalField | "ignore";
@@ -28,10 +25,6 @@ export type ImportReadiness = {
  * الاعتماد تبقى قابلة للاستعادة لضمان التوافق العكسي، أما كل فحص جديد فيحمل
  * الحالة suggested صراحةً.
  */
-export function isApprovedMapping(mapping: ColumnMapping): boolean {
-  return mapping.approvalStatus === undefined || mapping.approvalStatus === "approved" || mapping.approvalStatus === "overridden";
-}
-
 export function mappingLabel(field: MappingChoice): string {
   return field === "ignore" ? "تجاهل من التحليل" : fieldArabicName[field];
 }
@@ -109,7 +102,7 @@ export function getImportReadiness(inspection: ImportInspection): ImportReadines
   const approved = mappings.filter((mapping) => mapping.approvalStatus === "approved").length;
   const overridden = mappings.filter((mapping) => mapping.approvalStatus === "overridden").length;
   const ignored = mappings.filter((mapping) => mapping.approvalStatus === "ignored").length;
-  const active = mappings.filter(isApprovedMapping);
+  const active = mappings.filter(approvedMapping);
   const fields = new Set(active.map((mapping) => mapping.field).filter((field): field is CanonicalField => field !== "unknown"));
   const unresolvedCriticalFields: string[] = [];
   if (!fields.has("item_name")) unresolvedCriticalFields.push(readableCriticalField("item_name"));

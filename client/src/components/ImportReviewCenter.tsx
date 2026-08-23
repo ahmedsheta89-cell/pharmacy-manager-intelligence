@@ -172,7 +172,7 @@ export function ImportReviewCenter({ inspection, structure, selectedSheetIndex, 
   const applyChoice = (mapping: SheetInspection["mappings"][number], value: string) => {
     applyInspectionChange(setColumnMapping(inspection, sheet.name, mapping.dataColumn, mapping.sourceColumn, value as MappingChoice));
   };
-  const exportMap = () => exportImportAuditMap(createImportAuditRecord(inspection, structure));
+  const exportMap = async () => exportImportAuditMap(createImportAuditRecord(inspection, structure));
   const rawRows = structural?.rawPreview ?? [];
   const visibleRawRows = rawRows.slice(0, previewRows);
   const headerRow = structural?.selectedHeaderRow ?? sheet.headerRowIndex;

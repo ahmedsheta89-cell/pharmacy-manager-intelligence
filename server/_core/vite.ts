@@ -23,7 +23,10 @@ export async function setupVite(app: Express, server: Server) {
 }
 
 export function serveStatic(app: Express) {
-  const distPath = path.resolve(import.meta.dirname, "..", "..", "dist", "public");
+  const cwdDistPath = path.resolve(process.cwd(), "dist", "public");
+  const bundledDistPath = path.resolve(import.meta.dirname, "public");
+  const sourceDistPath = path.resolve(import.meta.dirname, "..", "..", "dist", "public");
+  const distPath = [cwdDistPath, bundledDistPath, sourceDistPath].find((candidate) => fs.existsSync(path.resolve(candidate, "index.html"))) ?? cwdDistPath;
   app.use(express.static(distPath));
   app.use("/{*splat}", (_req, res) => res.sendFile(path.resolve(distPath, "index.html")));
 }

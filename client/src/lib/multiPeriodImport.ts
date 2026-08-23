@@ -1,5 +1,7 @@
 import { inspectPharmacyFile, refreshImportedInspection, toNumber, type CanonicalField, type CleanRecord, type ColumnMapping, type ImportInspection, type SheetInspection } from "./pharmacyEngine";
-import { isApprovedMapping } from "./importReview";
+import { isApprovedMapping } from "./mappingApproval";
+import { monthFromFileName } from "./monthFileName";
+export { monthFromFileName } from "./monthFileName";
 
 export type ImportedMonth = { fileName: string; label: string; month: number; rows: number; source: "اسم الملف" | "اختيار يدوي" };
 export type PriceMatchItem = { itemCode?: string; itemName?: string; occurrences: number; reason: "غير موجود في ملف الأسعار" | "لا كود ولا اسم صالح للمطابقة" };
@@ -20,20 +22,10 @@ export type PriceMatchReport = {
   hasPublicPrices: boolean;
 };
 
-const ARABIC_MONTHS: Record<string, number> = { "يناير": 1, "فبراير": 2, "مارس": 3, "ابريل": 4, "أبريل": 4, "مايو": 5, "يونيو": 6, "يوليو": 7, "اغسطس": 8, "أغسطس": 8, "سبتمبر": 9, "اكتوبر": 10, "أكتوبر": 10, "نوفمبر": 11, "ديسمبر": 12 };
-const ENGLISH_MONTHS: Record<string, number> = { january: 1, february: 2, march: 3, april: 4, may: 5, june: 6, july: 7, august: 8, september: 9, october: 10, november: 11, december: 12 };
 const monthLabel = (month: number) => `الشهر ${month}`;
 
 function normalized(value: unknown) {
   return String(value ?? "").toLowerCase().replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي").replace(/[^a-z0-9\u0621-\u064a]+/g, "").trim();
-}
-
-export function monthFromFileName(fileName: string): number | undefined {
-  const name = fileName.replace(/\.[^.]+$/, "").toLowerCase();
-  for (const [label, month] of Object.entries(ARABIC_MONTHS)) if (name.includes(label)) return month;
-  for (const [label, month] of Object.entries(ENGLISH_MONTHS)) if (name.includes(label)) return month;
-  const match = name.match(/(?:^|[^0-9])(0?[1-9]|1[0-2])(?:[^0-9]|$)/);
-  return match ? Number(match[1]) : undefined;
 }
 
 export function resolveMonthlyAssignments(fileNames: string[], manualMonths: Array<number | undefined> = []): Array<{ month: number; source: "اسم الملف" | "اختيار يدوي" }> {

@@ -1,7 +1,7 @@
 import type { DashboardAnalytics, ManagerAlert } from "./analyticsEngine";
 import type { InventoryOperations } from "./inventoryEngine";
 import type { InvoiceSettlementRecord } from "./invoiceReconciliation";
-import { isApprovedMapping } from "./importReview";
+import { isApprovedMapping } from "./mappingApproval";
 import type { CanonicalField, CleanRecord, ColumnMapping, SheetInspection } from "./pharmacyEngine";
 
 export type OperatingPriority = {

@@ -1,0 +1,48 @@
+{
+  "measuredAt": "2026-08-23T11:52:28.249Z",
+  "baseUrl": "http://127.0.0.1:3101/",
+  "runs": 3,
+  "viewport": {
+    "width": 1440,
+    "height": 1050
+  },
+  "cache": "disabled",
+  "samples": [
+    {
+      "domContentLoadedMs": 430,
+      "loadMs": 529,
+      "firstContentfulPaintMs": 632,
+      "initialScriptTransferBytes": 593336,
+      "initialScriptEncodedBytes": 591836,
+      "initialScriptRequests": 6,
+      "totalResourceTransferBytes": 1510783
+    },
+    {
+      "domContentLoadedMs": 376,
+      "loadMs": 378,
+      "firstContentfulPaintMs": 452,
+      "initialScriptTransferBytes": 593336,
+      "initialScriptEncodedBytes": 591836,
+      "initialScriptRequests": 6,
+      "totalResourceTransferBytes": 1510783
+    },
+    {
+      "domContentLoadedMs": 372,
+      "loadMs": 374,
+      "firstContentfulPaintMs": 452,
+      "initialScriptTransferBytes": 593336,
+      "initialScriptEncodedBytes": 591836,
+      "initialScriptRequests": 6,
+      "totalResourceTransferBytes": 1510783
+    }
+  ],
+  "median": {
+    "domContentLoadedMs": 376,
+    "loadMs": 378,
+    "firstContentfulPaintMs": 452,
+    "initialScriptTransferBytes": 593336,
+    "initialScriptEncodedBytes": 591836,
+    "initialScriptRequests": 6,
+    "totalResourceTransferBytes": 1510783
+  }
+}

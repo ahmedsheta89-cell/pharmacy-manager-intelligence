@@ -2,9 +2,8 @@
  * نبض العيادة التنفيذي — الصفحة المركزية.
  * التسلسل المقصود: تشخيص ← دليل ← إجراء، ثم استيراد ملف واحد → مراجعة الثقة والمطابقة → قرار المدير.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, DragEvent } from "react";
-import * as XLSX from "xlsx";
 import {
   AlertCircle,
   ArrowLeft,
@@ -42,15 +41,9 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import {
-  fieldArabicName,
-  formatEGP,
-  formatNumber,
-  inspectPharmacyFile,
-  refreshImportedInspection,
-  type ImportInspection,
-  type SheetInspection,
-} from "@/lib/pharmacyEngine";
+import type { ImportInspection, SheetInspection } from "@/lib/pharmacyEngine";
+import { fieldArabicName } from "@/lib/fieldLabels";
+import { formatEGP, formatNumber } from "@/lib/displayFormat";
 import {
   analyzePharmacyData,
   answerDataQuestion,
@@ -61,37 +54,39 @@ import {
   type ManagerAlert,
   type ProductInsight,
 } from "@/lib/analyticsEngine";
-import { exportManagerReportPdf } from "@/lib/managerPdf";
 import { loadReportPreferences, saveReportPreferences, type ReportPreferences } from "@/lib/reportSettings";
 import { analyzeInventoryOperations } from "@/lib/inventoryEngine";
 import { analyzeProductMovement } from "@/lib/productMovementEngine";
-import { exportProductMovementWorkbook } from "@/lib/productMovementExport";
 import { deleteAnalysisSession, loadAnalysisSessions, saveAnalysisSession, updateAnalysisSessionTags, type LocalAnalysisSession } from "@/lib/analysisSessions";
 import { loadReorderRuleHistory, loadReorderRules, removeReorderRule, saveReorderRule, saveReorderRulesBatch, type ReorderRuleHistoryEntry, type ReorderRules } from "@/lib/reorderRules";
-import { exportInventoryOperationsWorkbook } from "@/lib/inventoryExport";
-import { inspectReorderRulesFile, type ReorderRulesImportResult } from "@/lib/reorderRulesImport";
-import { exportLocalBackup, restoreLocalBackup, type BackupRestoreMode, type BackupRestoreResult } from "@/lib/localBackup";
-import { exportAuditWorkbook } from "@/lib/auditExport";
+import type { ReorderRulesImportResult } from "@/lib/reorderRulesImport";
+import type { BackupRestoreMode, BackupRestoreResult } from "@/lib/localBackup";
 import { loadBackupReminderSettings, recordBackupExport } from "@/lib/backupReminder";
 import { loadReportLock, removeLocalReportPasscode, setLocalReportPasscode, verifyLocalReportPasscode, type ReportLockState } from "@/lib/reportLock";
-import { ManagerReportCenter, ReportPreferencesView } from "@/components/ManagerReportCenter";
-import { InventoryOperationsCenter } from "@/components/InventoryOperationsCenter";
-import { ReportSettingsGate } from "@/components/ReportSettingsGate";
-import { SessionArchiveCenter } from "@/components/SessionArchiveCenter";
-import { ProductMovementCenter } from "@/components/ProductMovementCenter";
-import { InventoryFlowCenter } from "@/components/InventoryFlowCenter";
-import { InvoiceReconciliationCenter } from "@/components/InvoiceReconciliationCenter";
-import { OperationsCenter } from "@/components/OperationsCenter";
-import { applyPriceFile, inspectMonthlyFiles, monthFromFileName, type ImportedMonth, type PriceMatchReport } from "@/lib/multiPeriodImport";
+import { monthFromFileName } from "@/lib/monthFileName";
+import type { ImportedMonth, PriceMatchReport } from "@/lib/multiPeriodImport";
 import { deleteImportTemplate, loadImportTemplates, saveImportTemplate, type ImportTemplate } from "@/lib/importTemplates";
 import { analyzeInventoryFlow } from "@/lib/inventoryFlowEngine";
-import { exportInventoryFlowWorkbook } from "@/lib/inventoryFlowExport";
-import { ImportReviewCenter } from "@/components/ImportReviewCenter";
-import { inspectWorkbookStructure, type WorkbookStructureReview } from "@/lib/excelInspector";
+import type { WorkbookStructureReview } from "@/lib/excelInspector";
 import { recordImportAudit, type ImportAuditRecord } from "@/lib/importAuditLog";
 import { columnMapReviewStage, createColumnMapTemplate, deleteColumnMapTemplate, findColumnMapTemplateCompatibility, loadColumnMapTemplates, saveColumnMapTemplate, type ColumnMapTemplate, type ColumnMapTemplateCompatibility } from "@/lib/columnMapTemplates";
 import { trpc } from "@/lib/trpc";
 import { makeApprovedSessionPayload } from "@/lib/approvedSessionPayload";
+
+const ManagerReportCenter = lazy(() => import("@/components/ManagerReportCenter").then(({ ManagerReportCenter: component }) => ({ default: component })));
+const ReportPreferencesView = lazy(() => import("@/components/ManagerReportCenter").then(({ ReportPreferencesView: component }) => ({ default: component })));
+const InventoryOperationsCenter = lazy(() => import("@/components/InventoryOperationsCenter").then(({ InventoryOperationsCenter: component }) => ({ default: component })));
+const ReportSettingsGate = lazy(() => import("@/components/ReportSettingsGate").then(({ ReportSettingsGate: component }) => ({ default: component })));
+const SessionArchiveCenter = lazy(() => import("@/components/SessionArchiveCenter").then(({ SessionArchiveCenter: component }) => ({ default: component })));
+const ProductMovementCenter = lazy(() => import("@/components/ProductMovementCenter").then(({ ProductMovementCenter: component }) => ({ default: component })));
+const InventoryFlowCenter = lazy(() => import("@/components/InventoryFlowCenter").then(({ InventoryFlowCenter: component }) => ({ default: component })));
+const InvoiceReconciliationCenter = lazy(() => import("@/components/InvoiceReconciliationCenter").then(({ InvoiceReconciliationCenter: component }) => ({ default: component })));
+const OperationsCenter = lazy(() => import("@/components/OperationsCenter").then(({ OperationsCenter: component }) => ({ default: component })));
+const ImportReviewCenter = lazy(() => import("@/components/ImportReviewCenter").then(({ ImportReviewCenter: component }) => ({ default: component })));
+
+function DeferredPanel({ children }: { children: React.ReactNode }) {
+  return <Suspense fallback={<div className="rounded-2xl border border-[#d9e8e0] bg-[#fcfdf9] px-5 py-10 text-center text-sm font-bold text-[#41685d]"><LoaderCircle className="mx-auto mb-3 size-5 animate-spin text-[#0b6b5b]" />يتم تجهيز مساحة العمل المطلوبة…</div>}>{children}</Suspense>;
+}
 
 type Stage = "welcome" | "column-map-warning" | "review" | "dashboard";
 type DashboardView = "overview" | "operations" | "sales" | "products" | "movement" | "flow" | "companies" | "inventory" | "invoices" | "branches" | "alerts" | "report" | "settings";
@@ -255,6 +250,7 @@ export default function Home() {
     if (!/\.(xlsx|xls|csv)$/.test(fileName)) { setError("يرجى اختيار ملف Excel أو CSV بصيغة XLSX أو XLS أو CSV."); return; }
     setProcessing(true); setError(""); setAnswer(""); setInvoiceDeductions({});
     try {
+      const [{ inspectPharmacyFile }, { inspectWorkbookStructure }] = await Promise.all([import("@/lib/pharmacyEngine"), import("@/lib/excelInspector")]);
       const [result, structure] = await Promise.all([inspectPharmacyFile(file), inspectWorkbookStructure(file)]);
       if (!result.sheets.some((sheet) => sheet.cleanRecords.length)) throw new Error("لم نعثر على صفوف بيانات قابلة للتحليل داخل الملف. راجع أن التقرير يحتوي على جدول فعلي.");
       const compatibility = assessColumnMapCompatibility(result, structure); setInspection(result); setWorkbookStructure(structure); setSelectedSheetIndex(0); setStage(columnMapReviewStage(compatibility));
@@ -300,7 +296,7 @@ export default function Home() {
   async function beginMonthlyFiles() {
     if (!monthlyDraft.length) return;
     setProcessing(true); setError(""); setAnswer(""); setPriceMatchReport(null);
-    try { const [result, reviews] = await Promise.all([inspectMonthlyFiles(monthlyDraft.map((entry) => entry.file), monthlyDraft.map((entry) => entry.month)), Promise.all(monthlyDraft.map((entry) => inspectWorkbookStructure(entry.file)))]); const nextStructure = { fileName: result.inspection.fileName, fileFingerprintHint: result.inspection.fileFingerprint, inspectedAt: new Date().toISOString(), sheets: result.months.flatMap((month) => (reviews.find((review) => review.fileName === month.fileName)?.sheets ?? []).map((sheet) => ({ ...sheet, name: month.label }))), warnings: reviews.flatMap((review) => review.warnings) }; const compatibility = assessColumnMapCompatibility(result.inspection, nextStructure); setInspection(result.inspection); setWorkbookStructure(nextStructure); setImportedMonths(result.months); setSelectedSheetIndex(0); setStage(columnMapReviewStage(compatibility)); }
+    try { const [{ inspectMonthlyFiles }, { inspectWorkbookStructure }] = await Promise.all([import("@/lib/multiPeriodImport"), import("@/lib/excelInspector")]); const [result, reviews] = await Promise.all([inspectMonthlyFiles(monthlyDraft.map((entry) => entry.file), monthlyDraft.map((entry) => entry.month)), Promise.all(monthlyDraft.map((entry) => inspectWorkbookStructure(entry.file)))]); const nextStructure = { fileName: result.inspection.fileName, fileFingerprintHint: result.inspection.fileFingerprint, inspectedAt: new Date().toISOString(), sheets: result.months.flatMap((month) => (reviews.find((review) => review.fileName === month.fileName)?.sheets ?? []).map((sheet) => ({ ...sheet, name: month.label }))), warnings: reviews.flatMap((review) => review.warnings) }; const compatibility = assessColumnMapCompatibility(result.inspection, nextStructure); setInspection(result.inspection); setWorkbookStructure(nextStructure); setImportedMonths(result.months); setSelectedSheetIndex(0); setStage(columnMapReviewStage(compatibility)); }
     catch (caught) { setError(caught instanceof Error ? caught.message : "تعذر قراءة ملفات الأشهر."); }
     finally { setProcessing(false); }
   }
@@ -308,6 +304,7 @@ export default function Home() {
     if (!file || !inspection) return;
     setProcessing(true); setError("");
     try {
+      const [{ inspectPharmacyFile }, { inspectWorkbookStructure }] = await Promise.all([import("@/lib/pharmacyEngine"), import("@/lib/excelInspector")]);
       const [nextPriceInspection, nextPriceStructure] = await Promise.all([inspectPharmacyFile(file), inspectWorkbookStructure(file)]);
       if (!nextPriceInspection.sheets.some((sheet) => sheet.cleanRecords.length)) throw new Error("لم نعثر على جدول أسعار صالح داخل الملف الإضافي.");
       setPriceInspection(nextPriceInspection); setPriceWorkbookStructure(nextPriceStructure); setReviewSource("price"); setSelectedSheetIndex(0);
@@ -317,11 +314,12 @@ export default function Home() {
   }
   function onDrop(event: DragEvent<HTMLDivElement>) { event.preventDefault(); setDragging(false); void beginFile(event.dataTransfer.files?.[0]); }
 
-  function confirmImport(audit?: ImportAuditRecord) {
+  async function confirmImport(audit?: ImportAuditRecord) {
     if (!inspection) return;
     if (columnMapMismatch && !mismatchAcknowledged) { setError("راجع تحذير اختلاف ترتيب الأعمدة قبل اعتماد أي خريطة."); return; }
     if (reviewSource === "price") {
       if (!priceInspection) return;
+      const { applyPriceFile } = await import("@/lib/multiPeriodImport");
       const result = applyPriceFile(inspection, priceInspection);
       if (audit) recordImportAudit(audit);
       setInspection(result.inspection); setPriceMatchReport(result.report); setPriceInspection(null); setPriceWorkbookStructure(null); setReviewSource("base"); setSelectedSheetIndex(0);
@@ -353,21 +351,22 @@ export default function Home() {
   }
 
   function importNewFile() { setInspection(null); setWorkbookStructure(null); setPriceInspection(null); setPriceWorkbookStructure(null); setReviewSource("base"); setImportedMonths([]); setPriceMatchReport(null); setMonthlyDraft([]); setColumnMapMismatch(null); setMismatchAcknowledged(false); setAnswer(""); setError(""); setStage("welcome"); }
-  function restoreAnalysisSession(session: LocalAnalysisSession) { setInspection(refreshImportedInspection(session.inspection)); setSelectedSheetIndex(0); setFilters({}); setAnswer(""); setView("overview"); setStage("dashboard"); }
+  async function restoreAnalysisSession(session: LocalAnalysisSession) { const { refreshImportedInspection } = await import("@/lib/pharmacyEngine"); setInspection(refreshImportedInspection(session.inspection)); setSelectedSheetIndex(0); setFilters({}); setAnswer(""); setView("overview"); setStage("dashboard"); }
   function removeAnalysisSession(session: LocalAnalysisSession) { setSavedSessions(deleteAnalysisSession(session.id)); }
   function updateSessionTags(id: string, tags: string[]) { setSavedSessions(updateAnalysisSessionTags(id, tags)); }
   function saveItemReorderRule(itemId: string, reorderLevel: number, targetStock?: number) { setReorderRules(saveReorderRule({ itemId, reorderLevel, targetStock })); setReorderHistory(loadReorderRuleHistory()); }
   function clearItemReorderRule(itemId: string) { setReorderRules(removeReorderRule(itemId)); setReorderHistory(loadReorderRuleHistory()); }
-  function exportInventoryOperations() { exportInventoryOperationsWorkbook(inventoryOperations, reorderRules); }
-  async function importReorderRules(file: File): Promise<ReorderRulesImportResult> { const result = await inspectReorderRulesFile(file); if (!result.accepted.length) throw new Error("لم نجد قواعد صالحة للاستيراد. راجع المعرّف والحد ورصيد الهدف."); setReorderRules(saveReorderRulesBatch(result.accepted)); setReorderHistory(loadReorderRuleHistory()); return result; }
-  async function importBackup(file: File, mode: BackupRestoreMode, password?: string): Promise<BackupRestoreResult> { const result = await restoreLocalBackup(file, mode, password); setSavedSessions(result.sessions); setReorderRules(result.rules); setReorderHistory(result.history); setReportPreferences(result.preferences); setReportLock(result.lock); return result; }
-  async function exportBackupWithRecord(password?: string) { if (exportLocalBackup) await exportLocalBackup(password); recordBackupExport(); }
-  function exportAuditLog() { exportAuditWorkbook(reorderHistory); }
+  async function exportInventoryOperations() { const { exportInventoryOperationsWorkbook } = await import("@/lib/inventoryExport"); exportInventoryOperationsWorkbook(inventoryOperations, reorderRules); }
+  async function importReorderRules(file: File): Promise<ReorderRulesImportResult> { const { inspectReorderRulesFile } = await import("@/lib/reorderRulesImport"); const result = await inspectReorderRulesFile(file); if (!result.accepted.length) throw new Error("لم نجد قواعد صالحة للاستيراد. راجع المعرّف والحد ورصيد الهدف."); setReorderRules(saveReorderRulesBatch(result.accepted)); setReorderHistory(loadReorderRuleHistory()); return result; }
+  async function importBackup(file: File, mode: BackupRestoreMode, password?: string): Promise<BackupRestoreResult> { const { restoreLocalBackup } = await import("@/lib/localBackup"); const result = await restoreLocalBackup(file, mode, password); setSavedSessions(result.sessions); setReorderRules(result.rules); setReorderHistory(result.history); setReportPreferences(result.preferences); setReportLock(result.lock); return result; }
+  async function exportBackupWithRecord(password?: string) { const { exportLocalBackup } = await import("@/lib/localBackup"); await exportLocalBackup(password); recordBackupExport(); }
+  async function exportAuditLog() { const { exportAuditWorkbook } = await import("@/lib/auditExport"); exportAuditWorkbook(reorderHistory); }
   const backupReminderState = useMemo(() => loadBackupReminderSettings(), [stage]);
   function askData() { if (analytics) setAnswer(answerDataQuestion(question, analytics)); }
-  function exportProducts() {
+  async function exportProducts() {
     if (!analytics) return;
     const rows = analytics.products.map((product) => ({ "الصنف": product.itemName, "الكود": product.itemCode ?? "", "الشركة": product.company ?? "", "التصنيف": product.category ?? "", "الكمية": product.quantity ?? "", "المبيعات": product.sales ?? "", "التكلفة": product.cost ?? "", "الربح": product.profit ?? "", "هامش الربح %": product.margin ?? "" }));
+    const XLSX = await import("xlsx");
     const sheet = XLSX.utils.json_to_sheet(rows);
     const book = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(book, sheet, "تحليل الأصناف");
     XLSX.writeFile(book, `تحليل_الصيدلية_${new Date().toISOString().slice(0, 10)}.xlsx`);
@@ -376,6 +375,7 @@ export default function Home() {
     if (!analytics || !reportRef.current) return;
     setPdfStatus("working"); setPdfError("");
     try {
+      const { exportManagerReportPdf } = await import("@/lib/managerPdf");
       await exportManagerReportPdf(reportRef.current, `تقرير_${reportPreferences.profile.pharmacyName}_${new Date().toISOString().slice(0, 10)}.pdf`, { footerLabel: `${reportPreferences.profile.pharmacyName} · ${reportPreferences.profile.branchName}` });
       setPdfStatus("done");
     } catch (caught) {
@@ -383,11 +383,12 @@ export default function Home() {
       setPdfError(caught instanceof Error ? caught.message : "تعذر إنشاء ملف PDF. حاول مرة أخرى.");
     }
   }
-  function exportProductMovement() { exportProductMovementWorkbook(productMovement); }
+  async function exportProductMovement() { const { exportProductMovementWorkbook } = await import("@/lib/productMovementExport"); exportProductMovementWorkbook(productMovement); }
   async function exportProductMovementPdf() {
     if (!movementReportRef.current) return;
     setMovementPdfStatus("working"); setMovementPdfError("");
     try {
+      const { exportManagerReportPdf } = await import("@/lib/managerPdf");
       await exportManagerReportPdf(movementReportRef.current, `تقرير_حركة_الأصناف_${new Date().toISOString().slice(0, 10)}.pdf`, { footerLabel: `${reportPreferences.profile.pharmacyName} · حركة الأصناف` });
       setMovementPdfStatus("done");
     } catch (caught) {
@@ -395,11 +396,12 @@ export default function Home() {
       setMovementPdfError(caught instanceof Error ? caught.message : "تعذر إنشاء تقرير PDF لحركة الأصناف. حاول مرة أخرى.");
     }
   }
-  function exportInventoryFlow() { exportInventoryFlowWorkbook(inventoryFlow); }
+  async function exportInventoryFlow() { const { exportInventoryFlowWorkbook } = await import("@/lib/inventoryFlowExport"); exportInventoryFlowWorkbook(inventoryFlow); }
   async function exportInventoryFlowPdf() {
     if (!flowReportRef.current) return;
     setFlowPdfStatus("working"); setFlowPdfError("");
     try {
+      const { exportManagerReportPdf } = await import("@/lib/managerPdf");
       await exportManagerReportPdf(flowReportRef.current, `تقرير_تدفق_المخزون_${new Date().toISOString().slice(0, 10)}.pdf`, { footerLabel: `${reportPreferences.profile.pharmacyName} · تدفق المخزون` });
       setFlowPdfStatus("done");
     } catch (caught) {
@@ -412,11 +414,11 @@ export default function Home() {
   function clearReportPasscode() { setReportLock(removeLocalReportPasscode()); }
 
   if (stage === "column-map-warning" && columnMapMismatch) return <ColumnMapMismatchWarning compatibility={columnMapMismatch} onContinue={() => { setMismatchAcknowledged(true); setStage("review"); }} onCancel={importNewFile} />;
-  if (stage === "welcome") return <WelcomeScreen dragging={dragging} processing={processing} error={error} fileInput={fileInput} monthlyFilesInput={monthlyFilesInput} sessions={savedSessions} monthlyDraft={monthlyDraft} importTemplates={importTemplates} templateName={templateName} onTemplateName={setTemplateName} onApplyTemplate={applyImportTemplate} onDeleteTemplate={removeImportTemplate} onSaveTemplate={saveCurrentImportTemplate} onChangeDraftMonth={changeDraftMonth} onRestore={restoreAnalysisSession} onDeleteSession={removeAnalysisSession} onUpdateTags={updateSessionTags} onExportBackup={exportLocalBackup} onImportBackup={importBackup} onDrop={onDrop} onDragOver={(event) => { event.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onChange={onFileChange} onMonthlyFilesChange={(event) => { selectMonthlyFiles(event.target.files); event.target.value = ""; }} onStartMonthly={() => { void beginMonthlyFiles(); }} onOpen={() => fileInput.current?.click()} onOpenMonthly={() => monthlyFilesInput.current?.click()} />;
+  if (stage === "welcome") return <WelcomeScreen dragging={dragging} processing={processing} error={error} fileInput={fileInput} monthlyFilesInput={monthlyFilesInput} sessions={savedSessions} monthlyDraft={monthlyDraft} importTemplates={importTemplates} templateName={templateName} onTemplateName={setTemplateName} onApplyTemplate={applyImportTemplate} onDeleteTemplate={removeImportTemplate} onSaveTemplate={saveCurrentImportTemplate} onChangeDraftMonth={changeDraftMonth} onRestore={restoreAnalysisSession} onDeleteSession={removeAnalysisSession} onUpdateTags={updateSessionTags} onExportBackup={exportBackupWithRecord} onImportBackup={importBackup} onDrop={onDrop} onDragOver={(event) => { event.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onChange={onFileChange} onMonthlyFilesChange={(event) => { selectMonthlyFiles(event.target.files); event.target.value = ""; }} onStartMonthly={() => { void beginMonthlyFiles(); }} onOpen={() => fileInput.current?.click()} onOpenMonthly={() => monthlyFilesInput.current?.click()} />;
   if (stage === "review" && inspection && selectedSheet) {
     const activeInspection = reviewSource === "price" ? priceInspection : inspection;
     const activeStructure = reviewSource === "price" ? priceWorkbookStructure : workbookStructure;
-    if (activeInspection) return <ImportReviewCenter inspection={activeInspection} structure={activeStructure} selectedSheetIndex={selectedSheetIndex} onSheet={setSelectedSheetIndex} onChange={reviewSource === "price" ? setPriceInspection : setInspection} onCancel={reviewSource === "price" ? () => { setPriceInspection(null); setPriceWorkbookStructure(null); setReviewSource("base"); setSelectedSheetIndex(0); } : importNewFile} onConfirm={confirmImport} onRequestPriceReview={reviewSource === "base" ? beginPriceReview : undefined} priceMatchReport={reviewSource === "base" ? priceMatchReport : null} reviewKind={reviewSource === "price" ? "prices" : "analysis"} columnMapTemplates={reviewSource === "base" ? columnMapTemplates : []} onSaveColumnMapTemplate={reviewSource === "base" ? saveCurrentColumnMapTemplate : undefined} onDeleteColumnMapTemplate={reviewSource === "base" ? removeColumnMapTemplate : undefined} />;
+    if (activeInspection) return <DeferredPanel><ImportReviewCenter inspection={activeInspection} structure={activeStructure} selectedSheetIndex={selectedSheetIndex} onSheet={setSelectedSheetIndex} onChange={reviewSource === "price" ? setPriceInspection : setInspection} onCancel={reviewSource === "price" ? () => { setPriceInspection(null); setPriceWorkbookStructure(null); setReviewSource("base"); setSelectedSheetIndex(0); } : importNewFile} onConfirm={confirmImport} onRequestPriceReview={reviewSource === "base" ? beginPriceReview : undefined} priceMatchReport={reviewSource === "base" ? priceMatchReport : null} reviewKind={reviewSource === "price" ? "prices" : "analysis"} columnMapTemplates={reviewSource === "base" ? columnMapTemplates : []} onSaveColumnMapTemplate={reviewSource === "base" ? saveCurrentColumnMapTemplate : undefined} onDeleteColumnMapTemplate={reviewSource === "base" ? removeColumnMapTemplate : undefined} /></DeferredPanel>;
   }
   if (!analytics || !inspection) return null;
 
@@ -481,7 +483,7 @@ function WelcomeScreen({ dragging, processing, error, fileInput, monthlyFilesInp
         </div>
       </section>
       </div>
-      <details className="session-drawer group border-t border-[#dbe8e1] bg-[#f7faf6] px-7 py-4 sm:px-10 lg:pr-20 lg:pl-16"><summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-right"><div><p className="text-sm font-bold text-[#244d44]">الجلسات والإعدادات المحلية</p><p className="mt-1 text-[11px] text-[#6c8279]">استعد جلسة سابقة أو أنشئ نسخة احتياطية عند الحاجة، دون تشتيت مسار القرار.</p></div><span className="rounded-xl border border-[#cce1d7] bg-white px-3 py-2 text-[11px] font-bold text-[#326559] group-open:hidden">إظهار</span><span className="hidden rounded-xl border border-[#cce1d7] bg-white px-3 py-2 text-[11px] font-bold text-[#326559] group-open:inline">إخفاء</span></summary><div className="mt-5"><SessionArchiveCenter sessions={sessions} onRestore={onRestore} onDelete={onDeleteSession} onUpdateTags={onUpdateTags} onExportBackup={onExportBackup} onImportBackup={onImportBackup} /></div></details>
+      <details className="session-drawer group border-t border-[#dbe8e1] bg-[#f7faf6] px-7 py-4 sm:px-10 lg:pr-20 lg:pl-16"><summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-right"><div><p className="text-sm font-bold text-[#244d44]">الجلسات والإعدادات المحلية</p><p className="mt-1 text-[11px] text-[#6c8279]">استعد جلسة سابقة أو أنشئ نسخة احتياطية عند الحاجة، دون تشتيت مسار القرار.</p></div><span className="rounded-xl border border-[#cce1d7] bg-white px-3 py-2 text-[11px] font-bold text-[#326559] group-open:hidden">إظهار</span><span className="hidden rounded-xl border border-[#cce1d7] bg-white px-3 py-2 text-[11px] font-bold text-[#326559] group-open:inline">إخفاء</span></summary><div className="mt-5"><DeferredPanel><SessionArchiveCenter sessions={sessions} onRestore={onRestore} onDelete={onDeleteSession} onUpdateTags={onUpdateTags} onExportBackup={onExportBackup} onImportBackup={onImportBackup} /></DeferredPanel></div></details>
     </div>
   </main>;
 }
@@ -512,16 +514,16 @@ function renderDashboardView(props: { view: DashboardView; analytics: DashboardA
   const { view, analytics } = props;
   if (view === "sales") return <SalesView analytics={analytics} />;
   if (view === "products") return <ProductsView analytics={analytics} search={props.tableSearch} setSearch={props.setTableSearch} exportProducts={props.exportProducts} />;
-  if (view === "movement") return <ProductMovementCenter analysis={props.productMovement} onExportExcel={props.exportProductMovement} onExportPdf={props.exportProductMovementPdf} pdfStatus={props.movementPdfStatus} pdfError={props.movementPdfError} reportRef={props.movementReportRef} />;
-  if (view === "flow") return <InventoryFlowCenter analysis={props.inventoryFlow} onExportExcel={props.exportInventoryFlow} onExportPdf={props.exportInventoryFlowPdf} pdfStatus={props.flowPdfStatus} pdfError={props.flowPdfError} reportRef={props.flowReportRef} />;
+  if (view === "movement") return <DeferredPanel><ProductMovementCenter analysis={props.productMovement} onExportExcel={props.exportProductMovement} onExportPdf={props.exportProductMovementPdf} pdfStatus={props.movementPdfStatus} pdfError={props.movementPdfError} reportRef={props.movementReportRef} /></DeferredPanel>;
+  if (view === "flow") return <DeferredPanel><InventoryFlowCenter analysis={props.inventoryFlow} onExportExcel={props.exportInventoryFlow} onExportPdf={props.exportInventoryFlowPdf} pdfStatus={props.flowPdfStatus} pdfError={props.flowPdfError} reportRef={props.flowReportRef} /></DeferredPanel>;
   if (view === "companies") return <CompaniesView analytics={analytics} />;
-  if (view === "operations") return <OperationsCenter analytics={analytics} operations={props.inventoryOperations} sheets={props.inspection.sheets} />;
-  if (view === "inventory") return <InventoryOperationsCenter operations={props.inventoryOperations} mode="inventory" rules={props.reorderRules} history={props.reorderHistory} onSaveRule={props.saveItemReorderRule} onRemoveRule={props.clearItemReorderRule} onExport={props.exportInventoryOperations} onImportRules={props.importReorderRules} onExportAudit={props.exportAuditLog} />;
-  if (view === "invoices") return <InvoiceReconciliationCenter openOrders={props.inventoryOperations.suggestions} onApplyDeductions={props.applyInvoiceDeductions} />;
-  if (view === "branches") return <InventoryOperationsCenter operations={props.inventoryOperations} mode="branches" />;
+  if (view === "operations") return <DeferredPanel><OperationsCenter analytics={analytics} operations={props.inventoryOperations} sheets={props.inspection.sheets} /></DeferredPanel>;
+  if (view === "inventory") return <DeferredPanel><InventoryOperationsCenter operations={props.inventoryOperations} mode="inventory" rules={props.reorderRules} history={props.reorderHistory} onSaveRule={props.saveItemReorderRule} onRemoveRule={props.clearItemReorderRule} onExport={props.exportInventoryOperations} onImportRules={props.importReorderRules} onExportAudit={props.exportAuditLog} /></DeferredPanel>;
+  if (view === "invoices") return <DeferredPanel><InvoiceReconciliationCenter openOrders={props.inventoryOperations.suggestions} onApplyDeductions={props.applyInvoiceDeductions} /></DeferredPanel>;
+  if (view === "branches") return <DeferredPanel><InventoryOperationsCenter operations={props.inventoryOperations} mode="branches" /></DeferredPanel>;
   if (view === "alerts") return <AlertsView analytics={analytics} />;
-  if (view === "report") return <ManagerReportCenter analytics={analytics} inspection={props.inspection} preferences={props.reportPreferences} comparison={props.comparison} onProducts={() => props.setView("products")} onExport={props.exportManagerPdf} pdfStatus={props.pdfStatus} pdfError={props.pdfError} reportRef={props.reportRef} />;
-  if (view === "settings") return <ReportSettingsGate state={props.reportLock} onSet={props.setReportPasscode} onVerify={props.verifyReportPasscode} onRemove={props.clearReportPasscode}><ReportPreferencesView preferences={props.reportPreferences} onChange={props.setReportPreferences} /></ReportSettingsGate>;
+  if (view === "report") return <DeferredPanel><ManagerReportCenter analytics={analytics} inspection={props.inspection} preferences={props.reportPreferences} comparison={props.comparison} onProducts={() => props.setView("products")} onExport={props.exportManagerPdf} pdfStatus={props.pdfStatus} pdfError={props.pdfError} reportRef={props.reportRef} /></DeferredPanel>;
+  if (view === "settings") return <DeferredPanel><ReportSettingsGate state={props.reportLock} onSet={props.setReportPasscode} onVerify={props.verifyReportPasscode} onRemove={props.clearReportPasscode}><ReportPreferencesView preferences={props.reportPreferences} onChange={props.setReportPreferences} /></ReportSettingsGate></DeferredPanel>;
   return <OverviewView analytics={analytics} sheet={props.sheet} question={props.question} setQuestion={props.setQuestion} answer={props.answer} askData={props.askData} setView={props.setView} />;
 }
 

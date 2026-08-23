@@ -3,7 +3,7 @@
  * يستخدم فقط الحقول التي تطابقها قراءة Excel بثقة، ولا يملأ أي نقص بتخمينات.
  */
 import type { CanonicalField, CleanRecord, ColumnMapping, SheetInspection } from "./pharmacyEngine";
-import { isApprovedMapping } from "./importReview";
+import { isApprovedMapping } from "./mappingApproval";
 
 type FieldMap = Partial<Record<CanonicalField, string>>;
 

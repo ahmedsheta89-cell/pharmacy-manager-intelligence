@@ -1,5 +1,6 @@
-import { toNumber, type CanonicalField, type CleanRecord, type ColumnMapping, type SheetInspection } from "./pharmacyEngine";
-import { isApprovedMapping } from "./importReview";
+import type { CanonicalField, CleanRecord, ColumnMapping, SheetInspection } from "./pharmacyEngine";
+import { toNumber } from "./numericParsing";
+import { isApprovedMapping } from "./mappingApproval";
 
 type FieldMap = Partial<Record<CanonicalField, string>>;
 

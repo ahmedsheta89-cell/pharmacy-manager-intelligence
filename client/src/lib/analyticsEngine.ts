@@ -4,7 +4,7 @@
  * عندما تكون البيانات المطلوبة غير موجودة في تقرير الصيدلية.
  */
 import type { CanonicalField, CleanRecord, ColumnMapping, SheetInspection } from "./pharmacyEngine";
-import { isApprovedMapping } from "./importReview";
+import { isApprovedMapping } from "./mappingApproval";
 
 export type Availability = "available" | "partial" | "unavailable";
 export type Confidence = "عالية" | "متوسطة" | "غير متاح";
