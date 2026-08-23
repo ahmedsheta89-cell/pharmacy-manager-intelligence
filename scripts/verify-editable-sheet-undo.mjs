@@ -2,9 +2,10 @@ import { chromium } from "playwright";
 
 const baseUrl = "http://127.0.0.1:3000/";
 const sourceFile = "/home/ubuntu/upload/6-8.xlsx";
+const viewport = process.env.VERIFICATION_VIEWPORT === "mobile" ? { width: 390, height: 844 } : { width: 1440, height: 1050 };
 
 const browser = await chromium.launch({ executablePath: "/usr/bin/chromium", headless: true });
-const page = await browser.newPage({ viewport: { width: 1440, height: 1050 }, locale: "ar-EG" });
+const page = await browser.newPage({ viewport, locale: "ar-EG" });
 
 try {
   await page.goto(baseUrl, { waitUntil: "networkidle" });
@@ -153,6 +154,19 @@ try {
   await page.getByText("أؤكد أنني راجعت مقارنة هذا الشيت", { exact: true }).click();
   await page.getByRole("button", { name: /بدء التحليل بعد الاعتماد/ }).click();
   await page.getByRole("button", { name: /أوافق وأبدأ التحليل/ }).click();
+  if (process.env.VERIFICATION_VIEWPORT === "mobile") {
+    await page.getByRole("button", { name: "فتح أقسام التحليل", exact: true }).click();
+  }
+  await page.getByRole("button", { name: "غرفة عمليات اليوم", exact: true }).click();
+  const operationsCenter = page.getByTestId("operations-center");
+  await operationsCenter.waitFor({ state: "visible", timeout: 10_000 });
+  await operationsCenter.getByText("غرفة عمليات اليوم", { exact: true }).waitFor({ timeout: 3_000 });
+  if (process.env.CAPTURE_OPERATIONS_CENTER === "1") {
+    await page.screenshot({ path: "/home/ubuntu/pharmacy-manager-intelligence-operations-center.png", fullPage: true });
+  }
+  if (process.env.VERIFICATION_VIEWPORT === "mobile") {
+    await page.getByRole("button", { name: "فتح أقسام التحليل", exact: true }).click();
+  }
   await page.getByRole("button", { name: "فواتير الموردين", exact: true }).click();
   const invoiceCenter = page.getByTestId("invoice-reconciliation-center");
   await invoiceCenter.waitFor({ state: "visible", timeout: 10_000 });

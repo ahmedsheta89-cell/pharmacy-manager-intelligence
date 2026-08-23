@@ -50,17 +50,21 @@ export function createLocalBackup(): LocalBackup {
   return { schemaVersion: 1, createdAt: new Date().toISOString(), sessions: loadAnalysisSessions(), reorderRules: loadReorderRules(), reorderRulesHistory: loadReorderRuleHistory(), reportPreferences: loadReportPreferences(), reportLock: loadReportLock(), importHistory };
 }
 
+function toCryptoBuffer(bytes: Uint8Array): ArrayBuffer {
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+}
+
 async function deriveBackupKey(password: string, salt: Uint8Array, usages: KeyUsage[]) {
   if (!crypto.subtle) throw new Error("لا يدعم هذا المتصفح التشفير المحلي المطلوب للنسخة الاحتياطية.");
   if (password.trim().length < 8) throw new Error("استخدم كلمة مرور من 8 أحرف أو أرقام على الأقل لحماية النسخة.");
   const material = await crypto.subtle.importKey("raw", encoder.encode(password), "PBKDF2", false, ["deriveKey"]);
-  return crypto.subtle.deriveKey({ name: "PBKDF2", salt, iterations: backupIterations, hash: "SHA-256" }, material, { name: "AES-GCM", length: 256 }, false, usages);
+  return crypto.subtle.deriveKey({ name: "PBKDF2", salt: toCryptoBuffer(salt), iterations: backupIterations, hash: "SHA-256" }, material, { name: "AES-GCM", length: 256 }, false, usages);
 }
 
 export async function createEncryptedBackup(backup: LocalBackup, password: string): Promise<EncryptedLocalBackup> {
   const salt = crypto.getRandomValues(new Uint8Array(16)); const iv = crypto.getRandomValues(new Uint8Array(12));
   const key = await deriveBackupKey(password, salt, ["encrypt"]);
-  const ciphertext = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, encoder.encode(JSON.stringify(backup)));
+  const ciphertext = await crypto.subtle.encrypt({ name: "AES-GCM", iv: toCryptoBuffer(iv) }, key, encoder.encode(JSON.stringify(backup)));
   return { format: backupFormat, schemaVersion: 1, encrypted: true, crypto: { algorithm: "AES-GCM", kdf: "PBKDF2-SHA-256", iterations: backupIterations, salt: encode(salt), iv: encode(iv) }, ciphertext: encode(ciphertext) };
 }
 

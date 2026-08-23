@@ -1,0 +1,47 @@
+import { useMemo, useState } from "react";
+import { ArrowLeft, Check, ClipboardCheck, Clock3, Factory, SendHorizontal, ShieldCheck } from "lucide-react";
+import type { DashboardAnalytics } from "@/lib/analyticsEngine";
+import type { InventoryOperations } from "@/lib/inventoryEngine";
+import { loadInvoiceSettlementRecords } from "@/lib/invoiceReconciliation";
+import { loadOperatingDecisions, saveOperatingDecision, type OperatingDecisionStatus } from "@/lib/operatingDecisions";
+import { deriveBranchIntelligence, deriveOperatingPriorities, deriveSupplierLedger } from "@/lib/operationsIntelligence";
+import { formatNumber, type SheetInspection } from "@/lib/pharmacyEngine";
+
+type OperationsCenterProps = { analytics: DashboardAnalytics; operations: InventoryOperations; sheets: SheetInspection[] };
+
+const statusMeta: Record<OperatingDecisionStatus, { label: string; className: string }> = {
+  open: { label: "مفتوح", className: "border-[#ead9a9] bg-[#fff9e9] text-[#8c6617]" },
+  deferred: { label: "مؤجل", className: "border-[#d3dde0] bg-[#f4f7f7] text-[#586e6d]" },
+  done: { label: "منفذ", className: "border-[#b9ddca] bg-[#edf9f2] text-[#26705a]" },
+};
+
+export function OperationsCenter({ analytics, operations, sheets }: OperationsCenterProps) {
+  const [decisions, setDecisions] = useState(() => loadOperatingDecisions());
+  const settlements = useMemo(() => loadInvoiceSettlementRecords(), []);
+  const priorities = useMemo(() => deriveOperatingPriorities(analytics, operations, settlements), [analytics, operations, settlements]);
+  const ledger = useMemo(() => deriveSupplierLedger(settlements), [settlements]);
+  const branchIntelligence = useMemo(() => deriveBranchIntelligence(sheets), [sheets]);
+
+  const changeStatus = (priorityId: string, status: OperatingDecisionStatus) => {
+    const next = { priorityId, status, changedAt: Date.now() };
+    saveOperatingDecision(next);
+    setDecisions((current) => ({ ...current, [priorityId]: next }));
+  };
+
+  return <div className="mx-auto max-w-[1280px] space-y-5" data-testid="operations-center">
+    <header className="rounded-3xl border border-[#c7ded2] bg-gradient-to-l from-[#143f38] via-[#185449] to-[#1e6a58] p-5 text-white sm:p-7"><div className="flex flex-wrap items-start justify-between gap-4"><div><div className="flex items-center gap-2 text-[11px] font-bold text-[#efd895]"><span className="h-px w-7 bg-[#e0b452]" />غرفة عمليات اليوم</div><h2 className="display-font mt-2 text-2xl font-semibold">ثلاث أولويات، دليل واضح، وقرار تحت سيطرتك.</h2><p className="mt-2 max-w-3xl text-xs leading-6 text-[#d8ebe3]">لا تنشئ الغرفة مهامًا من فراغ: كل أولوية أدناه مرتبطة بتنبيه أو رصيد أو تسوية متاحين في جلسة التحليل المعتمدة.</p></div><div className="rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-center"><p className="text-[10px] text-[#d3e7dc]">أولويات معروضة</p><p className="mt-1 text-2xl font-bold">{formatNumber(priorities.length)}</p></div></div></header>
+
+    <section className="grid gap-4 lg:grid-cols-3">{priorities.length ? priorities.map((priority, index) => {
+      const decision = decisions[priority.id]; const status = decision?.status ?? "open"; const meta = statusMeta[status];
+      return <article key={priority.id} className="rounded-2xl border border-[#dce8e1] bg-white p-4 shadow-[0_8px_24px_rgba(24,66,55,.05)]"><div className="flex items-start justify-between gap-3"><span className="grid size-8 place-items-center rounded-xl bg-[#eaf5ef] text-xs font-bold text-[#1c6b57]">0{index + 1}</span><span className={`rounded-lg border px-2 py-1 text-[9px] font-bold ${meta.className}`}>{meta.label}</span></div><h3 className="mt-4 text-sm font-bold leading-6 text-[#294f45]">{priority.title}</h3><div className="mt-3 rounded-xl bg-[#f6faf7] p-3"><p className="text-[9px] font-bold text-[#6b8278]">الدليل المتاح</p><p className="mt-1 text-[10px] leading-5 text-[#4c6a60]">{priority.evidence}</p></div><div className="mt-3 rounded-xl border border-[#e2ece6] p-3"><p className="text-[9px] font-bold text-[#6b8278]">الإجراء التالي</p><p className="mt-1 text-[10px] leading-5 text-[#315b4f]">{priority.action}</p></div><div className="mt-4 flex flex-wrap gap-1.5"><button type="button" onClick={() => changeStatus(priority.id, "done")} className="rounded-lg bg-[#e9f7ef] px-2.5 py-2 text-[9px] font-bold text-[#23705a] hover:bg-[#dff3e7]"><Check className="ml-1 inline size-3" />تم التنفيذ</button><button type="button" onClick={() => changeStatus(priority.id, "deferred")} className="rounded-lg bg-[#f2f5f3] px-2.5 py-2 text-[9px] font-bold text-[#58716a] hover:bg-[#e9efeb]"><Clock3 className="ml-1 inline size-3" />تأجيل</button><button type="button" onClick={() => changeStatus(priority.id, "open")} className="rounded-lg border border-[#d7e6dd] bg-white px-2.5 py-2 text-[9px] font-bold text-[#477064]">إعادة فتح</button></div></article>;
+    }) : <div className="col-span-full rounded-2xl border border-dashed border-[#d4e2da] bg-[#fbfdfb] p-8 text-center text-xs leading-6 text-[#6c837a]">لا توجد أولوية قابلة للتفسير بعد. أكمل استيرادًا معتمدًا يضم تنبيهات أو رصيدًا أو تسوية فاتورة.</div>}</section>
+
+    <section className="grid gap-5 xl:grid-cols-[1.05fr_.95fr]"><div className="rounded-2xl border border-[#dde9e2] bg-white p-4 sm:p-5"><div className="flex items-start gap-3"><div className="grid size-9 shrink-0 place-items-center rounded-xl bg-[#fff3d8] text-[#997019]"><Factory className="size-4" /></div><div><h3 className="text-sm font-bold text-[#294f45]">دفتر الموردين التشغيلي</h3><p className="mt-1 text-[10px] leading-5 text-[#72857e]">{ledger.note}</p></div></div>{ledger.available ? <><div className="mt-4 grid grid-cols-3 gap-2"><SmallMetric label="موردون" value={ledger.totals.suppliers} /><SmallMetric label="تسويات" value={ledger.totals.settlements} /><SmallMetric label="كمية معتمدة" value={ledger.totals.acceptedQuantity} /></div><div className="mt-4 space-y-2">{ledger.entries.slice(0, 5).map((entry) => <div key={entry.supplierName} className="rounded-xl border border-[#e3ebe5] bg-[#fbfdfb] p-3"><div className="flex items-center justify-between gap-3"><p className="text-[11px] font-bold text-[#31574d]">{entry.supplierName}</p><span className="text-[9px] font-bold text-[#648076]">{formatNumber(entry.settlements)} تسوية</span></div><div className="mt-2 grid grid-cols-3 gap-2 text-[9px]"><p className="rounded-lg bg-white px-2 py-1.5 text-[#4b6a60]">معتمد: <b>{formatNumber(entry.acceptedQuantity)}</b></p><p className="rounded-lg bg-white px-2 py-1.5 text-[#4b6a60]">مطابق: <b>{formatNumber(entry.exactMatches)}</b></p><p className="rounded-lg bg-white px-2 py-1.5 text-[#87621a]">فرق كمية: <b>{formatNumber(entry.shortQuantity)}</b></p></div></div>)}</div></> : <p className="mt-4 rounded-xl border border-dashed border-[#dce7e1] bg-[#f8fbf8] p-4 text-[10px] leading-5 text-[#6f837b]">{ledger.note}</p>}</div>
+      <div className="rounded-2xl border border-[#dde9e2] bg-white p-4 sm:p-5"><div className="flex items-start gap-3"><div className="grid size-9 shrink-0 place-items-center rounded-xl bg-[#edf8f2] text-[#23705a]"><SendHorizontal className="size-4" /></div><div><h3 className="text-sm font-bold text-[#294f45]">ذكاء الفروع والنقل المقترح</h3><p className="mt-1 text-[10px] leading-5 text-[#72857e]">{branchIntelligence.note}</p></div></div>{branchIntelligence.suggestions.length ? <div className="mt-4 space-y-2">{branchIntelligence.suggestions.slice(0, 5).map((suggestion) => <div key={suggestion.id} className="rounded-xl border border-[#dce9e1] bg-[#f9fcfa] p-3"><div className="flex items-center justify-between gap-2"><p className="text-[11px] font-bold text-[#31574d]">{suggestion.productName}</p><span className="rounded-lg bg-[#e8f6ee] px-2 py-1 text-[9px] font-bold text-[#23705a]">{formatNumber(suggestion.suggestedQuantity)} وحدة</span></div><p className="mt-1 text-[9px] font-bold text-[#5a796e]">من {suggestion.fromBranch} <ArrowLeft className="mx-1 inline size-3" /> إلى {suggestion.toBranch}</p><p className="mt-2 text-[9px] leading-5 text-[#6e827a]">{suggestion.evidence}</p><p className="mt-2 text-[9px] font-semibold leading-5 text-[#315d50]">{suggestion.action}</p></div>)}</div> : <p className="mt-4 rounded-xl border border-dashed border-[#dce7e1] bg-[#f8fbf8] p-4 text-[10px] leading-5 text-[#6f837b]">{branchIntelligence.note}</p>}</div></section>
+    <p className="flex items-start gap-2 rounded-2xl border border-[#d8e7df] bg-[#f3faf6] p-3 text-[10px] leading-5 text-[#4f7065]"><ShieldCheck className="mt-0.5 size-4 shrink-0 text-[#23705a]" />تغيّر أزرار الحالة قرار المتابعة فقط، ولا تغيّر ملف Excel أو الطلب أو حركة نقل. وتبقى أي موافقة فعلية على الخصم أو النقل خطوة يدوية صريحة.</p>
+  </div>;
+}
+
+function SmallMetric({ label, value }: { label: string; value: number }) {
+  return <div className="rounded-xl bg-[#f5f9f6] p-2.5 text-center"><p className="text-[8px] font-bold text-[#748980]">{label}</p><p className="mt-1 text-sm font-bold text-[#31574d]">{formatNumber(value)}</p></div>;
+}

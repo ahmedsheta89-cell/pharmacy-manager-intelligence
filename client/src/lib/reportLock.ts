@@ -5,9 +5,10 @@ const defaults: ReportLockState = { configured: false };
 
 const encode = (bytes: Uint8Array) => { let text = ""; bytes.forEach((byte) => { text += String.fromCharCode(byte); }); return btoa(text); };
 const decode = (value: string) => Uint8Array.from(atob(value), (char) => char.charCodeAt(0));
+const toCryptoBuffer = (bytes: Uint8Array): ArrayBuffer => bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
 const derive = async (passcode: string, salt: Uint8Array) => {
   const material = await crypto.subtle.importKey("raw", new TextEncoder().encode(passcode), "PBKDF2", false, ["deriveBits"]);
-  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", salt, iterations: 120000, hash: "SHA-256" }, material, 256);
+  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", salt: toCryptoBuffer(salt), iterations: 120000, hash: "SHA-256" }, material, 256);
   return encode(new Uint8Array(bits));
 };
 

@@ -15,6 +15,7 @@ import {
   ChevronLeft,
   CircleHelp,
   CircleUserRound,
+  ClipboardCheck,
   Download,
   FileBarChart,
   FileSpreadsheet,
@@ -80,6 +81,7 @@ import { SessionArchiveCenter } from "@/components/SessionArchiveCenter";
 import { ProductMovementCenter } from "@/components/ProductMovementCenter";
 import { InventoryFlowCenter } from "@/components/InventoryFlowCenter";
 import { InvoiceReconciliationCenter } from "@/components/InvoiceReconciliationCenter";
+import { OperationsCenter } from "@/components/OperationsCenter";
 import { applyPriceFile, inspectMonthlyFiles, monthFromFileName, type ImportedMonth, type PriceMatchReport } from "@/lib/multiPeriodImport";
 import { deleteImportTemplate, loadImportTemplates, saveImportTemplate, type ImportTemplate } from "@/lib/importTemplates";
 import { analyzeInventoryFlow } from "@/lib/inventoryFlowEngine";
@@ -90,7 +92,7 @@ import { recordImportAudit, type ImportAuditRecord } from "@/lib/importAuditLog"
 import { columnMapReviewStage, createColumnMapTemplate, deleteColumnMapTemplate, findColumnMapTemplateCompatibility, loadColumnMapTemplates, saveColumnMapTemplate, type ColumnMapTemplate, type ColumnMapTemplateCompatibility } from "@/lib/columnMapTemplates";
 
 type Stage = "welcome" | "column-map-warning" | "review" | "dashboard";
-type DashboardView = "overview" | "sales" | "products" | "movement" | "flow" | "companies" | "inventory" | "invoices" | "branches" | "alerts" | "report" | "settings";
+type DashboardView = "overview" | "operations" | "sales" | "products" | "movement" | "flow" | "companies" | "inventory" | "invoices" | "branches" | "alerts" | "report" | "settings";
 type MonthlyFileDraft = { file: File; month?: number; inferred: boolean };
 
 const MONTH_OPTIONS = [
@@ -117,6 +119,7 @@ const navGroups: Array<{ label: string; items: DashboardNavItem[] }> = [
   {
     label: "اتخاذ القرار",
     items: [
+      { id: "operations", label: "غرفة عمليات اليوم", icon: ClipboardCheck },
       { id: "overview", label: "ملخص القرار", icon: LayoutDashboard },
       { id: "alerts", label: "ما يحتاج انتباهك", icon: BellRing },
       { id: "report", label: "تقرير المدير", icon: FileBarChart },
@@ -193,6 +196,7 @@ export default function Home() {
   const [answer, setAnswer] = useState("");
   const [tableSearch, setTableSearch] = useState("");
   const [showFilters, setShowFilters] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [pdfStatus, setPdfStatus] = useState<"idle" | "working" | "done" | "failed">("idle");
   const [pdfError, setPdfError] = useState("");
   const [movementPdfStatus, setMovementPdfStatus] = useState<"idle" | "working" | "done" | "failed">("idle");
@@ -414,10 +418,11 @@ export default function Home() {
 
     <main className="min-h-screen lg:mr-[260px]">
       <header className="no-print sticky top-0 z-20 flex min-h-[72px] items-center justify-between border-b border-[#dde8e1]/90 bg-[#fafaf6]/88 px-4 backdrop-blur-xl sm:px-7">
-        <div className="flex items-center gap-3"><button className="lg:hidden grid size-10 place-items-center rounded-xl border border-[#d9e6df] bg-white text-[#16453d]" onClick={importNewFile} aria-label="استيراد ملف جديد"><Upload className="size-4" /></button><div><div className="flex items-center gap-2"><h1 className="display-font text-lg font-semibold tracking-[-.02em] text-[#173f38]">{navItems.find((item) => item.id === view)?.label}</h1><span className="hidden rounded-md bg-[#e8f2ed] px-2 py-0.5 text-[10px] font-bold text-[#23715a] sm:inline">البيانات المستوردة</span></div><p className="mt-0.5 text-[11px] text-[#74857f]">{analytics.dateRange ? `${dateText(analytics.dateRange.from)} — ${dateText(analytics.dateRange.to)}` : `${analytics.totalRows.toLocaleString("ar-EG")} سجل تم تحليله`}</p></div></div>
+        <div className="flex items-center gap-3"><button className="lg:hidden grid size-10 place-items-center rounded-xl border border-[#d9e6df] bg-white text-[#16453d]" onClick={importNewFile} aria-label="استيراد ملف جديد"><Upload className="size-4" /></button><button className={`lg:hidden grid size-10 place-items-center rounded-xl border text-[#16453d] ${mobileNavOpen ? "border-[#0b6b5b] bg-[#e7f4ee]" : "border-[#d9e6df] bg-white"}`} onClick={() => setMobileNavOpen((open) => !open)} aria-label="فتح أقسام التحليل" aria-expanded={mobileNavOpen}><PanelRightOpen className="size-4" /></button><div><div className="flex items-center gap-2"><h1 className="display-font text-lg font-semibold tracking-[-.02em] text-[#173f38]">{navItems.find((item) => item.id === view)?.label}</h1><span className="hidden rounded-md bg-[#e8f2ed] px-2 py-0.5 text-[10px] font-bold text-[#23715a] sm:inline">البيانات المستوردة</span></div><p className="mt-0.5 text-[11px] text-[#74857f]">{analytics.dateRange ? `${dateText(analytics.dateRange.from)} — ${dateText(analytics.dateRange.to)}` : `${analytics.totalRows.toLocaleString("ar-EG")} سجل تم تحليله`}</p></div></div>
         <div className="flex items-center gap-2"><button onClick={() => setShowFilters((visible) => !visible)} className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2.5 text-xs font-bold ${showFilters ? "border-[#0b6b5b] bg-[#e7f4ee] text-[#155d50]" : "border-[#d9e6df] bg-white text-[#41665c] hover:border-[#9ec9ba]"}`}><SlidersHorizontal className="size-4" /> <span className="hidden sm:inline">الفلاتر</span></button><button onClick={() => { setView("report"); }} className="hidden items-center gap-2 rounded-xl bg-[#123c37] px-3.5 py-2.5 text-xs font-bold text-white hover:bg-[#17564c] sm:inline-flex"><FileBarChart className="size-4" />تقرير المدير</button></div>
       </header>
 
+      {mobileNavOpen && <nav className="no-print lg:hidden border-b border-[#dce8e1] bg-[#fbfdfb] px-4 py-3 shadow-[0_12px_22px_rgba(22,63,53,.08)]" aria-label="أقسام التحليل على الهاتف"><div className="mx-auto grid max-w-lg grid-cols-2 gap-2">{navItems.map((item) => { const Icon = item.icon; const selected = item.id === view; return <button key={item.id} type="button" onClick={() => { setView(item.id); setMobileNavOpen(false); }} className={`flex min-h-11 items-center gap-2 rounded-xl border px-3 py-2 text-right text-[10px] font-bold ${selected ? "border-[#a9d4c2] bg-[#e8f5ef] text-[#175f50]" : "border-[#e0eae4] bg-white text-[#496b60]"}`}><Icon className="size-3.5" />{item.label}</button>; })}</div></nav>}
       {showFilters && <FilterPanel analytics={analytics} filters={filters} companies={availableCompanies} onChange={setFilters} onReset={() => setFilters({})} />}
       <section className="px-4 py-5 sm:px-7 sm:py-7">{renderDashboardView({ view, analytics, sheet, inspection, tableSearch, setTableSearch, question, setQuestion, answer, askData, exportProducts, exportManagerPdf, pdfStatus, pdfError, reportRef, exportProductMovement, exportProductMovementPdf, movementPdfStatus, movementPdfError, movementReportRef, inventoryFlow, exportInventoryFlow, exportInventoryFlowPdf, flowPdfStatus, flowPdfError, flowReportRef, setView, reportPreferences, setReportPreferences, comparison, inventoryOperations: settledInventoryOperations, productMovement, reorderRules, reorderHistory, saveItemReorderRule, clearItemReorderRule, exportInventoryOperations, importReorderRules, exportAuditLog, reportLock, setReportPasscode, verifyReportPasscode, clearReportPasscode, applyInvoiceDeductions: (deductions) => setInvoiceDeductions((current) => Object.entries(deductions).reduce<Record<string, number>>((next, [id, quantity]) => ({ ...next, [id]: (next[id] ?? 0) + quantity }), { ...current })) })}</section>
     </main>
@@ -487,6 +492,7 @@ function renderDashboardView(props: { view: DashboardView; analytics: DashboardA
   if (view === "movement") return <ProductMovementCenter analysis={props.productMovement} onExportExcel={props.exportProductMovement} onExportPdf={props.exportProductMovementPdf} pdfStatus={props.movementPdfStatus} pdfError={props.movementPdfError} reportRef={props.movementReportRef} />;
   if (view === "flow") return <InventoryFlowCenter analysis={props.inventoryFlow} onExportExcel={props.exportInventoryFlow} onExportPdf={props.exportInventoryFlowPdf} pdfStatus={props.flowPdfStatus} pdfError={props.flowPdfError} reportRef={props.flowReportRef} />;
   if (view === "companies") return <CompaniesView analytics={analytics} />;
+  if (view === "operations") return <OperationsCenter analytics={analytics} operations={props.inventoryOperations} sheets={props.inspection.sheets} />;
   if (view === "inventory") return <InventoryOperationsCenter operations={props.inventoryOperations} mode="inventory" rules={props.reorderRules} history={props.reorderHistory} onSaveRule={props.saveItemReorderRule} onRemoveRule={props.clearItemReorderRule} onExport={props.exportInventoryOperations} onImportRules={props.importReorderRules} onExportAudit={props.exportAuditLog} />;
   if (view === "invoices") return <InvoiceReconciliationCenter openOrders={props.inventoryOperations.suggestions} onApplyDeductions={props.applyInvoiceDeductions} />;
   if (view === "branches") return <InventoryOperationsCenter operations={props.inventoryOperations} mode="branches" />;
