@@ -1,7 +1,7 @@
 import { and, desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { createHash } from "node:crypto";
-import { approvedAnalysisSessions, auditEvents, invoiceSettlementLines, invoiceSettlements, operatingDecisions, pharmacyWorkspaces, supplierProfiles, users, workspaceMembers, type InsertUser, type WorkspaceAccessRole } from "../drizzle/schema";
+import { approvedAnalysisSessions, auditEvents, invoiceSettlementLines, invoiceSettlements, openOrderLines, openOrders, operatingDecisions, operationalAlerts, pharmacyWorkspaces, supplierProfiles, users, workspaceMembers, workspaceRetentionPolicies, type InsertUser, type WorkspaceAccessRole } from "../drizzle/schema";
 
 let instance: ReturnType<typeof drizzle> | null = null;
 
@@ -113,5 +113,58 @@ export async function saveInvoiceSettlementDecision(input: {
     if (!settlement) throw new Error("Unable to save settlement");
     if (input.lines.length) await tx.insert(invoiceSettlementLines).values(input.lines.map((line) => ({ settlementId: settlement.id, productCode: line.productCode ?? null, productName: line.productName, invoiceQuantity: line.invoiceQuantity, acceptedQuantity: line.acceptedQuantity, matchMethod: line.matchMethod, exceptionReason: line.exceptionReason ?? null })));
     return settlement;
+  });
+}
+
+export async function createOperationalAlerts(input: { workspaceId: number; sessionId: number; alerts: Array<{ clientAlertId: string; level: "urgent" | "review" | "watch" | "positive"; title: string; evidence: string; action: string }> }) {
+  const db = getDb();
+  if (!db || !input.alerts.length) return;
+  await db.insert(operationalAlerts).values(input.alerts.map((alert) => ({ workspaceId: input.workspaceId, sessionId: input.sessionId, kind: "approved_analysis", level: alert.level, title: alert.title, explanation: alert.evidence, evidence: { clientAlertId: alert.clientAlertId, source: "approved_analysis_summary" }, suggestedAction: alert.action }))); 
+}
+
+export async function listOperationalAlerts(workspaceId: number) {
+  const db = getDb();
+  if (!db) throw new Error("Database is not configured");
+  return db.select().from(operationalAlerts).where(eq(operationalAlerts.workspaceId, workspaceId)).orderBy(desc(operationalAlerts.createdAt)).limit(80);
+}
+
+export async function updateOperationalAlertStatus(input: { workspaceId: number; alertId: number; status: "open" | "snoozed" | "resolved" }) {
+  const db = getDb();
+  if (!db) throw new Error("Database is not configured");
+  await db.update(operationalAlerts).set({ status: input.status, statusChangedAt: new Date() }).where(and(eq(operationalAlerts.workspaceId, input.workspaceId), eq(operationalAlerts.id, input.alertId)));
+  return (await db.select().from(operationalAlerts).where(and(eq(operationalAlerts.workspaceId, input.workspaceId), eq(operationalAlerts.id, input.alertId))).limit(1))[0];
+}
+
+export async function getRetentionPolicy(workspaceId: number, userId: number) {
+  const db = getDb();
+  if (!db) throw new Error("Database is not configured");
+  await db.insert(workspaceRetentionPolicies).values({ workspaceId, updatedByUserId: userId, rawSourceRetentionDays: 0, approvedMetadataRetentionDays: 365, auditEventRetentionDays: 2555 })
+    .onDuplicateKeyUpdate({ set: { workspaceId } });
+  return (await db.select().from(workspaceRetentionPolicies).where(eq(workspaceRetentionPolicies.workspaceId, workspaceId)).limit(1))[0];
+}
+
+export async function updateRetentionPolicy(input: { workspaceId: number; userId: number; approvedMetadataRetentionDays: number; auditEventRetentionDays: number }) {
+  const db = getDb();
+  if (!db) throw new Error("Database is not configured");
+  await db.insert(workspaceRetentionPolicies).values({ workspaceId: input.workspaceId, updatedByUserId: input.userId, rawSourceRetentionDays: 0, approvedMetadataRetentionDays: input.approvedMetadataRetentionDays, auditEventRetentionDays: input.auditEventRetentionDays })
+    .onDuplicateKeyUpdate({ set: { rawSourceRetentionDays: 0, approvedMetadataRetentionDays: input.approvedMetadataRetentionDays, auditEventRetentionDays: input.auditEventRetentionDays, updatedByUserId: input.userId, updatedAt: new Date() } });
+  return getRetentionPolicy(input.workspaceId, input.userId);
+}
+
+export async function listAuditEvents(workspaceId: number) {
+  const db = getDb();
+  if (!db) throw new Error("Database is not configured");
+  return db.select().from(auditEvents).where(eq(auditEvents.workspaceId, workspaceId)).orderBy(desc(auditEvents.createdAt), desc(auditEvents.id)).limit(40);
+}
+
+export async function saveApprovedOpenOrder(input: { workspaceId: number; createdByUserId: number; reference?: string; lines: Array<{ productCode?: string; productName: string; requestedQuantity: string; unitLabel?: string }> }) {
+  const db = getDb();
+  if (!db) throw new Error("Database is not configured");
+  return db.transaction(async (tx) => {
+    await tx.insert(openOrders).values({ workspaceId: input.workspaceId, createdByUserId: input.createdByUserId, approvedByUserId: input.createdByUserId, status: "approved", reference: input.reference ?? null, note: "طلب منشأ يدويًا من قائمة مقترحات معتمدة.", approvedAt: new Date() });
+    const order = (await tx.select().from(openOrders).where(and(eq(openOrders.workspaceId, input.workspaceId), eq(openOrders.createdByUserId, input.createdByUserId))).orderBy(desc(openOrders.createdAt)).limit(1))[0];
+    if (!order) throw new Error("Unable to create approved order");
+    await tx.insert(openOrderLines).values(input.lines.map((line) => ({ orderId: order.id, productCode: line.productCode ?? null, productName: line.productName, requestedQuantity: line.requestedQuantity, unitLabel: line.unitLabel ?? null })));
+    return order;
   });
 }

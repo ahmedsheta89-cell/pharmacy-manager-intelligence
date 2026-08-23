@@ -10,6 +10,7 @@ import type { ReorderRuleHistoryEntry, ReorderRules } from "@/lib/reorderRules";
 import { captureRulesSnapshot, compareRulesSnapshots, diffKindMeta, type RulesSnapshot } from "@/lib/rulesComparison";
 import type { ReorderRulesImportResult } from "@/lib/reorderRulesImport";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { trpc } from "@/lib/trpc";
 
 function statusMeta(item: InventoryItem) {
   if (item.status === "near_expiry") return { label: "قرب انتهاء", classes: "border-[#f1c9bd] bg-[#fff0ea] text-[#a64e3e]", Icon: Clock3 };
@@ -40,9 +41,17 @@ function InventoryDashboard({ operations, rules = {}, history = [], onSaveRule, 
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [importing, setImporting] = useState(false);
+  const [orderApprovalOpen, setOrderApprovalOpen] = useState(false);
   const ruleFileInput = useRef<HTMLInputElement>(null);
   const maxSuggested = Math.max(...operations.suggestions.map((item) => item.suggestedQuantity ?? 0), 1);
   const alerts = [...operations.nearExpiry, ...operations.lowStock].slice(0, 14);
+  const authenticatedUser = trpc.auth.me.useQuery(undefined, { retry: false });
+  const persistentWorkspaces = trpc.workspace.list.useQuery(undefined, { enabled: Boolean(authenticatedUser.data), retry: false });
+  const activePersistentWorkspace = persistentWorkspaces.data?.[0];
+  const savePersistentOrder = trpc.orders.saveApproved.useMutation({
+    onSuccess: () => { setNotice("حُفظ الطلب المعتمد في مساحة العمل. لم يُرسل طلب إلى مورد ولم تُخصم كميات تلقائيًا."); setOrderApprovalOpen(false); },
+    onError: () => setError("تعذر حفظ الطلب الدائم. بقيت قائمة الاقتراحات محلية ولم يُرسل أي طلب."),
+  });
 
   const openRule = (item: InventoryItem) => {
     const rule = rules[item.id];
@@ -77,11 +86,18 @@ function InventoryDashboard({ operations, rules = {}, history = [], onSaveRule, 
     finally { setImporting(false); }
   };
 
+  const approveSuggestedOrder = () => {
+    if (!activePersistentWorkspace) return;
+    const lines = operations.suggestions.filter((item) => (item.suggestedQuantity ?? 0) > 0).map((item) => ({ ...(item.itemCode ? { productCode: item.itemCode } : {}), productName: item.itemName, requestedQuantity: (item.suggestedQuantity ?? 0).toFixed(3), unitLabel: "وحدة" }));
+    if (!lines.length) { setError("لا توجد كميات موجبة لاعتماد طلب دائم."); return; }
+    savePersistentOrder.mutate({ workspaceId: activePersistentWorkspace.workspaceId, reference: `اقتراح ${new Date().toLocaleDateString("en-CA")}`, lines });
+  };
+
   return <>
     <div className="mx-auto max-w-[1350px] space-y-5">
       <header className="entry-rise flex flex-wrap items-end justify-between gap-4">
         <div><div className="mb-2 flex items-center gap-2 text-[11px] font-bold tracking-wide text-[#9a721f]"><span className="h-px w-7 bg-[#d8a345]" />حركة تشغيلية مبنية على بياناتك</div><h2 className="display-font text-[28px] font-semibold tracking-[-.035em] text-[#173f38]">المخزون والطلبات المقترحة</h2><p className="mt-1 max-w-3xl text-xs leading-6 text-[#6e827a]">{operations.note}</p></div>
-        <div className="flex flex-wrap items-center gap-2"><span className="rounded-xl border border-[#c9e4d8] bg-[#eff9f3] px-3 py-2 text-[10px] font-bold text-[#287159]">تحليل محلي · لا إرسال تلقائي للطلبات</span><input ref={ruleFileInput} onChange={(event) => { void importRules(event.target.files?.[0]); event.target.value = ""; }} type="file" accept=".xlsx,.xls,.csv" className="hidden" /><button type="button" onClick={() => ruleFileInput.current?.click()} disabled={!operations.available || importing} className="inline-flex items-center gap-2 rounded-xl border border-[#b7d8cb] bg-white px-3.5 py-2.5 text-[11px] font-bold text-[#1d6251] transition hover:bg-[#eff8f3] disabled:cursor-not-allowed disabled:opacity-50"><FileUp className="size-4 text-[#0a6d59]" />{importing ? "نراجع القواعد…" : "استيراد قواعد"}</button><button type="button" onClick={onExport} disabled={!operations.available} className="inline-flex items-center gap-2 rounded-xl bg-[#123c37] px-3.5 py-2.5 text-[11px] font-bold text-white transition hover:bg-[#17564c] disabled:cursor-not-allowed disabled:opacity-50"><ArrowDownToLine className="size-4 text-[#d8a345]" />تصدير Excel</button></div>
+        <div className="flex flex-wrap items-center gap-2"><span className="rounded-xl border border-[#c9e4d8] bg-[#eff9f3] px-3 py-2 text-[10px] font-bold text-[#287159]">تحليل محلي · لا إرسال تلقائي للطلبات</span>{activePersistentWorkspace && operations.suggestions.length > 0 && <button type="button" onClick={() => setOrderApprovalOpen(true)} className="inline-flex items-center gap-2 rounded-xl border border-[#e2c478] bg-[#fff8e8] px-3.5 py-2.5 text-[11px] font-bold text-[#795a17] transition hover:bg-[#fff1cf]"><CheckCircle2 className="size-4" />اعتماد الطلب بعد المراجعة</button>}<input ref={ruleFileInput} onChange={(event) => { void importRules(event.target.files?.[0]); event.target.value = ""; }} type="file" accept=".xlsx,.xls,.csv" className="hidden" /><button type="button" onClick={() => ruleFileInput.current?.click()} disabled={!operations.available || importing} className="inline-flex items-center gap-2 rounded-xl border border-[#b7d8cb] bg-white px-3.5 py-2.5 text-[11px] font-bold text-[#1d6251] transition hover:bg-[#eff8f3] disabled:cursor-not-allowed disabled:opacity-50"><FileUp className="size-4 text-[#0a6d59]" />{importing ? "نراجع القواعد…" : "استيراد قواعد"}</button><button type="button" onClick={onExport} disabled={!operations.available} className="inline-flex items-center gap-2 rounded-xl bg-[#123c37] px-3.5 py-2.5 text-[11px] font-bold text-white transition hover:bg-[#17564c] disabled:cursor-not-allowed disabled:opacity-50"><ArrowDownToLine className="size-4 text-[#d8a345]" />تصدير Excel</button></div>
       </header>
       {!operations.available ? <EmptyState title="لوحة المخزون تحتاج حقولًا إضافية" description={operations.note} /> : <>
         <div className="grid gap-3 sm:grid-cols-3"><Metric label="أصناف قرب الانتهاء" value={operations.nearExpiry.length} note="تنتهي خلال 90 يومًا أو أقل" tone="rose" /><Metric label="رصيد عند حد الطلب" value={operations.lowStock.length} note="الرصيد عند أو دون الحد المسجل" tone="amber" /><Metric label="طلبات مقترحة" value={operations.suggestions.length} note="كميات محسوبة من الحد أو مبيعات الفترة" tone="green" /></div>
@@ -95,6 +111,7 @@ function InventoryDashboard({ operations, rules = {}, history = [], onSaveRule, 
       </>}
     </div>
     <Dialog open={Boolean(editing)} onOpenChange={(open) => { if (!open) setEditing(null); }}><DialogContent className="border-[#d9e7df] bg-[#fcfcf8] text-right" dir="rtl"><DialogHeader className="text-right"><DialogTitle className="display-font text-xl text-[#183f38]">قاعدة إعادة طلب مخصصة</DialogTitle><DialogDescription className="mt-2 text-xs leading-6 text-[#6e827a]">{editing?.itemName} — تُحفظ هذه القاعدة على هذا المتصفح وتُستخدم فوق الحد الوارد من الملف.</DialogDescription></DialogHeader><div className="grid gap-4 py-2 sm:grid-cols-2"><label className="text-xs font-bold text-[#31574d]">حد إعادة الطلب<input autoFocus inputMode="numeric" type="number" min="0" value={reorderLevel} onChange={(event) => setReorderLevel(event.target.value)} className="mt-2 w-full rounded-xl border border-[#cfe0d8] bg-white px-3 py-2.5 text-sm text-[#183f38] outline-none focus:border-[#0b6b5b]" /></label><label className="text-xs font-bold text-[#31574d]">رصيد الهدف <span className="font-normal text-[#81928b]">اختياري</span><input inputMode="numeric" type="number" min="0" value={targetStock} onChange={(event) => setTargetStock(event.target.value)} placeholder="يُحسب تلقائيًا من الحد والمبيعات" className="mt-2 w-full rounded-xl border border-[#cfe0d8] bg-white px-3 py-2.5 text-sm text-[#183f38] outline-none focus:border-[#0b6b5b]" /></label></div>{error && <p className="rounded-lg bg-[#fff0ec] px-3 py-2 text-xs font-semibold text-[#a04e40]">{error}</p>}<p className="text-[10px] leading-5 text-[#74867e]">عند ترك رصيد الهدف فارغًا، يحسب النظام هدفه من ضعف الحد أو مبيعات الفترة المتاحة، أيهما أعلى.</p><DialogFooter className="gap-2 sm:justify-start"><button type="button" onClick={() => setEditing(null)} className="rounded-xl border border-[#d7e5de] bg-white px-4 py-2.5 text-xs font-bold text-[#55736a]">إلغاء</button><button type="button" onClick={saveRule} className="rounded-xl bg-[#123c37] px-4 py-2.5 text-xs font-bold text-white hover:bg-[#17564c]">حفظ القاعدة</button></DialogFooter></DialogContent></Dialog>
+    <Dialog open={orderApprovalOpen} onOpenChange={setOrderApprovalOpen}><DialogContent className="border-[#d9e7df] bg-[#fcfcf8] text-right" dir="rtl"><DialogHeader className="text-right"><DialogTitle className="display-font text-xl text-[#183f38]">اعتماد قائمة الطلب المقترحة</DialogTitle><DialogDescription className="mt-2 text-xs leading-6 text-[#6e827a]">ستحفظ هذه الخطوة طلبًا معتمدًا من {formatNumber(operations.suggestions.filter((item) => (item.suggestedQuantity ?? 0) > 0).length)} أصناف في مساحة العمل. لا ترسل رسالة أو أمرًا إلى المورد، ولا تخصم أي فاتورة أو مخزون.</DialogDescription></DialogHeader><div className="max-h-52 divide-y divide-[#e7eee9] overflow-auto rounded-xl border border-[#e0e9e3] bg-white">{operations.suggestions.filter((item) => (item.suggestedQuantity ?? 0) > 0).slice(0, 12).map((item) => <div key={item.id} className="flex items-center justify-between gap-3 px-3 py-2.5 text-[10px]"><span className="font-bold text-[#31574d]">{item.itemName}</span><span className="font-bold text-[#26705a]">{formatNumber(item.suggestedQuantity ?? 0)} وحدة</span></div>)}</div><DialogFooter className="gap-2 sm:justify-start"><button type="button" onClick={() => setOrderApprovalOpen(false)} className="rounded-xl border border-[#d7e5de] bg-white px-4 py-2.5 text-xs font-bold text-[#55736a]">عودة للمراجعة</button><button type="button" disabled={savePersistentOrder.isPending} onClick={approveSuggestedOrder} className="rounded-xl bg-[#123c37] px-4 py-2.5 text-xs font-bold text-white hover:bg-[#17564c] disabled:opacity-60">{savePersistentOrder.isPending ? "يجري الحفظ…" : "أعتمد الطلب يدويًا"}</button></DialogFooter></DialogContent></Dialog>
   </>;
 }
 

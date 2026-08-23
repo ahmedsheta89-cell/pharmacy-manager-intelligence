@@ -91,6 +91,7 @@ import { inspectWorkbookStructure, type WorkbookStructureReview } from "@/lib/ex
 import { recordImportAudit, type ImportAuditRecord } from "@/lib/importAuditLog";
 import { columnMapReviewStage, createColumnMapTemplate, deleteColumnMapTemplate, findColumnMapTemplateCompatibility, loadColumnMapTemplates, saveColumnMapTemplate, type ColumnMapTemplate, type ColumnMapTemplateCompatibility } from "@/lib/columnMapTemplates";
 import { trpc } from "@/lib/trpc";
+import { makeApprovedSessionPayload } from "@/lib/approvedSessionPayload";
 
 type Stage = "welcome" | "column-map-warning" | "review" | "dashboard";
 type DashboardView = "overview" | "operations" | "sales" | "products" | "movement" | "flow" | "companies" | "inventory" | "invoices" | "branches" | "alerts" | "report" | "settings";
@@ -160,26 +161,6 @@ function qualityStyle(score: number) {
 
 function dateText(date?: Date) {
   return date ? new Intl.DateTimeFormat("ar-EG", { year: "numeric", month: "short", day: "numeric" }).format(date) : "الفترة غير محددة";
-}
-
-function approvedSessionPayload(inspection: ImportInspection, periodLabel?: string) {
-  const analysis = analyzePharmacyData(inspection.sheets, {});
-  if (!analysis) throw new Error("لا يوجد تحليل معتمد صالح لحفظ ملخصه.");
-  return {
-    sourceFileName: inspection.fileName,
-    sourceFingerprint: inspection.fileFingerprint,
-    sourceSheetCount: inspection.sheets.length,
-    sourceRowCount: inspection.sheets.reduce((sum, sheet) => sum + sheet.quality.validRecords, 0),
-    ...(periodLabel ? { periodLabel } : {}),
-    mappingDecision: {
-      sheets: inspection.sheets.map((sheet) => ({ name: sheet.name, headerRowIndex: sheet.headerRowIndex, mappings: sheet.mappings.map((mapping) => ({ sourceColumn: mapping.sourceColumn, field: mapping.field, approvalStatus: mapping.approvalStatus ?? "legacy_approved" })) })),
-    },
-    normalizedSummary: {
-      metrics: Object.fromEntries(Object.entries(analysis.metrics).map(([key, metric]) => [key, { value: metric.value, availability: metric.availability, confidence: metric.confidence, source: metric.source }])),
-      alerts: analysis.alerts.slice(0, 20).map((alert) => ({ id: alert.id, level: alert.level, title: alert.title, evidence: alert.evidence, action: alert.action })),
-      totalRows: analysis.totalRows,
-    },
-  };
 }
 
 function MiniLogo({ compact = false }: { compact?: boolean }) {
@@ -359,7 +340,9 @@ export default function Home() {
     if (activePersistentWorkspace) {
       const periodLabel = importedMonths.length ? importedMonths.map((month) => month.label).join(" · ") : undefined;
       try {
-        savePersistentSession.mutate({ workspaceId: activePersistentWorkspace.workspaceId, ...approvedSessionPayload(inspection, periodLabel) });
+        const approvedAnalysis = analyzePharmacyData(inspection.sheets, {});
+        if (!approvedAnalysis) throw new Error("لا يوجد تحليل معتمد صالح لحفظ ملخصه.");
+        savePersistentSession.mutate({ workspaceId: activePersistentWorkspace.workspaceId, ...makeApprovedSessionPayload(inspection, approvedAnalysis, periodLabel) });
       } catch {
         setPersistenceNotice("استمر التحليل محليًا، ولم يُحفظ الملخص الدائم. لم يُرسل ملف Excel أو صفوفه الخام.");
       }
