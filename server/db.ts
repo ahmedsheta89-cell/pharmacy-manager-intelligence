@@ -183,7 +183,7 @@ function normalizePhone(value: string) {
   return western;
 }
 
-export type CustomerRequestStatus = "requested" | "awaiting_supply" | "ready_to_contact" | "contacted" | "fulfilled" | "cancelled";
+export type CustomerRequestStatus = "requested" | "awaiting_supply" | "ready_to_contact" | "contacted" | "fulfilled" | "unavailable" | "cancelled";
 
 export async function listCustomerRequests(workspaceId: number) {
   const db = getDb();
@@ -250,14 +250,14 @@ export async function updateCustomerRequestStatus(input: {
     if (!request) throw new Error("لم نعثر على طلب العميل.");
     if (input.status === "contacted" && request.status !== "ready_to_contact") throw new Error("لا يمكن تسجيل تواصل قبل اعتماد إتاحة الصنف للعميل.");
     if (input.status === "fulfilled" && !["ready_to_contact", "contacted"].includes(request.status)) throw new Error("لا يمكن إغلاق الطلب كمكتمل قبل إتاحة الصنف أو تسجيل التواصل.");
-    if (input.status === "cancelled" && !input.closedReason?.trim()) throw new Error("اكتب سبب إلغاء طلب العميل حفاظًا على السجل التشغيلي.");
+    if (["cancelled", "unavailable"].includes(input.status) && !input.closedReason?.trim()) throw new Error("اكتب سبب عدم التوفر أو الإلغاء حفاظًا على السجل التشغيلي.");
     const now = new Date();
     await tx.update(customerRequests).set({
       status: input.status,
       lastUpdatedByUserId: input.userId,
       contactedAt: input.status === "contacted" ? now : request.contactedAt,
       fulfilledAt: input.status === "fulfilled" ? now : request.fulfilledAt,
-      closedReason: input.status === "cancelled" ? input.closedReason?.trim() || null : request.closedReason,
+      closedReason: ["cancelled", "unavailable"].includes(input.status) ? input.closedReason?.trim() || null : request.closedReason,
       updatedAt: now,
     }).where(eq(customerRequests.id, request.id));
     await tx.insert(customerRequestEvents).values({ workspaceId: input.workspaceId, customerRequestId: request.id, actorUserId: input.userId, eventType: `customer_request.${input.status}`, note: input.note?.trim() || null, metadata: { from: request.status, to: input.status, closedReason: input.closedReason?.trim() || null } });

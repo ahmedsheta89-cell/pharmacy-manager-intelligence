@@ -14,4 +14,11 @@ describe("سياسة وصول فريق طلبات العملاء", () => {
     expect(canApproveCustomerSupply("operator")).toBe(false);
     expect(canManageCustomerRequests("reviewer")).toBe(false);
   });
+
+  it("يجعل قرارات التوريد وعدم التوفر ضمن اعتماد المدير لا ضمن شاشة الموظف", () => {
+    expect(canManageCustomerRequests("customer_requests")).toBe(true);
+    expect(canApproveCustomerSupply("customer_requests")).toBe(false);
+    expect(canApproveCustomerSupply("owner")).toBe(true);
+    expect(canApproveCustomerSupply("manager")).toBe(true);
+  });
 });

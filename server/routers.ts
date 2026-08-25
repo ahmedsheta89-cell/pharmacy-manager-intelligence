@@ -138,11 +138,11 @@ export const appRouter = router({
       return result;
     }),
     setStatus: protectedProcedure.input(z.object({
-      workspaceId: z.number().int().positive(), customerRequestId: z.number().int().positive(), status: z.enum(["requested", "awaiting_supply", "ready_to_contact", "contacted", "fulfilled", "cancelled"]), note: z.string().trim().max(3000).optional(), closedReason: z.string().trim().max(3000).optional(),
+      workspaceId: z.number().int().positive(), customerRequestId: z.number().int().positive(), status: z.enum(["requested", "awaiting_supply", "ready_to_contact", "contacted", "fulfilled", "unavailable", "cancelled"]), note: z.string().trim().max(3000).optional(), closedReason: z.string().trim().max(3000).optional(),
     })).mutation(async ({ ctx, input }) => {
       const membership = await db.getWorkspaceMembership(input.workspaceId, ctx.user.id);
       if (!membership || !canManageCustomerRequests(membership.accessRole)) throw new TRPCError({ code: "FORBIDDEN", message: "لا تملك صلاحية تحديث طلب العميل." });
-      if (membership.accessRole === "customer_requests" && ["requested", "awaiting_supply", "ready_to_contact"].includes(input.status)) throw new TRPCError({ code: "FORBIDDEN", message: "فريق الطلبات لا يعتمد التوريد أو الإتاحة؛ يمكنه تسجيل التواصل أو الإغلاق بعد قرار المدير." });
+      if (membership.accessRole === "customer_requests" && ["requested", "awaiting_supply", "ready_to_contact", "unavailable"].includes(input.status)) throw new TRPCError({ code: "FORBIDDEN", message: "فريق الطلبات لا يعتمد التوريد أو الإتاحة أو قرار عدم التوفر؛ يمكنه تسجيل التواصل أو الإغلاق بعد قرار المدير." });
       const request = await db.updateCustomerRequestStatus({ ...input, userId: ctx.user.id });
       await db.appendAuditEvent({ workspaceId: input.workspaceId, actorUserId: ctx.user.id, action: `customer_request.${input.status}`, entityType: "customer_request", entityId: String(input.customerRequestId), metadata: { note: input.note ?? null, closedReason: input.closedReason ?? null } });
       return request;

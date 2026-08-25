@@ -1,0 +1,1 @@
+ALTER TABLE `customer_requests` MODIFY COLUMN `customerRequestStatus` enum('requested','awaiting_supply','ready_to_contact','contacted','fulfilled','unavailable','cancelled') NOT NULL DEFAULT 'requested';

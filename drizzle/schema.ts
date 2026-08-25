@@ -206,7 +206,7 @@ export const customerRequests = mysqlTable("customer_requests", {
   normalizedProductName: varchar("normalizedProductName", { length: 255 }).notNull(),
   requestedQuantity: decimal("requestedQuantity", { precision: 14, scale: 3 }).notNull(),
   allocatedQuantity: decimal("allocatedQuantity", { precision: 14, scale: 3 }).default("0.000").notNull(),
-  status: mysqlEnum("customerRequestStatus", ["requested", "awaiting_supply", "ready_to_contact", "contacted", "fulfilled", "cancelled"]).default("requested").notNull(),
+  status: mysqlEnum("customerRequestStatus", ["requested", "awaiting_supply", "ready_to_contact", "contacted", "fulfilled", "unavailable", "cancelled"]).default("requested").notNull(),
   createdByUserId: int("createdByUserId").notNull().references(() => users.id),
   lastUpdatedByUserId: int("lastUpdatedByUserId").notNull().references(() => users.id),
   readyAt: timestamp("readyAt"),
