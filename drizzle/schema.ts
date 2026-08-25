@@ -244,6 +244,23 @@ export const customerRequestAccessInvites = mysqlTable("customer_request_access_
   index("customer_request_invite_workspace_idx").on(table.workspaceId, table.expiresAt),
 ]);
 
+/** قوالب رسائل WhatsApp تشغيلية يديرها المدير؛ تُفتح يدويًا ولا تنفذ إرسالًا تلقائيًا. */
+export const customerRequestMessageTemplates = mysqlTable("customer_request_message_templates", {
+  id: int("id").autoincrement().primaryKey(),
+  workspaceId: int("workspaceId").notNull().references(() => pharmacyWorkspaces.id),
+  name: varchar("name", { length: 120 }).notNull(),
+  body: text("body").notNull(),
+  isDefault: boolean("isDefault").default(false).notNull(),
+  isActive: boolean("isActive").default(true).notNull(),
+  createdByUserId: int("createdByUserId").notNull().references(() => users.id),
+  updatedByUserId: int("updatedByUserId").notNull().references(() => users.id),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  uniqueIndex("customer_message_template_workspace_name_unique").on(table.workspaceId, table.name),
+  index("customer_message_template_workspace_active_idx").on(table.workspaceId, table.isActive, table.updatedAt),
+]);
+
 export const operationalAlerts = mysqlTable("operational_alerts", {
   id: int("id").autoincrement().primaryKey(),
   workspaceId: int("workspaceId").notNull().references(() => pharmacyWorkspaces.id),

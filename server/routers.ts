@@ -104,6 +104,25 @@ export const appRouter = router({
       if (!membership || !canManageCustomerRequests(membership.accessRole)) throw new TRPCError({ code: "FORBIDDEN", message: "لا تملك صلاحية الوصول إلى طلبات العملاء." });
       return db.listCustomerRequests(input.workspaceId);
     }),
+    messageTemplates: protectedProcedure.input(z.object({ workspaceId: z.number().int().positive() })).query(async ({ ctx, input }) => {
+      const membership = await db.getWorkspaceMembership(input.workspaceId, ctx.user.id);
+      if (!membership || !canManageCustomerRequests(membership.accessRole)) throw new TRPCError({ code: "FORBIDDEN", message: "لا تملك صلاحية الوصول إلى قوالب الرسائل." });
+      return db.listCustomerRequestMessageTemplates(input.workspaceId, canApproveCustomerSupply(membership.accessRole));
+    }),
+    responseMetrics: protectedProcedure.input(z.object({ workspaceId: z.number().int().positive() })).query(async ({ ctx, input }) => {
+      const membership = await db.getWorkspaceMembership(input.workspaceId, ctx.user.id);
+      if (!membership || !canApproveCustomerSupply(membership.accessRole)) throw new TRPCError({ code: "FORBIDDEN", message: "مؤشرات فريق الطلبات متاحة للمدير فقط." });
+      return db.listCustomerRequestResponseMetrics(input.workspaceId);
+    }),
+    saveMessageTemplate: protectedProcedure.input(z.object({
+      workspaceId: z.number().int().positive(), id: z.number().int().positive().optional(), name: z.string().trim().min(2).max(120), body: z.string().trim().min(5).max(2000), isDefault: z.boolean(), isActive: z.boolean(),
+    })).mutation(async ({ ctx, input }) => {
+      const membership = await db.getWorkspaceMembership(input.workspaceId, ctx.user.id);
+      if (!membership || !canApproveCustomerSupply(membership.accessRole)) throw new TRPCError({ code: "FORBIDDEN", message: "إدارة قوالب WhatsApp متاحة للمدير فقط." });
+      const template = await db.saveCustomerRequestMessageTemplate({ ...input, userId: ctx.user.id });
+      await db.appendAuditEvent({ workspaceId: input.workspaceId, actorUserId: ctx.user.id, action: input.id ? "customer_request_message_template.updated" : "customer_request_message_template.created", entityType: "customer_request_message_template", entityId: String(template?.id ?? ""), metadata: { isDefault: input.isDefault, isActive: input.isActive } });
+      return template;
+    }),
     events: protectedProcedure.input(z.object({ workspaceId: z.number().int().positive(), customerRequestId: z.number().int().positive() })).query(async ({ ctx, input }) => {
       const membership = await db.getWorkspaceMembership(input.workspaceId, ctx.user.id);
       if (!membership || !canManageCustomerRequests(membership.accessRole)) throw new TRPCError({ code: "FORBIDDEN", message: "لا تملك صلاحية الوصول إلى سجل طلب العميل." });

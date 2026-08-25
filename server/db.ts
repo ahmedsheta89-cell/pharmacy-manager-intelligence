@@ -1,7 +1,7 @@
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { createHash, randomBytes } from "node:crypto";
-import { approvedAnalysisSessions, auditEvents, customerRequestAccessInvites, customerRequestEvents, customerRequestSupplyAllocations, customerRequests, invoiceSettlementLines, invoiceSettlements, openOrderLines, openOrders, operatingDecisions, operationalAlerts, pharmacyWorkspaces, supplierProfiles, users, workspaceMembers, workspaceRetentionPolicies, type InsertUser, type WorkspaceAccessRole } from "../drizzle/schema";
+import { approvedAnalysisSessions, auditEvents, customerRequestAccessInvites, customerRequestEvents, customerRequestMessageTemplates, customerRequestSupplyAllocations, customerRequests, invoiceSettlementLines, invoiceSettlements, openOrderLines, openOrders, operatingDecisions, operationalAlerts, pharmacyWorkspaces, supplierProfiles, users, workspaceMembers, workspaceRetentionPolicies, type InsertUser, type WorkspaceAccessRole } from "../drizzle/schema";
 
 let instance: ReturnType<typeof drizzle> | null = null;
 
@@ -345,4 +345,54 @@ export async function redeemCustomerRequestAccessInvite(input: { code: string; u
     await tx.update(customerRequestAccessInvites).set({ redeemedByUserId: input.userId, redeemedAt: new Date() }).where(eq(customerRequestAccessInvites.id, invite.id));
     return { workspaceId: invite.workspaceId, accessRole: existing?.accessRole ?? "customer_requests" };
   });
+}
+
+export async function listCustomerRequestMessageTemplates(workspaceId: number, includeInactive = false) {
+  const db = getDb();
+  if (!db) throw new Error("Database is not configured");
+  return db.select().from(customerRequestMessageTemplates)
+    .where(includeInactive ? eq(customerRequestMessageTemplates.workspaceId, workspaceId) : and(eq(customerRequestMessageTemplates.workspaceId, workspaceId), eq(customerRequestMessageTemplates.isActive, true)))
+    .orderBy(desc(customerRequestMessageTemplates.isDefault), desc(customerRequestMessageTemplates.updatedAt), desc(customerRequestMessageTemplates.id)).limit(60);
+}
+
+export async function saveCustomerRequestMessageTemplate(input: { workspaceId: number; userId: number; id?: number; name: string; body: string; isDefault: boolean; isActive: boolean }) {
+  const db = getDb();
+  if (!db) throw new Error("Database is not configured");
+  const name = input.name.trim();
+  const body = input.body.trim();
+  if (!name || !body) throw new Error("اسم القالب ونص الرسالة مطلوبان.");
+  return db.transaction(async (tx) => {
+    if (input.isDefault) await tx.update(customerRequestMessageTemplates).set({ isDefault: false, updatedByUserId: input.userId }).where(eq(customerRequestMessageTemplates.workspaceId, input.workspaceId));
+    if (input.id) {
+      const current = (await tx.select().from(customerRequestMessageTemplates).where(and(eq(customerRequestMessageTemplates.id, input.id), eq(customerRequestMessageTemplates.workspaceId, input.workspaceId))).limit(1))[0];
+      if (!current) throw new Error("لم نعثر على قالب الرسالة المطلوب.");
+      await tx.update(customerRequestMessageTemplates).set({ name, body, isDefault: input.isDefault, isActive: input.isActive, updatedByUserId: input.userId, updatedAt: new Date() }).where(eq(customerRequestMessageTemplates.id, current.id));
+      return (await tx.select().from(customerRequestMessageTemplates).where(eq(customerRequestMessageTemplates.id, current.id)).limit(1))[0];
+    }
+    const result = await tx.insert(customerRequestMessageTemplates).values({ workspaceId: input.workspaceId, name, body, isDefault: input.isDefault, isActive: input.isActive, createdByUserId: input.userId, updatedByUserId: input.userId });
+    return (await tx.select().from(customerRequestMessageTemplates).where(eq(customerRequestMessageTemplates.id, Number(result[0].insertId))).limit(1))[0];
+  });
+}
+
+export async function listCustomerRequestResponseMetrics(workspaceId: number) {
+  const db = getDb();
+  if (!db) throw new Error("Database is not configured");
+  const requests = await db.select().from(customerRequests).where(eq(customerRequests.workspaceId, workspaceId)).orderBy(desc(customerRequests.createdAt)).limit(500);
+  const now = Date.now();
+  const open = requests.filter((request) => ["requested", "awaiting_supply", "ready_to_contact", "contacted"].includes(request.status));
+  const overdue = open.filter((request) => now - request.createdAt.getTime() >= 24 * 60 * 60 * 1000);
+  const readyDurations = requests.flatMap((request) => request.readyAt ? [(request.readyAt.getTime() - request.createdAt.getTime()) / 3_600_000] : []);
+  const contactDurations = requests.flatMap((request) => request.readyAt && request.contactedAt ? [(request.contactedAt.getTime() - request.readyAt.getTime()) / 60_000] : []);
+  const fulfillmentDurations = requests.flatMap((request) => request.fulfilledAt ? [(request.fulfilledAt.getTime() - request.createdAt.getTime()) / 3_600_000] : []);
+  const average = (values: number[]) => values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
+  return {
+    total: requests.length,
+    openCount: open.length,
+    requestedCount: requests.filter((request) => request.status === "requested").length,
+    readyToContactCount: requests.filter((request) => request.status === "ready_to_contact").length,
+    overdueCount: overdue.length,
+    averageHoursToReady: average(readyDurations),
+    averageMinutesToContact: average(contactDurations),
+    averageHoursToFulfill: average(fulfillmentDurations),
+  };
 }

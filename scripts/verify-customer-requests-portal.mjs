@@ -11,6 +11,9 @@ try {
   await page.getByRole("heading", { name: "من طلب العميل إلى رسالة التوافر" }).waitFor({ timeout: 15_000 });
   await page.getByRole("heading", { name: "تسجيل طلب عميل" }).waitFor({ timeout: 15_000 });
   await page.getByText("لديك رمز انضمام", { exact: true }).waitFor({ timeout: 15_000 });
+  await page.getByPlaceholder("ابحث بالعميل أو الهاتف أو الصنف أو الكود").waitFor({ timeout: 15_000 });
+  await page.getByText(/قالب WhatsApp المعتمد/).waitFor({ timeout: 15_000 });
+  await page.getByRole("heading", { name: "قائمة المتابعة" }).waitFor({ timeout: 15_000 });
   if (process.env.CAPTURE_CUSTOMER_REQUESTS_SCREEN === "1") await page.screenshot({ path: "/home/ubuntu/pharmacy-manager-customer-requests.png", fullPage: true });
   console.log("VERIFY_CUSTOMER_REQUESTS_PORTAL_OK");
 } finally {

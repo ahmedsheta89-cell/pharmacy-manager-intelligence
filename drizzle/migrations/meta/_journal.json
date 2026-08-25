@@ -22,6 +22,13 @@
       "when": 1787629420941,
       "tag": "0002_lowly_rachel_grey",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1787630664486,
+      "tag": "0003_chief_skin",
+      "breakpoints": true
     }
   ]
 }
