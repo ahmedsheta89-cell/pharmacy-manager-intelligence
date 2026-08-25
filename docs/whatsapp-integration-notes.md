@@ -17,11 +17,13 @@
 
 ## لا نفعل
 
-لا نربط WhatsApp الشخصي بالمتصفح، ولا نستخدم مكتبات تحاكي WhatsApp Web أو إرسالًا جماعيًا غير مصرح. لا نرسل رسائل عن منتجات صحية أو أدوية إلا بعد مراجعة سياسات البلد والمتطلبات التنظيمية؛ سياسة WhatsApp تفرض قيودًا إضافية على قطاعات الأدوية والرعاية الصحية.
+لا نربط WhatsApp الشخصي بالمتصفح، ولا نستخدم مكتبات تحاكي WhatsApp Web أو إرسالًا جماعيًا غير مصرح. لا نرسل رسائل عن منتجات صحية أو أدوية إلا بعد مراجعة سياسات البلد والمتطلبات التنظيمية؛ سياسة WhatsApp تفرض قيودًا إضافية على قطاعات الأدوية والرعاية الصحية، ولا يثبت مسار Cloud API وحده السماح برسائل دوائية في مصر.
+
+> **قرار المرحلة الحالية:** الرقم `01000753375` لا يكفي وحده لبدء التكامل الرسمي. يلزم تأكيد أنه رقم أعمال مخصص، وربطه بحساب Meta Business، ثم إتاحة `phone_number_id` وموافقة المستخدمين وقوالب Meta. إلى ذلك الحين يظل فتح `wa.me` للمراجعة اليدوية فقط.
 
 ## المصادر
 
-- https://developers.facebook.com/documentation/business-messaging/whatsapp/getting-opt-in
-- https://developers.facebook.com/documentation/business-messaging/whatsapp/get-started
-- https://developers.facebook.com/documentation/business-messaging/whatsapp/webhooks/overview
-- https://whatsappbusiness.com/policy/
+- [موافقة WhatsApp الرسمية](https://developers.facebook.com/documentation/business-messaging/whatsapp/getting-opt-in)
+- [البدء باستخدام WhatsApp Cloud API](https://developers.facebook.com/documentation/business-messaging/whatsapp/get-started)
+- [Webhooks في WhatsApp Business Platform](https://developers.facebook.com/documentation/business-messaging/whatsapp/webhooks/overview)
+- [WhatsApp Business Messaging Policy](https://whatsappbusiness.com/policy/)

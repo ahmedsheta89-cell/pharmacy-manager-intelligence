@@ -159,6 +159,59 @@ export async function listAuditEvents(workspaceId: number) {
   return db.select().from(auditEvents).where(eq(auditEvents.workspaceId, workspaceId)).orderBy(desc(auditEvents.createdAt), desc(auditEvents.id)).limit(40);
 }
 
+/**
+ * مؤشرات تشغيلية قابلة للتفسير للمدير. لا تفحص ملفات المصدر المحلية ولا تعرض
+ * أي أسرار أو بيانات اعتماد؛ الغرض هو معرفة أن قاعدة البيانات تسجل العمل وأن
+ * أحدث نشاط وتشغيل الطلبات مرئيان قبل اتخاذ إجراء.
+ */
+export async function getWorkspaceReliabilitySnapshot(workspaceId: number, userId: number) {
+  const [retentionPolicy, events, requestMetrics, suppliers, arrivals] = await Promise.all([
+    getRetentionPolicy(workspaceId, userId),
+    listAuditEvents(workspaceId),
+    listCustomerRequestResponseMetrics(workspaceId),
+    listSupplierContacts(workspaceId),
+    listSupplierArrivalSchedules(workspaceId),
+  ]);
+  return {
+    checkedAt: new Date(),
+    databaseStatus: "available" as const,
+    lastAuditEventAt: events[0]?.createdAt ?? null,
+    latestAuditAction: events[0]?.action ?? null,
+    auditEventsVisible: events.length,
+    activeSupplierContacts: suppliers.filter((supplier) => supplier.isActive).length,
+    scheduledSupplierArrivals: arrivals.filter((arrival) => ["scheduled", "late"].includes(arrival.status)).length,
+    requestMetrics,
+    retentionPolicy: {
+      rawSourceRetentionDays: retentionPolicy.rawSourceRetentionDays,
+      approvedMetadataRetentionDays: retentionPolicy.approvedMetadataRetentionDays,
+      auditEventRetentionDays: retentionPolicy.auditEventRetentionDays,
+    },
+    privacyBoundary: "لا تحفظ قاعدة البيانات ملفات Excel أو صور الفواتير أو نص OCR الخام." as const,
+  };
+}
+
+/**
+ * لقطة تشغيلية يطلبها المدير صراحةً لاسترداد ومراجعة السجلات، وليست نسخًا
+ * احتياطيًا آليًا للبنية أو للملفات المحلية. لا تضم أي مصدر Excel أو صورة فاتورة.
+ */
+export async function exportWorkspaceOperationalSnapshot(workspaceId: number, userId: number) {
+  const [requests, suppliers, arrivals, templates, events, retentionPolicy] = await Promise.all([
+    listCustomerRequests(workspaceId),
+    listSupplierContacts(workspaceId),
+    listSupplierArrivalSchedules(workspaceId),
+    listCustomerRequestMessageTemplates(workspaceId, true),
+    listAuditEvents(workspaceId),
+    getRetentionPolicy(workspaceId, userId),
+  ]);
+  return {
+    format: "pharmacy-manager-operational-snapshot/v1" as const,
+    exportedAt: new Date().toISOString(),
+    workspaceId,
+    scope: "طلبات العملاء، جهات الموردين، مواعيد الوصول، قوالب الرسائل، وآخر 40 سجل تدقيق. لا يشمل ملفات Excel أو صور الفواتير أو OCR الخام." as const,
+    data: { requests, suppliers, arrivals, messageTemplates: templates, auditEvents: events, retentionPolicy },
+  };
+}
+
 export async function saveApprovedOpenOrder(input: { workspaceId: number; createdByUserId: number; reference?: string; lines: Array<{ productCode?: string; productName: string; requestedQuantity: string; unitLabel?: string }> }) {
   const db = getDb();
   if (!db) throw new Error("Database is not configured");
@@ -443,6 +496,22 @@ export async function listCustomerRequestResponseMetrics(workspaceId: number) {
     averageMinutesToContact: average(contactDurations),
     averageHoursToFulfill: average(fulfillmentDurations),
   };
+}
+
+export async function listCustomerRequestDailyWorkQueue(input: { workspaceId: number; createdByUserId?: number }) {
+  const db = getDb();
+  if (!db) throw new Error("Database is not configured");
+  const activeStatuses: CustomerRequestStatus[] = ["requested", "awaiting_supply", "ready_to_contact", "contacted"];
+  const conditions = [eq(customerRequests.workspaceId, input.workspaceId), inArray(customerRequests.status, activeStatuses)];
+  if (input.createdByUserId) conditions.push(eq(customerRequests.createdByUserId, input.createdByUserId));
+  const rows = await db.select().from(customerRequests).where(and(...conditions)).limit(300);
+  const now = Date.now();
+  const weight: Record<CustomerRequestStatus, number> = { ready_to_contact: 1, contacted: 2, requested: 3, awaiting_supply: 4, fulfilled: 5, unavailable: 6, cancelled: 7 };
+  return rows.map((request) => {
+    const ageHours = Math.max(0, (now - request.createdAt.getTime()) / 3_600_000);
+    const action = request.status === "ready_to_contact" ? "راجع الرسالة ثم تواصل مع العميل" : request.status === "contacted" ? "ثبّت التسليم أو الإغلاق بسبب" : request.status === "awaiting_supply" ? "تابع التوريد أو راجع موعد المورد" : "راجع الطلب وحدد حالة التوريد";
+    return { ...request, ageHours, isOverdue: ageHours >= 24, action };
+  }).sort((a, b) => (Number(b.isOverdue) - Number(a.isOverdue)) || (weight[a.status as CustomerRequestStatus] - weight[b.status as CustomerRequestStatus]) || (a.createdAt.getTime() - b.createdAt.getTime())).slice(0, 60);
 }
 
 export async function listWorkspaceTeamMembers(workspaceId: number) {

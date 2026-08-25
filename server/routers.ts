@@ -60,6 +60,18 @@ export const appRouter = router({
       await db.appendAuditEvent({ workspaceId: input.workspaceId, actorUserId: ctx.user.id, action: "retention_policy.updated", entityType: "workspace_retention_policy", entityId: String(policy?.id ?? ""), metadata: { approvedMetadataRetentionDays: input.approvedMetadataRetentionDays, auditEventRetentionDays: input.auditEventRetentionDays, rawSourceRetentionDays: 0 } });
       return policy;
     }),
+    reliabilitySnapshot: protectedProcedure.input(z.object({ workspaceId: z.number().int().positive() })).query(async ({ ctx, input }) => {
+      const membership = await db.getWorkspaceMembership(input.workspaceId, ctx.user.id);
+      if (!membership || !canApproveCustomerSupply(membership.accessRole)) throw new TRPCError({ code: "FORBIDDEN", message: "مراقبة التشغيل متاحة للمدير فقط." });
+      return db.getWorkspaceReliabilitySnapshot(input.workspaceId, ctx.user.id);
+    }),
+    exportOperationalSnapshot: protectedProcedure.input(z.object({ workspaceId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+      const membership = await db.getWorkspaceMembership(input.workspaceId, ctx.user.id);
+      if (!membership || !canApproveCustomerSupply(membership.accessRole)) throw new TRPCError({ code: "FORBIDDEN", message: "تصدير لقطة التشغيل متاح للمدير فقط." });
+      const snapshot = await db.exportWorkspaceOperationalSnapshot(input.workspaceId, ctx.user.id);
+      await db.appendAuditEvent({ workspaceId: input.workspaceId, actorUserId: ctx.user.id, action: "workspace_operational_snapshot.exported", entityType: "workspace_operational_snapshot", metadata: { format: snapshot.format, requestCount: snapshot.data.requests.length, supplierCount: snapshot.data.suppliers.length } });
+      return snapshot;
+    }),
   }),
   orders: router({
     saveApproved: protectedProcedure.input(z.object({ workspaceId: z.number().int().positive(), reference: z.string().trim().max(100).optional(), lines: z.array(z.object({ productCode: z.string().trim().max(120).optional(), productName: z.string().trim().min(1).max(255), requestedQuantity: z.string().regex(/^\d+(\.\d{1,3})?$/), unitLabel: z.string().trim().max(64).optional() })).min(1).max(500) })).mutation(async ({ ctx, input }) => {
@@ -113,6 +125,11 @@ export const appRouter = router({
       const membership = await db.getWorkspaceMembership(input.workspaceId, ctx.user.id);
       if (!membership || !canApproveCustomerSupply(membership.accessRole)) throw new TRPCError({ code: "FORBIDDEN", message: "مؤشرات فريق الطلبات متاحة للمدير فقط." });
       return db.listCustomerRequestResponseMetrics(input.workspaceId);
+    }),
+    dailyWorkQueue: protectedProcedure.input(z.object({ workspaceId: z.number().int().positive() })).query(async ({ ctx, input }) => {
+      const membership = await db.getWorkspaceMembership(input.workspaceId, ctx.user.id);
+      if (!membership || !canManageCustomerRequests(membership.accessRole)) throw new TRPCError({ code: "FORBIDDEN", message: "لا تملك صلاحية الوصول إلى قائمة عمل اليوم." });
+      return db.listCustomerRequestDailyWorkQueue({ workspaceId: input.workspaceId, createdByUserId: membership.accessRole === "customer_requests" ? ctx.user.id : undefined });
     }),
     saveMessageTemplate: protectedProcedure.input(z.object({
       workspaceId: z.number().int().positive(), id: z.number().int().positive().optional(), name: z.string().trim().min(2).max(120), body: z.string().trim().min(5).max(2000), isDefault: z.boolean(), isActive: z.boolean(),
