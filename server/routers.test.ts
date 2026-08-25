@@ -42,7 +42,12 @@ describe("إجراءات الخادم المحمية", () => {
       caller.customerRequests.setStatus({ workspaceId: 1, customerRequestId: 1, status: "contacted" }),
       caller.customerRequests.supplyCandidates({ workspaceId: 1 }),
       caller.customerRequests.approveSupply({ workspaceId: 1, allocations: [{ customerRequestId: 1, settlementLineId: 1, allocatedQuantity: "1.000" }] }),
-      caller.customerRequests.createTeamInvite({ workspaceId: 1, expiresInHours: 24 }),
+      caller.customerRequests.teamPerformance({ workspaceId: 1, sinceDays: 30 }),
+      caller.customerRequests.teamMembers({ workspaceId: 1 }),
+      caller.customerRequests.setEmployeeCode({ workspaceId: 1, userId: 1, employeeCode: "EMP-01" }),
+      caller.supplierArrivals.list({ workspaceId: 1 }),
+      caller.supplierArrivals.create({ workspaceId: 1, supplierName: "مورد تجريبي", expectedAt: new Date("2026-08-25T10:00:00.000Z") }),
+      caller.supplierArrivals.setStatus({ workspaceId: 1, scheduleId: 1, status: "arrived" }),
       caller.customerRequests.redeemTeamInvite({ code: "ABCD-EFGH-IJKL" }),
     ];
     for (const request of checks) await expect(request).rejects.toMatchObject({ code: "UNAUTHORIZED" });

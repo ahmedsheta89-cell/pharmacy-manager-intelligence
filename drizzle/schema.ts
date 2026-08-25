@@ -43,12 +43,14 @@ export const workspaceMembers = mysqlTable("workspace_members", {
   id: int("id").autoincrement().primaryKey(),
   workspaceId: int("workspaceId").notNull().references(() => pharmacyWorkspaces.id),
   userId: int("userId").notNull().references(() => users.id),
+  employeeCode: varchar("employeeCode", { length: 40 }),
   accessRole: mysqlEnum("accessRole", ["owner", "manager", "operator", "reviewer", "customer_requests"]).notNull(),
   status: mysqlEnum("membershipStatus", ["active", "suspended"]).default("active").notNull(),
   joinedAt: timestamp("joinedAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (table) => [
   uniqueIndex("workspace_member_unique").on(table.workspaceId, table.userId),
+  uniqueIndex("workspace_employee_code_unique").on(table.workspaceId, table.employeeCode),
   index("workspace_member_user_idx").on(table.userId),
 ]);
 
@@ -101,6 +103,25 @@ export const supplierProfiles = mysqlTable("supplier_profiles", {
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (table) => [
   uniqueIndex("supplier_workspace_name_unique").on(table.workspaceId, table.normalizedName),
+]);
+
+/** موعد استلام مورد يدخله المدير يدويًا؛ لا يغيّر طلبًا أو فاتورة أو مخزونًا تلقائيًا. */
+export const supplierArrivalSchedules = mysqlTable("supplier_arrival_schedules", {
+  id: int("id").autoincrement().primaryKey(),
+  workspaceId: int("workspaceId").notNull().references(() => pharmacyWorkspaces.id),
+  supplierId: int("supplierId").references(() => supplierProfiles.id),
+  supplierName: varchar("supplierName", { length: 200 }).notNull(),
+  expectedAt: timestamp("expectedAt").notNull(),
+  status: mysqlEnum("supplierArrivalStatus", ["scheduled", "arrived", "late", "cancelled"]).default("scheduled").notNull(),
+  note: text("note"),
+  createdByUserId: int("createdByUserId").notNull().references(() => users.id),
+  updatedByUserId: int("updatedByUserId").notNull().references(() => users.id),
+  arrivedAt: timestamp("arrivedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("supplier_arrival_workspace_status_expected_idx").on(table.workspaceId, table.status, table.expectedAt),
+  index("supplier_arrival_supplier_expected_idx").on(table.supplierId, table.expectedAt),
 ]);
 
 export const openOrders = mysqlTable("open_orders", {

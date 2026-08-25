@@ -173,6 +173,44 @@ export const appRouter = router({
       await db.appendAuditEvent({ workspaceId: result.workspaceId, actorUserId: ctx.user.id, action: "customer_request_team.invite_redeemed", entityType: "workspace_member", entityId: String(ctx.user.id), metadata: { accessRole: result.accessRole } });
       return result;
     }),
+    teamMembers: protectedProcedure.input(z.object({ workspaceId: z.number().int().positive() })).query(async ({ ctx, input }) => {
+      const membership = await db.getWorkspaceMembership(input.workspaceId, ctx.user.id);
+      if (!membership || !canApproveCustomerSupply(membership.accessRole)) throw new TRPCError({ code: "FORBIDDEN", message: "إدارة أكواد الموظفين متاحة للمدير فقط." });
+      return db.listWorkspaceTeamMembers(input.workspaceId);
+    }),
+    setEmployeeCode: protectedProcedure.input(z.object({ workspaceId: z.number().int().positive(), userId: z.number().int().positive(), employeeCode: z.string().trim().min(3).max(40) })).mutation(async ({ ctx, input }) => {
+      const membership = await db.getWorkspaceMembership(input.workspaceId, ctx.user.id);
+      if (!membership || !canApproveCustomerSupply(membership.accessRole)) throw new TRPCError({ code: "FORBIDDEN", message: "تعيين كود الموظف متاح للمدير فقط." });
+      const member = await db.setWorkspaceMemberEmployeeCode(input);
+      await db.appendAuditEvent({ workspaceId: input.workspaceId, actorUserId: ctx.user.id, action: "workspace_member.employee_code_set", entityType: "workspace_member", entityId: String(input.userId), metadata: { employeeCode: member.employeeCode } });
+      return member;
+    }),
+    teamPerformance: protectedProcedure.input(z.object({ workspaceId: z.number().int().positive(), sinceDays: z.number().int().min(1).max(90).default(30) })).query(async ({ ctx, input }) => {
+      const membership = await db.getWorkspaceMembership(input.workspaceId, ctx.user.id);
+      if (!membership || !canApproveCustomerSupply(membership.accessRole)) throw new TRPCError({ code: "FORBIDDEN", message: "تقارير أداء فريق الطلبات متاحة للمدير فقط." });
+      return db.listCustomerRequestTeamPerformance(input);
+    }),
+  }),
+  supplierArrivals: router({
+    list: protectedProcedure.input(z.object({ workspaceId: z.number().int().positive() })).query(async ({ ctx, input }) => {
+      const membership = await db.getWorkspaceMembership(input.workspaceId, ctx.user.id);
+      if (!membership || !canApproveCustomerSupply(membership.accessRole)) throw new TRPCError({ code: "FORBIDDEN", message: "قائمة وصول الموردين متاحة للمدير فقط." });
+      return db.listSupplierArrivalSchedules(input.workspaceId);
+    }),
+    create: protectedProcedure.input(z.object({ workspaceId: z.number().int().positive(), supplierName: z.string().trim().min(2).max(200), expectedAt: z.date(), note: z.string().trim().max(3000).optional() })).mutation(async ({ ctx, input }) => {
+      const membership = await db.getWorkspaceMembership(input.workspaceId, ctx.user.id);
+      if (!membership || !canApproveCustomerSupply(membership.accessRole)) throw new TRPCError({ code: "FORBIDDEN", message: "جدولة وصول المورد متاحة للمدير فقط." });
+      const schedule = await db.createSupplierArrivalSchedule({ ...input, createdByUserId: ctx.user.id });
+      await db.appendAuditEvent({ workspaceId: input.workspaceId, actorUserId: ctx.user.id, action: "supplier_arrival.created", entityType: "supplier_arrival_schedule", entityId: String(schedule?.id ?? ""), metadata: { supplierName: input.supplierName, expectedAt: input.expectedAt.toISOString() } });
+      return schedule;
+    }),
+    setStatus: protectedProcedure.input(z.object({ workspaceId: z.number().int().positive(), scheduleId: z.number().int().positive(), status: z.enum(["scheduled", "arrived", "late", "cancelled"]), note: z.string().trim().max(3000).optional() })).mutation(async ({ ctx, input }) => {
+      const membership = await db.getWorkspaceMembership(input.workspaceId, ctx.user.id);
+      if (!membership || !canApproveCustomerSupply(membership.accessRole)) throw new TRPCError({ code: "FORBIDDEN", message: "تحديث موعد المورد متاح للمدير فقط." });
+      const schedule = await db.updateSupplierArrivalSchedule({ ...input, updatedByUserId: ctx.user.id });
+      await db.appendAuditEvent({ workspaceId: input.workspaceId, actorUserId: ctx.user.id, action: `supplier_arrival.${input.status}`, entityType: "supplier_arrival_schedule", entityId: String(input.scheduleId), metadata: { note: input.note ?? null } });
+      return schedule;
+    }),
   }),
 });
 

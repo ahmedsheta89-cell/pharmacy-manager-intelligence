@@ -1,7 +1,7 @@
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { createHash, randomBytes } from "node:crypto";
-import { approvedAnalysisSessions, auditEvents, customerRequestAccessInvites, customerRequestEvents, customerRequestMessageTemplates, customerRequestSupplyAllocations, customerRequests, invoiceSettlementLines, invoiceSettlements, openOrderLines, openOrders, operatingDecisions, operationalAlerts, pharmacyWorkspaces, supplierProfiles, users, workspaceMembers, workspaceRetentionPolicies, type InsertUser, type WorkspaceAccessRole } from "../drizzle/schema";
+import { approvedAnalysisSessions, auditEvents, customerRequestAccessInvites, customerRequestEvents, customerRequestMessageTemplates, customerRequestSupplyAllocations, customerRequests, invoiceSettlementLines, invoiceSettlements, openOrderLines, openOrders, operatingDecisions, operationalAlerts, pharmacyWorkspaces, supplierArrivalSchedules, supplierProfiles, users, workspaceMembers, workspaceRetentionPolicies, type InsertUser, type WorkspaceAccessRole } from "../drizzle/schema";
 
 let instance: ReturnType<typeof drizzle> | null = null;
 
@@ -395,4 +395,80 @@ export async function listCustomerRequestResponseMetrics(workspaceId: number) {
     averageMinutesToContact: average(contactDurations),
     averageHoursToFulfill: average(fulfillmentDurations),
   };
+}
+
+export async function listWorkspaceTeamMembers(workspaceId: number) {
+  const db = getDb();
+  if (!db) throw new Error("Database is not configured");
+  return db.select({ userId: workspaceMembers.userId, employeeCode: workspaceMembers.employeeCode, accessRole: workspaceMembers.accessRole, status: workspaceMembers.status, joinedAt: workspaceMembers.joinedAt, name: users.name, email: users.email })
+    .from(workspaceMembers).innerJoin(users, eq(workspaceMembers.userId, users.id))
+    .where(eq(workspaceMembers.workspaceId, workspaceId)).orderBy(desc(workspaceMembers.joinedAt)).limit(200);
+}
+
+export async function setWorkspaceMemberEmployeeCode(input: { workspaceId: number; userId: number; employeeCode: string }) {
+  const db = getDb();
+  if (!db) throw new Error("Database is not configured");
+  const employeeCode = input.employeeCode.trim().toUpperCase();
+  if (!/^[A-Z0-9-]{3,40}$/.test(employeeCode)) throw new Error("كود الموظف يجب أن يتكون من 3 إلى 40 حرفًا أو رقمًا أو شرطة فقط.");
+  const member = (await db.select().from(workspaceMembers).where(and(eq(workspaceMembers.workspaceId, input.workspaceId), eq(workspaceMembers.userId, input.userId))).limit(1))[0];
+  if (!member) throw new Error("لم نعثر على عضو فريق داخل مساحة العمل.");
+  const duplicate = (await db.select({ userId: workspaceMembers.userId }).from(workspaceMembers).where(and(eq(workspaceMembers.workspaceId, input.workspaceId), eq(workspaceMembers.employeeCode, employeeCode))).limit(1))[0];
+  if (duplicate && duplicate.userId !== input.userId) throw new Error("كود الموظف مستخدم بالفعل داخل هذه الصيدلية. اختر كودًا مختلفًا.");
+  await db.update(workspaceMembers).set({ employeeCode, updatedAt: new Date() }).where(eq(workspaceMembers.id, member.id));
+  return { ...member, employeeCode };
+}
+
+export async function listCustomerRequestTeamPerformance(input: { workspaceId: number; sinceDays: number }) {
+  const db = getDb();
+  if (!db) throw new Error("Database is not configured");
+  const since = new Date(Date.now() - input.sinceDays * 24 * 60 * 60 * 1000);
+  const rows = await db.select({ event: customerRequestEvents, request: customerRequests, employeeCode: workspaceMembers.employeeCode, name: users.name })
+    .from(customerRequestEvents)
+    .innerJoin(customerRequests, eq(customerRequestEvents.customerRequestId, customerRequests.id))
+    .leftJoin(workspaceMembers, and(eq(workspaceMembers.workspaceId, input.workspaceId), eq(workspaceMembers.userId, customerRequestEvents.actorUserId)))
+    .leftJoin(users, eq(users.id, customerRequestEvents.actorUserId))
+    .where(and(eq(customerRequestEvents.workspaceId, input.workspaceId), sql`${customerRequestEvents.createdAt} >= ${since}`))
+    .orderBy(desc(customerRequestEvents.createdAt)).limit(1500);
+  type PerformanceRow = { userId: number; name: string; employeeCode: string | null; createdCount: number; contactedCount: number; fulfilledCount: number; cancelledCount: number; contactDurations: number[]; lastActivityAt: Date | null };
+  const performance = new Map<number, PerformanceRow>();
+  for (const row of rows) {
+    const actorUserId = row.event.actorUserId;
+    if (!actorUserId) continue;
+    const current: PerformanceRow = performance.get(actorUserId) ?? { userId: actorUserId, name: row.name?.trim() || "موظف غير مسمى", employeeCode: row.employeeCode ?? null, createdCount: 0, contactedCount: 0, fulfilledCount: 0, cancelledCount: 0, contactDurations: [], lastActivityAt: null };
+    if (row.event.eventType === "customer_request.created") current.createdCount += 1;
+    if (row.event.eventType === "customer_request.contacted") {
+      current.contactedCount += 1;
+      if (row.request.readyAt) current.contactDurations.push(Math.max(0, (row.event.createdAt.getTime() - row.request.readyAt.getTime()) / 60_000));
+    }
+    if (row.event.eventType === "customer_request.fulfilled") current.fulfilledCount += 1;
+    if (row.event.eventType === "customer_request.cancelled") current.cancelledCount += 1;
+    if (!current.lastActivityAt || row.event.createdAt > current.lastActivityAt) current.lastActivityAt = row.event.createdAt;
+    performance.set(actorUserId, current);
+  }
+  return Array.from(performance.values()).map((item) => ({ ...item, averageMinutesToContact: item.contactDurations.length ? item.contactDurations.reduce((sum: number, value: number) => sum + value, 0) / item.contactDurations.length : null, contactDurations: undefined })).sort((a, b) => b.contactedCount - a.contactedCount || b.fulfilledCount - a.fulfilledCount);
+}
+
+export async function listSupplierArrivalSchedules(workspaceId: number) {
+  const db = getDb();
+  if (!db) throw new Error("Database is not configured");
+  return db.select().from(supplierArrivalSchedules).where(eq(supplierArrivalSchedules.workspaceId, workspaceId)).orderBy(supplierArrivalSchedules.expectedAt).limit(300);
+}
+
+export async function createSupplierArrivalSchedule(input: { workspaceId: number; supplierName: string; expectedAt: Date; note?: string; createdByUserId: number }) {
+  const db = getDb();
+  if (!db) throw new Error("Database is not configured");
+  const supplierName = input.supplierName.trim();
+  if (!supplierName) throw new Error("اسم المورد مطلوب.");
+  const result = await db.insert(supplierArrivalSchedules).values({ workspaceId: input.workspaceId, supplierName, expectedAt: input.expectedAt, note: input.note?.trim() || null, createdByUserId: input.createdByUserId, updatedByUserId: input.createdByUserId });
+  return (await db.select().from(supplierArrivalSchedules).where(eq(supplierArrivalSchedules.id, Number(result[0].insertId))).limit(1))[0];
+}
+
+export async function updateSupplierArrivalSchedule(input: { workspaceId: number; scheduleId: number; status: "scheduled" | "arrived" | "late" | "cancelled"; note?: string; updatedByUserId: number }) {
+  const db = getDb();
+  if (!db) throw new Error("Database is not configured");
+  const current = (await db.select().from(supplierArrivalSchedules).where(and(eq(supplierArrivalSchedules.id, input.scheduleId), eq(supplierArrivalSchedules.workspaceId, input.workspaceId))).limit(1))[0];
+  if (!current) throw new Error("لم نعثر على موعد المورد.");
+  const values = { status: input.status, note: input.note?.trim() || current.note, updatedByUserId: input.updatedByUserId, updatedAt: new Date(), arrivedAt: input.status === "arrived" ? new Date() : current.arrivedAt };
+  await db.update(supplierArrivalSchedules).set(values).where(eq(supplierArrivalSchedules.id, current.id));
+  return (await db.select().from(supplierArrivalSchedules).where(eq(supplierArrivalSchedules.id, current.id)).limit(1))[0];
 }
