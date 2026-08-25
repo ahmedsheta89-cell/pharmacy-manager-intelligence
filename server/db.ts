@@ -240,6 +240,54 @@ export async function createCustomerRequest(input: {
   return { request, duplicate: false };
 }
 
+/**
+ * مدير الصيدلية فقط هو من يستدعي هذه الدالة عبر الـ API. لا تسجل أرقام العميل
+ * أو قيمها السابقة في سجل التدقيق؛ يكفي حقول التغيير، بينما يظل السجل التشغيلي
+ * قابلاً للمراجعة من داخل مساحة العمل.
+ */
+export async function updateCustomerRequestDetails(input: {
+  workspaceId: number; customerRequestId: number; userId: number; customerName: string; customerPhone: string; productCode?: string; productName: string; requestedQuantity: string; note?: string;
+}) {
+  const db = getDb();
+  if (!db) throw new Error("Database is not configured");
+  return db.transaction(async (tx) => {
+    const current = (await tx.select().from(customerRequests).where(and(eq(customerRequests.workspaceId, input.workspaceId), eq(customerRequests.id, input.customerRequestId))).limit(1))[0];
+    if (!current) throw new Error("لم نعثر على طلب العميل المطلوب تعديله.");
+    const customerName = input.customerName.trim();
+    const customerPhone = input.customerPhone.trim();
+    const productName = input.productName.trim();
+    const productCode = input.productCode?.trim() || null;
+    const note = input.note?.trim() || null;
+    const normalizedCustomerPhone = normalizePhone(customerPhone);
+    const normalizedProductName = normalizeOperationalText(productName);
+    const requestedQuantity = Number(input.requestedQuantity);
+    const allocatedQuantity = Number(current.allocatedQuantity);
+    if (!Number.isFinite(requestedQuantity) || requestedQuantity <= 0) throw new Error("الكمية المطلوبة غير صالحة.");
+    if (requestedQuantity < allocatedQuantity) throw new Error("لا يمكن خفض الكمية المطلوبة عن كمية التوريد المعتمدة بالفعل.");
+    if (allocatedQuantity > 0 && (productCode !== current.productCode || normalizedProductName !== current.normalizedProductName)) throw new Error("لا يمكن تغيير الصنف أو كوده بعد تخصيص توريد معتمد؛ افتح طلبًا جديدًا لتبقى المطابقة دقيقة.");
+    const activeStatuses: CustomerRequestStatus[] = ["requested", "awaiting_supply", "ready_to_contact", "contacted"];
+    const potentialDuplicates = await tx.select().from(customerRequests).where(and(eq(customerRequests.workspaceId, input.workspaceId), eq(customerRequests.normalizedCustomerPhone, normalizedCustomerPhone), inArray(customerRequests.status, activeStatuses))).limit(30);
+    const duplicate = potentialDuplicates.find((request) => request.id !== current.id && (Boolean(productCode && request.productCode && productCode === request.productCode) || request.normalizedProductName === normalizedProductName));
+    if (duplicate) throw new Error("يوجد طلب مفتوح آخر لنفس العميل والصنف؛ راجعه بدل إنشاء تكرار تشغيلي.");
+    const status = current.status === "ready_to_contact" && requestedQuantity > allocatedQuantity ? "awaiting_supply" : current.status;
+    const changedFields = [
+      current.customerName !== customerName && "customerName",
+      current.customerPhone !== customerPhone && "customerPhone",
+      current.productCode !== productCode && "productCode",
+      current.productName !== productName && "productName",
+      Number(current.requestedQuantity) !== requestedQuantity && "requestedQuantity",
+      (current.note ?? null) !== note && "note",
+      current.status !== status && "status",
+    ].filter(Boolean) as string[];
+    const now = new Date();
+    await tx.update(customerRequests).set({ customerName, customerPhone, normalizedCustomerPhone, productCode, productName, normalizedProductName, requestedQuantity: input.requestedQuantity, note, status, lastUpdatedByUserId: input.userId, updatedAt: now }).where(eq(customerRequests.id, current.id));
+    if (changedFields.length) await tx.insert(customerRequestEvents).values({ workspaceId: input.workspaceId, customerRequestId: current.id, actorUserId: input.userId, eventType: "customer_request.details_updated", metadata: { changedFields, statusChangedTo: status !== current.status ? status : null } });
+    const request = (await tx.select().from(customerRequests).where(eq(customerRequests.id, current.id)).limit(1))[0];
+    if (!request) throw new Error("تعذر حفظ تعديل طلب العميل.");
+    return { request, changedFields };
+  });
+}
+
 export async function updateCustomerRequestStatus(input: {
   workspaceId: number; customerRequestId: number; userId: number; status: CustomerRequestStatus; note?: string; closedReason?: string;
 }) {
@@ -452,6 +500,31 @@ export async function listSupplierArrivalSchedules(workspaceId: number) {
   const db = getDb();
   if (!db) throw new Error("Database is not configured");
   return db.select().from(supplierArrivalSchedules).where(eq(supplierArrivalSchedules.workspaceId, workspaceId)).orderBy(supplierArrivalSchedules.expectedAt).limit(300);
+}
+
+export async function listSupplierContacts(workspaceId: number) {
+  const db = getDb();
+  if (!db) throw new Error("Database is not configured");
+  return db.select().from(supplierProfiles).where(eq(supplierProfiles.workspaceId, workspaceId)).orderBy(supplierProfiles.isActive, supplierProfiles.name).limit(300);
+}
+
+export async function saveSupplierContact(input: { workspaceId: number; supplierId?: number; name: string; contactLabel?: string; contactPhone?: string; isActive: boolean }) {
+  const db = getDb();
+  if (!db) throw new Error("Database is not configured");
+  const name = input.name.trim();
+  if (!name) throw new Error("اسم المورد مطلوب.");
+  const normalizedName = normalizedSupplierName(name);
+  const contactLabel = input.contactLabel?.trim() || null;
+  const contactPhone = input.contactPhone?.trim() || null;
+  const normalizedContactPhone = contactPhone ? normalizePhone(contactPhone) : null;
+  if (input.supplierId) {
+    const current = (await db.select().from(supplierProfiles).where(and(eq(supplierProfiles.id, input.supplierId), eq(supplierProfiles.workspaceId, input.workspaceId))).limit(1))[0];
+    if (!current) throw new Error("لم نعثر على جهة المورد المطلوبة.");
+    await db.update(supplierProfiles).set({ name, normalizedName, contactLabel, contactPhone, normalizedContactPhone, isActive: input.isActive, updatedAt: new Date() }).where(eq(supplierProfiles.id, current.id));
+    return (await db.select().from(supplierProfiles).where(eq(supplierProfiles.id, current.id)).limit(1))[0];
+  }
+  await db.insert(supplierProfiles).values({ workspaceId: input.workspaceId, name, normalizedName, contactLabel, contactPhone, normalizedContactPhone, isActive: input.isActive }).onDuplicateKeyUpdate({ set: { contactLabel, contactPhone, normalizedContactPhone, isActive: input.isActive, updatedAt: new Date() } });
+  return (await db.select().from(supplierProfiles).where(and(eq(supplierProfiles.workspaceId, input.workspaceId), eq(supplierProfiles.normalizedName, normalizedName))).limit(1))[0];
 }
 
 export async function createSupplierArrivalSchedule(input: { workspaceId: number; supplierName: string; expectedAt: Date; note?: string; createdByUserId: number }) {

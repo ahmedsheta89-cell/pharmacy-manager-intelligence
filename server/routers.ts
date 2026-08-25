@@ -137,6 +137,15 @@ export const appRouter = router({
       if (!result.duplicate) await db.appendAuditEvent({ workspaceId: input.workspaceId, actorUserId: ctx.user.id, action: "customer_request.created", entityType: "customer_request", entityId: String(result.request.id), metadata: { productCode: result.request.productCode, requestedQuantity: input.requestedQuantity } });
       return result;
     }),
+    updateDetails: protectedProcedure.input(z.object({
+      workspaceId: z.number().int().positive(), customerRequestId: z.number().int().positive(), customerName: z.string().trim().min(2).max(160), customerPhone: z.string().trim().min(7).max(32), productCode: z.string().trim().max(120).optional(), productName: z.string().trim().min(2).max(255), requestedQuantity: z.string().regex(/^\d+(\.\d{1,3})?$/), note: z.string().trim().max(3000).optional(),
+    })).mutation(async ({ ctx, input }) => {
+      const membership = await db.getWorkspaceMembership(input.workspaceId, ctx.user.id);
+      if (!membership || !canApproveCustomerSupply(membership.accessRole)) throw new TRPCError({ code: "FORBIDDEN", message: "تعديل بيانات طلب العميل متاح للمدير فقط." });
+      const result = await db.updateCustomerRequestDetails({ ...input, userId: ctx.user.id });
+      await db.appendAuditEvent({ workspaceId: input.workspaceId, actorUserId: ctx.user.id, action: "customer_request.details_updated", entityType: "customer_request", entityId: String(input.customerRequestId), metadata: { changedFields: result.changedFields } });
+      return result.request;
+    }),
     setStatus: protectedProcedure.input(z.object({
       workspaceId: z.number().int().positive(), customerRequestId: z.number().int().positive(), status: z.enum(["requested", "awaiting_supply", "ready_to_contact", "contacted", "fulfilled", "unavailable", "cancelled"]), note: z.string().trim().max(3000).optional(), closedReason: z.string().trim().max(3000).optional(),
     })).mutation(async ({ ctx, input }) => {
@@ -210,6 +219,22 @@ export const appRouter = router({
       const schedule = await db.updateSupplierArrivalSchedule({ ...input, updatedByUserId: ctx.user.id });
       await db.appendAuditEvent({ workspaceId: input.workspaceId, actorUserId: ctx.user.id, action: `supplier_arrival.${input.status}`, entityType: "supplier_arrival_schedule", entityId: String(input.scheduleId), metadata: { note: input.note ?? null } });
       return schedule;
+    }),
+  }),
+  supplierContacts: router({
+    list: protectedProcedure.input(z.object({ workspaceId: z.number().int().positive() })).query(async ({ ctx, input }) => {
+      const membership = await db.getWorkspaceMembership(input.workspaceId, ctx.user.id);
+      if (!membership || !canApproveCustomerSupply(membership.accessRole)) throw new TRPCError({ code: "FORBIDDEN", message: "دفتر جهات الموردين متاح للمدير فقط." });
+      return db.listSupplierContacts(input.workspaceId);
+    }),
+    save: protectedProcedure.input(z.object({
+      workspaceId: z.number().int().positive(), supplierId: z.number().int().positive().optional(), name: z.string().trim().min(2).max(200), contactLabel: z.string().trim().max(160).optional(), contactPhone: z.string().trim().min(7).max(32).optional(), isActive: z.boolean(),
+    })).mutation(async ({ ctx, input }) => {
+      const membership = await db.getWorkspaceMembership(input.workspaceId, ctx.user.id);
+      if (!membership || !canApproveCustomerSupply(membership.accessRole)) throw new TRPCError({ code: "FORBIDDEN", message: "تعديل جهات الموردين متاح للمدير فقط." });
+      const supplier = await db.saveSupplierContact(input);
+      await db.appendAuditEvent({ workspaceId: input.workspaceId, actorUserId: ctx.user.id, action: input.supplierId ? "supplier_contact.updated" : "supplier_contact.saved", entityType: "supplier_profile", entityId: String(supplier?.id ?? ""), metadata: { hasContactPhone: Boolean(input.contactPhone?.trim()), isActive: input.isActive } });
+      return supplier;
     }),
   }),
 });

@@ -98,11 +98,14 @@ export const supplierProfiles = mysqlTable("supplier_profiles", {
   name: varchar("name", { length: 200 }).notNull(),
   normalizedName: varchar("normalizedName", { length: 200 }).notNull(),
   contactLabel: varchar("contactLabel", { length: 160 }),
+  contactPhone: varchar("contactPhone", { length: 32 }),
+  normalizedContactPhone: varchar("normalizedContactPhone", { length: 32 }),
   isActive: boolean("isActive").default(true).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (table) => [
   uniqueIndex("supplier_workspace_name_unique").on(table.workspaceId, table.normalizedName),
+  index("supplier_workspace_contact_idx").on(table.workspaceId, table.normalizedContactPhone),
 ]);
 
 /** موعد استلام مورد يدخله المدير يدويًا؛ لا يغيّر طلبًا أو فاتورة أو مخزونًا تلقائيًا. */

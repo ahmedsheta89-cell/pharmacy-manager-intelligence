@@ -43,6 +43,13 @@
       "when": 1787686616984,
       "tag": "0005_modern_clea",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1787687812801,
+      "tag": "0006_wise_thunderbolt",
+      "breakpoints": true
     }
   ]
 }

@@ -39,6 +39,7 @@ describe("إجراءات الخادم المحمية", () => {
       caller.customerRequests.saveMessageTemplate({ workspaceId: 1, name: "رسالة التوافر", body: "أهلًا {{customerName}}", isDefault: true, isActive: true }),
       caller.customerRequests.events({ workspaceId: 1, customerRequestId: 1 }),
       caller.customerRequests.create({ workspaceId: 1, customerName: "عميل اختبار", customerPhone: "01000000000", productName: "صنف اختبار", requestedQuantity: "1.000" }),
+      caller.customerRequests.updateDetails({ workspaceId: 1, customerRequestId: 1, customerName: "عميل اختبار", customerPhone: "01000000000", productName: "صنف اختبار", requestedQuantity: "1.000" }),
       caller.customerRequests.setStatus({ workspaceId: 1, customerRequestId: 1, status: "contacted" }),
       caller.customerRequests.supplyCandidates({ workspaceId: 1 }),
       caller.customerRequests.approveSupply({ workspaceId: 1, allocations: [{ customerRequestId: 1, settlementLineId: 1, allocatedQuantity: "1.000" }] }),
@@ -48,6 +49,8 @@ describe("إجراءات الخادم المحمية", () => {
       caller.supplierArrivals.list({ workspaceId: 1 }),
       caller.supplierArrivals.create({ workspaceId: 1, supplierName: "مورد تجريبي", expectedAt: new Date("2026-08-25T10:00:00.000Z") }),
       caller.supplierArrivals.setStatus({ workspaceId: 1, scheduleId: 1, status: "arrived" }),
+      caller.supplierContacts.list({ workspaceId: 1 }),
+      caller.supplierContacts.save({ workspaceId: 1, name: "مورد تجريبي", contactPhone: "01000000000", isActive: true }),
       caller.customerRequests.redeemTeamInvite({ code: "ABCD-EFGH-IJKL" }),
     ];
     for (const request of checks) await expect(request).rejects.toMatchObject({ code: "UNAUTHORIZED" });
