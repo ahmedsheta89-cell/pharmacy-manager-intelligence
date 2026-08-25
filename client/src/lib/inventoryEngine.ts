@@ -13,6 +13,15 @@ export interface InventoryItem {
   itemCode?: string;
   company?: string;
   stock?: number;
+  unitSalePrice?: number;
+  unitCost?: number;
+  sales?: number;
+  cost?: number;
+  profit?: number;
+  profitMargin?: number;
+  stockSaleValue?: number;
+  stockCostValue?: number;
+  stockProfitValue?: number;
   reorderLevel?: number;
   reorderSource?: "custom" | "file";
   targetStock?: number;
@@ -142,6 +151,12 @@ export function analyzeInventoryOperations(sheets: SheetInspection[], rules: Rec
     const stock = numberValue(valueFor(record, fields, "stock_quantity"));
     const reorder = numberValue(valueFor(record, fields, "reorder_level"));
     const salesQuantity = numberValue(valueFor(record, fields, "quantity_sold")) ?? numberValue(valueFor(record, fields, "sales_quantity"));
+    const unitSalePrice = record.__metrics.unitSalePrice ?? numberValue(valueFor(record, fields, "sale_price"));
+    const unitCost = record.__metrics.unitCost ?? numberValue(valueFor(record, fields, "cost_price"));
+    const sales = record.__metrics.sales;
+    const cost = record.__metrics.cost;
+    const profit = record.__metrics.profit ?? (sales !== undefined && cost !== undefined ? sales - cost : undefined);
+    const profitMargin = record.__metrics.profitMargin ?? (sales && profit !== undefined ? profit / sales * 100 : undefined);
     const expiryDate = dateValue(valueFor(record, fields, "expiry_date"));
     const daysToExpiry = expiryDate ? Math.ceil((new Date(expiryDate.getFullYear(), expiryDate.getMonth(), expiryDate.getDate()).valueOf() - now.valueOf()) / 86400000) : undefined;
     const existing = itemMap.get(key);
@@ -151,6 +166,12 @@ export function analyzeInventoryOperations(sheets: SheetInspection[], rules: Rec
       itemCode,
       company: textFor(record, fields, "company") || undefined,
       stock: stock ?? existing?.stock,
+      unitSalePrice: unitSalePrice ?? existing?.unitSalePrice,
+      unitCost: unitCost ?? existing?.unitCost,
+      sales: sales === undefined && existing?.sales === undefined ? undefined : (existing?.sales ?? 0) + (sales ?? 0),
+      cost: cost === undefined && existing?.cost === undefined ? undefined : (existing?.cost ?? 0) + (cost ?? 0),
+      profit: profit === undefined && existing?.profit === undefined ? undefined : (existing?.profit ?? 0) + (profit ?? 0),
+      profitMargin: profitMargin ?? existing?.profitMargin,
       reorderLevel: reorder ?? existing?.reorderLevel,
       reorderSource: reorder !== undefined ? "file" : existing?.reorderSource,
       salesQuantity: (existing?.salesQuantity ?? 0) + (salesQuantity ?? 0),
@@ -163,8 +184,12 @@ export function analyzeInventoryOperations(sheets: SheetInspection[], rules: Rec
   }
   const items = Array.from(itemMap.values()).map((item) => {
     const rule = rules[item.id];
-    if (!rule) return item;
-    return withItemStatus({ ...item, reorderLevel: rule.reorderLevel, reorderSource: "custom", targetStock: rule.targetStock });
+    const withRule = rule ? { ...item, reorderLevel: rule.reorderLevel, reorderSource: "custom" as const, targetStock: rule.targetStock } : item;
+    const stockSaleValue = withRule.stock !== undefined && withRule.unitSalePrice !== undefined ? withRule.stock * withRule.unitSalePrice : undefined;
+    const stockCostValue = withRule.stock !== undefined && withRule.unitCost !== undefined ? withRule.stock * withRule.unitCost : undefined;
+    const stockProfitValue = stockSaleValue !== undefined && stockCostValue !== undefined ? stockSaleValue - stockCostValue : undefined;
+    const derivedMargin = withRule.sales && withRule.profit !== undefined ? withRule.profit / withRule.sales * 100 : withRule.profitMargin;
+    return withItemStatus({ ...withRule, profitMargin: derivedMargin, stockSaleValue, stockCostValue, stockProfitValue });
   });
   const nearExpiry = items.filter((item) => item.status === "near_expiry").sort((a, b) => (a.daysToExpiry ?? Infinity) - (b.daysToExpiry ?? Infinity));
   const lowStock = items.filter((item) => item.status === "low_stock").sort((a, b) => ((a.stock ?? Infinity) - (a.reorderLevel ?? 0)) - ((b.stock ?? Infinity) - (b.reorderLevel ?? 0)));
