@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, BarChart3, Building2, CalendarClock, CheckCircle2, ClipboardPlus, Copy, DatabaseZap, Download, ExternalLink, Filter, IdCard, MessageCircle, PackageCheck, Pencil, Phone, RefreshCw, Search, Settings2, ShieldCheck, UserPlus, UsersRound, XCircle } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { customerMessageTemplateVariables, defaultCustomerAvailabilityTemplate, defaultCustomerOrderInProgressTemplate, defaultCustomerUnavailableTemplate, renderCustomerMessageTemplate } from "@/lib/customerMessageTemplates";
+import { inspectOperationalSnapshot, type OperationalSnapshotPreview } from "@/lib/operationalSnapshot";
 import { startLogin } from "@/const";
 
 type RequestStatus = "requested" | "awaiting_supply" | "ready_to_contact" | "contacted" | "fulfilled" | "unavailable" | "cancelled";
@@ -55,6 +56,7 @@ export function CustomerRequestsCenter({ onClose }: { onClose?: () => void }) {
   const [form, setForm] = useState({ customerName: "", customerPhone: "", productName: "", productCode: "", requestedQuantity: "1", note: "" });
   const [requestEditor, setRequestEditor] = useState<RequestEditor | undefined>();
   const [supplierContactEditor, setSupplierContactEditor] = useState<SupplierContactEditor>({ name: "", contactLabel: "", contactPhone: "", isActive: true });
+  const [snapshotPreview, setSnapshotPreview] = useState<OperationalSnapshotPreview | undefined>();
 
   const selectedWorkspace = useMemo(() => workspaces.data?.find((workspace) => workspace.workspaceId === workspaceId), [workspaces.data, workspaceId]);
   const canUseRequests = selectedWorkspace && ["owner", "manager", "customer_requests"].includes(selectedWorkspace.accessRole);
@@ -157,6 +159,18 @@ export function CustomerRequestsCenter({ onClose }: { onClose?: () => void }) {
     createRequest.mutate({ workspaceId, ...form, productCode: form.productCode.trim() || undefined, note: form.note.trim() || undefined });
   }
 
+  async function previewOperationalSnapshot(file?: File) {
+    if (!file) return;
+    try {
+      const preview = inspectOperationalSnapshot(JSON.parse(await file.text()));
+      setSnapshotPreview(preview);
+      setNotice(preview.valid ? "تمت مراجعة تنسيق اللقطة محليًا. لم تُكتب أو تُدمج أي بيانات." : "ملف اللقطة غير صالح للمراجعة؛ راجع أسباب الرفض الظاهرة.");
+    } catch {
+      setSnapshotPreview({ valid: false, issues: ["تعذر قراءة JSON من الملف المختار."] });
+      setNotice("تعذر قراءة اللقطة؛ لم تُكتب أو تُدمج أي بيانات.");
+    }
+  }
+
   function startRequestEdit(request: { id: number; customerName: string; customerPhone: string; productName: string; productCode?: string | null; requestedQuantity: string; note?: string | null }) {
     setRequestEditor({ id: request.id, customerName: request.customerName, customerPhone: request.customerPhone, productName: request.productName, productCode: request.productCode ?? "", requestedQuantity: request.requestedQuantity, note: request.note ?? "" });
   }
@@ -250,6 +264,8 @@ export function CustomerRequestsCenter({ onClose }: { onClose?: () => void }) {
 
       <aside className="rounded-2xl border border-[#dbe9e2] bg-[#f8fbf8] p-4 sm:p-5"><div className="flex items-center gap-2"><ShieldCheck className="size-4 text-[#9c7628]" /><h3 className="text-sm font-bold text-[#274d43]">إدارة وصول الفريق</h3></div><p className="mt-1 text-[10px] leading-5 text-[#71867d]">ينشئ المدير رمزًا أحادي الاستخدام. بعد تسجيل دخول الزميل، يدخل الرمز ليحصل فقط على شاشة طلبات العملاء.</p>{canApproveSupply && <button type="button" onClick={() => workspaceId && createInvite.mutate({ workspaceId, expiresInHours: 24 })} disabled={createInvite.isPending} className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-xl border border-[#b7d8c9] bg-white px-3 py-2 text-xs font-bold text-[#276655] hover:bg-[#edf8f2]"><UserPlus className="size-4" />إنشاء رمز فريق لمدة 24 ساعة</button>}{newInviteCode && <div className="mt-3 rounded-xl border border-[#d6bd78] bg-[#fff8df] p-3"><p className="text-[10px] font-bold text-[#765b18]">رمز أحادي الاستخدام — يظهر الآن فقط</p><div className="mt-2 flex items-center justify-between gap-2"><code className="select-all text-sm font-bold tracking-wider text-[#554310]">{newInviteCode}</code><button type="button" onClick={() => { void navigator.clipboard?.writeText(newInviteCode); setNotice("نُسخ رمز الانضمام. شاركه عبر قناة آمنة."); }} className="rounded-lg bg-white px-2 py-1.5 text-[#6d5313] hover:bg-[#fffdf5]" aria-label="نسخ رمز الانضمام"><Copy className="size-3.5" /></button></div></div>}<div className="mt-5 border-t border-[#dce8e1] pt-4"><label className="text-[10px] font-bold text-[#59736a]">لديك رمز انضمام<input value={joinCode} onChange={(event) => setJoinCode(event.target.value.toUpperCase())} placeholder="XXXX-XXXX-XXXX" className="mt-1.5 w-full rounded-xl border border-[#ccdcd4] bg-white px-3 py-2.5 text-xs font-bold tracking-wider text-[#284d44] outline-none focus:border-[#159174]" /></label><button type="button" onClick={() => redeemInvite.mutate({ code: joinCode })} disabled={!joinCode.trim() || redeemInvite.isPending} className="mt-2 inline-flex min-h-10 items-center gap-2 rounded-xl border border-[#b7d8c9] bg-white px-3 py-2 text-xs font-bold text-[#276655] hover:bg-[#edf8f2] disabled:opacity-50"><RefreshCw className="size-3.5" />انضمام لفريق الطلبات</button></div></aside>
     </section>
+
+    {canApproveSupply && <section className="rounded-2xl border border-dashed border-[#b9d8c8] bg-[#fbfefc] p-4"><div className="flex items-start gap-3"><DatabaseZap className="mt-0.5 size-5 text-[#176f59]" /><div><h3 className="text-sm font-bold text-[#244d44]">فحص لقطة تشغيلية قبل الاسترداد</h3><p className="mt-1 text-[10px] leading-5 text-[#71867d]">تُقرأ البنية والعدادات داخل المتصفح فقط. لا يكتب هذا الفحص، ولا يدمج، ولا يستعيد بيانات قاعدة البيانات.</p></div></div><label className="mt-3 inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border border-[#bdd9cb] bg-white px-3 py-2 text-[10px] font-bold text-[#276a56] hover:bg-[#eff8f2]"><DatabaseZap className="size-3.5" />اختيار لقطة JSON للمراجعة<input type="file" accept="application/json,.json" className="sr-only" onChange={(event) => void previewOperationalSnapshot(event.target.files?.[0])} /></label>{snapshotPreview && <div className={`mt-3 rounded-xl px-3 py-2.5 text-[10px] leading-5 ${snapshotPreview.valid ? "bg-[#edf8f1] text-[#276a56]" : "bg-[#fff3f1] text-[#9a4c42]"}`}><p className="font-bold">{snapshotPreview.valid ? "لقطة صالحة للمراجعة فقط" : "لقطة مرفوضة"}</p>{snapshotPreview.valid ? <p className="mt-1">مساحة #{snapshotPreview.workspaceId?.toLocaleString("ar-EG")} · طلبات {snapshotPreview.counts?.requests.toLocaleString("ar-EG")} · موردون {snapshotPreview.counts?.suppliers.toLocaleString("ar-EG")} · مواعيد {snapshotPreview.counts?.arrivals.toLocaleString("ar-EG")} · قوالب {snapshotPreview.counts?.templates.toLocaleString("ar-EG")} · سجلات تدقيق {snapshotPreview.counts?.auditEvents.toLocaleString("ar-EG")}</p> : <ul className="mt-1 list-disc space-y-1 pr-4">{snapshotPreview.issues.map((issue) => <li key={issue}>{issue}</li>)}</ul>}</div>}</section>}
 
     {notice && <div role="status" className="rounded-xl border border-[#c6dfd2] bg-[#eef9f2] px-4 py-3 text-xs font-bold leading-5 text-[#236553]">{notice}</div>}
 
