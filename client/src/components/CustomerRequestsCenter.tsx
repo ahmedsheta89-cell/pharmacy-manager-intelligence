@@ -129,6 +129,9 @@ export function CustomerRequestsCenter({ onClose }: { onClose?: () => void }) {
     onSuccess: async () => { setNotice("تم حفظ تعديل طلب العميل وسُجّل نوع التعديل في سجل التشغيل."); setRequestEditor(undefined); await Promise.all([utils.customerRequests.list.invalidate(), utils.customerRequests.supplyCandidates.invalidate(), utils.customerRequests.responseMetrics.invalidate()]); },
     onError: (error) => setNotice(error.message),
   });
+  const revealPhone = trpc.customerRequests.revealPhone.useMutation({
+    onError: (error) => setNotice(error.message),
+  });
   const saveSupplierContact = trpc.supplierContacts.save.useMutation({
     onSuccess: async () => { setNotice("تم حفظ جهة المورد ورقم التواصل. فتح WhatsApp، إن استُخدم، يبقى مراجعة يدوية فقط."); setSupplierContactEditor({ name: "", contactLabel: "", contactPhone: "", isActive: true }); await utils.supplierContacts.list.invalidate(); },
     onError: (error) => setNotice(error.message),
@@ -164,16 +167,23 @@ export function CustomerRequestsCenter({ onClose }: { onClose?: () => void }) {
     updateRequestDetails.mutate({ workspaceId, customerRequestId: requestEditor.id, customerName: requestEditor.customerName, customerPhone: requestEditor.customerPhone, productName: requestEditor.productName, productCode: requestEditor.productCode.trim() || undefined, requestedQuantity: requestEditor.requestedQuantity, note: requestEditor.note.trim() || undefined });
   }
 
-  function openWhatsApp(request: { id: number; customerPhone: string; customerName: string; productName: string; productCode?: string | null; requestedQuantity: string }) {
+  function openWhatsApp(request: { id: number; customerPhone: string; phoneMasked?: boolean; customerName: string; productName: string; productCode?: string | null; requestedQuantity: string }) {
     if (!workspaceId) return;
-    const selectedTemplate = messageTemplates.data?.find((template) => template.id === selectedTemplateId);
-    const message = renderCustomerMessageTemplate(selectedTemplate?.body ?? defaultCustomerAvailabilityTemplate, request);
-    setStatus.mutate({ workspaceId, customerRequestId: request.id, status: "contacted", note: "فتح الموظف رسالة WhatsApp الجاهزة بعد مراجعة إتاحة الصنف." }, {
-      onSuccess: () => {
-        window.open(whatsappLink(request.customerPhone, message), "_blank", "noopener,noreferrer");
-        setNotice("سُجّل فتح رسالة WhatsApp، ولم يُرسل شيء من الأداة تلقائيًا.");
-      },
-    });
+    const openWithPhone = (customerPhone: string) => {
+      const selectedTemplate = messageTemplates.data?.find((template) => template.id === selectedTemplateId);
+      const message = renderCustomerMessageTemplate(selectedTemplate?.body ?? defaultCustomerAvailabilityTemplate, { customerName: request.customerName, productName: request.productName, productCode: request.productCode, requestedQuantity: request.requestedQuantity });
+      setStatus.mutate({ workspaceId, customerRequestId: request.id, status: "contacted", note: "فتح الموظف رسالة WhatsApp الجاهزة بعد مراجعة إتاحة الصنف." }, {
+        onSuccess: () => {
+          window.open(whatsappLink(customerPhone, message), "_blank", "noopener,noreferrer");
+          setNotice("سُجّل فتح رسالة WhatsApp، ولم يُرسل شيء من الأداة تلقائيًا.");
+        },
+      });
+    };
+    if (request.phoneMasked) {
+      revealPhone.mutate({ workspaceId, customerRequestId: request.id }, { onSuccess: ({ customerPhone }) => openWithPhone(customerPhone) });
+      return;
+    }
+    openWithPhone(request.customerPhone);
   }
 
   function markOrderingAndOpenWhatsApp(request: { id: number; customerPhone: string; customerName: string; productName: string; productCode?: string | null; requestedQuantity: string }) {

@@ -254,6 +254,12 @@ export async function listCustomerRequestEvents(workspaceId: number, customerReq
     .orderBy(desc(customerRequestEvents.createdAt), desc(customerRequestEvents.id)).limit(80);
 }
 
+export async function getCustomerRequestById(workspaceId: number, customerRequestId: number) {
+  const db = getDb();
+  if (!db) throw new Error("Database is not configured");
+  return (await db.select().from(customerRequests).where(and(eq(customerRequests.workspaceId, workspaceId), eq(customerRequests.id, customerRequestId))).limit(1))[0];
+}
+
 export async function createCustomerRequest(input: {
   workspaceId: number; createdByUserId: number; customerName: string; customerPhone: string; productCode?: string; productName: string; requestedQuantity: string; note?: string;
 }) {
