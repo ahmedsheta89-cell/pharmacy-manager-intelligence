@@ -1,0 +1,122 @@
+import { useEffect, useMemo, useState } from "react";
+import { ArrowRight, CheckCircle2, ClipboardPlus, Copy, ExternalLink, MessageCircle, PackageCheck, RefreshCw, ShieldCheck, UserPlus, UsersRound, XCircle } from "lucide-react";
+import { trpc } from "@/lib/trpc";
+
+type RequestStatus = "requested" | "awaiting_supply" | "ready_to_contact" | "contacted" | "fulfilled" | "cancelled";
+
+const statusMeta: Record<RequestStatus, { label: string; className: string }> = {
+  requested: { label: "مطلوب", className: "border-[#e7d7a0] bg-[#fff8de] text-[#7a5a14]" },
+  awaiting_supply: { label: "توريد جزئي", className: "border-[#ead3a4] bg-[#fff8e8] text-[#816125]" },
+  ready_to_contact: { label: "جاهز للتواصل", className: "border-[#b8dfca] bg-[#eaf8ef] text-[#176b52]" },
+  contacted: { label: "تم التواصل", className: "border-[#b8d9e6] bg-[#edf8fc] text-[#26657a]" },
+  fulfilled: { label: "تم التسليم", className: "border-[#b9dfca] bg-[#e8f6ed] text-[#1f704f]" },
+  cancelled: { label: "ملغي", className: "border-[#ead0ca] bg-[#fff1ef] text-[#9b4b40]" },
+};
+
+function formatQuantity(value: string | number) {
+  return Number(value).toLocaleString("ar-EG", { maximumFractionDigits: 3 });
+}
+
+function whatsappLink(phone: string, customerName: string, productName: string) {
+  const normalizedPhone = phone.replace(/\D/g, "");
+  const text = `أهلًا ${customerName}، الصنف «${productName}» أصبح متاحًا الآن في الصيدلية. يمكنك التواصل معنا لتأكيد الاستلام.`;
+  return `https://wa.me/${normalizedPhone}?text=${encodeURIComponent(text)}`;
+}
+
+export function CustomerRequestsCenter({ onClose }: { onClose?: () => void }) {
+  const utils = trpc.useUtils();
+  const workspaces = trpc.workspace.list.useQuery(undefined, { retry: false });
+  const [workspaceId, setWorkspaceId] = useState<number | undefined>();
+  const [joinCode, setJoinCode] = useState("");
+  const [notice, setNotice] = useState("");
+  const [newInviteCode, setNewInviteCode] = useState("");
+  const [allocationInputs, setAllocationInputs] = useState<Record<string, string>>({});
+  const [form, setForm] = useState({ customerName: "", customerPhone: "", productName: "", productCode: "", requestedQuantity: "1", note: "" });
+
+  const selectedWorkspace = useMemo(() => workspaces.data?.find((workspace) => workspace.workspaceId === workspaceId), [workspaces.data, workspaceId]);
+  const canUseRequests = selectedWorkspace && ["owner", "manager", "customer_requests"].includes(selectedWorkspace.accessRole);
+  const canApproveSupply = selectedWorkspace && ["owner", "manager"].includes(selectedWorkspace.accessRole);
+  const requests = trpc.customerRequests.list.useQuery({ workspaceId: workspaceId ?? 0 }, { enabled: Boolean(workspaceId && canUseRequests), retry: false });
+  const supplyCandidates = trpc.customerRequests.supplyCandidates.useQuery({ workspaceId: workspaceId ?? 0 }, { enabled: Boolean(workspaceId && canApproveSupply), retry: false });
+
+  useEffect(() => {
+    if (workspaceId || !workspaces.data?.length) return;
+    const suitable = workspaces.data.find((workspace) => workspace.accessRole === "customer_requests") ?? workspaces.data.find((workspace) => ["owner", "manager"].includes(workspace.accessRole));
+    setWorkspaceId(suitable?.workspaceId);
+  }, [workspaceId, workspaces.data]);
+
+  const createRequest = trpc.customerRequests.create.useMutation({
+    onSuccess: async (result) => {
+      if (result.duplicate) setNotice("يوجد طلب مفتوح سابق لنفس العميل والصنف؛ لم ننشئ سجلًا مكررًا.");
+      else { setNotice("تم تسجيل طلب العميل في قائمة المتابعة."); setForm({ customerName: "", customerPhone: "", productName: "", productCode: "", requestedQuantity: "1", note: "" }); }
+      await utils.customerRequests.list.invalidate();
+    },
+    onError: (error) => setNotice(error.message),
+  });
+  const setStatus = trpc.customerRequests.setStatus.useMutation({
+    onSuccess: async () => { await utils.customerRequests.list.invalidate(); },
+    onError: (error) => setNotice(error.message),
+  });
+  const approveSupply = trpc.customerRequests.approveSupply.useMutation({
+    onSuccess: async (updated) => { setNotice(`تم اعتماد تخصيص التوريد لـ ${updated.length.toLocaleString("ar-EG")} طلب/طلبات. راجع قائمة «جاهز للتواصل».`); await Promise.all([utils.customerRequests.list.invalidate(), utils.customerRequests.supplyCandidates.invalidate()]); },
+    onError: (error) => setNotice(error.message),
+  });
+  const createInvite = trpc.customerRequests.createTeamInvite.useMutation({
+    onSuccess: (result) => { setNewInviteCode(result.code); setNotice("ظهر رمز أحادي الاستخدام؛ شاركه مع الزميل عبر قناة آمنة قبل انتهاء صلاحيته."); },
+    onError: (error) => setNotice(error.message),
+  });
+  const redeemInvite = trpc.customerRequests.redeemTeamInvite.useMutation({
+    onSuccess: async () => { setNotice("تم انضمامك إلى فريق طلبات العملاء. اختر مساحة الصيدلية من القائمة."); setJoinCode(""); await workspaces.refetch(); },
+    onError: (error) => setNotice(error.message),
+  });
+
+  function submitRequest(event: React.FormEvent) {
+    event.preventDefault();
+    if (!workspaceId) return setNotice("اختر مساحة الصيدلية أولًا.");
+    createRequest.mutate({ workspaceId, ...form, productCode: form.productCode.trim() || undefined, note: form.note.trim() || undefined });
+  }
+
+  function openWhatsApp(request: { id: number; customerPhone: string; customerName: string; productName: string }) {
+    if (!workspaceId) return;
+    setStatus.mutate({ workspaceId, customerRequestId: request.id, status: "contacted", note: "فتح الموظف رسالة WhatsApp الجاهزة بعد مراجعة إتاحة الصنف." }, {
+      onSuccess: () => {
+        window.open(whatsappLink(request.customerPhone, request.customerName, request.productName), "_blank", "noopener,noreferrer");
+        setNotice("سُجّل فتح رسالة WhatsApp، ولم يُرسل شيء من الأداة تلقائيًا.");
+      },
+    });
+  }
+
+  const activeRequests = requests.data ?? [];
+  const readyCount = activeRequests.filter((request) => request.status === "ready_to_contact").length;
+  const openCount = activeRequests.filter((request) => ["requested", "awaiting_supply"].includes(request.status)).length;
+
+  return <section dir="rtl" className="mx-auto max-w-6xl space-y-5">
+    <header className="rounded-3xl border border-[#cbe1d5] bg-[linear-gradient(130deg,#123c37,#1e5c50)] p-5 text-white shadow-[0_16px_36px_rgba(19,62,54,.16)] sm:p-7">
+      <div className="flex flex-wrap items-start justify-between gap-4"><div><div className="flex items-center gap-2 text-[#c7e4d9]"><UsersRound className="size-5 text-[#deb766]" /><span className="text-[11px] font-bold tracking-[.1em]">تشغيل الهاتف · طلبات العملاء</span></div><h2 className="mt-2 display-font text-2xl font-semibold">من طلب العميل إلى رسالة التوافر</h2><p className="mt-2 max-w-2xl text-xs leading-6 text-[#d5e8e0]">لا تُخصّص كمية ولا تُحوّل الحالة إلى «جاهز للتواصل» إلا من بند فاتورة اعتمده المدير. زر WhatsApp يفتح رسالة قابلة للمراجعة فقط ولا يرسلها نيابةً عن الموظف.</p></div>{onClose && <button type="button" onClick={onClose} className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-xs font-bold hover:bg-white/15"><ArrowRight className="size-4" />العودة</button>}</div>
+      <div className="mt-5 grid gap-2 sm:grid-cols-3"><Metric label="طلبات تحتاج توريد" value={openCount} tone="amber" /><Metric label="جاهز للتواصل" value={readyCount} tone="green" /><Metric label="صلاحية الجلسة" value={selectedWorkspace ? (selectedWorkspace.accessRole === "customer_requests" ? "فريق الطلبات" : "مدير") : "—"} tone="plain" /></div>
+    </header>
+
+    <section className="rounded-2xl border border-[#dce9e2] bg-white p-4 sm:p-5"><div className="flex flex-wrap items-end justify-between gap-3"><div><p className="text-sm font-bold text-[#204940]">مساحة العمل والصلاحية</p><p className="mt-1 text-[11px] text-[#71877d]">فريق طلبات العملاء لا يرى Excel أو صور الفواتير أو قرارات اعتماد الموردين.</p></div><select value={workspaceId ?? ""} onChange={(event) => setWorkspaceId(Number(event.target.value) || undefined)} className="min-w-56 rounded-xl border border-[#cbded4] bg-[#f9fcf9] px-3 py-2.5 text-xs font-bold text-[#284f45] outline-none focus:border-[#159174]"><option value="">اختر مساحة الصيدلية</option>{workspaces.data?.map((workspace) => <option key={workspace.workspaceId} value={workspace.workspaceId}>{workspace.workspaceName} — {workspace.accessRole === "customer_requests" ? "فريق الطلبات" : workspace.accessRole}</option>)}</select></div></section>
+
+    <section className="grid gap-5 lg:grid-cols-[minmax(0,1.05fr)_minmax(310px,.95fr)]">
+      <form onSubmit={submitRequest} className="rounded-2xl border border-[#dbe9e2] bg-white p-4 sm:p-5"><div className="flex items-center gap-2"><ClipboardPlus className="size-4 text-[#16705a]" /><h3 className="text-sm font-bold text-[#244d44]">تسجيل طلب عميل</h3></div><p className="mt-1 text-[10px] leading-5 text-[#71867d]">يمنع النظام تكرار طلب مفتوح للعميل نفسه والصنف نفسه. احفظ بيانات التواصل اللازمة فقط.</p><div className="mt-4 grid gap-3 sm:grid-cols-2"><Field label="اسم العميل" value={form.customerName} onChange={(value) => setForm({ ...form, customerName: value })} required /><Field label="رقم الهاتف / WhatsApp" value={form.customerPhone} inputMode="tel" onChange={(value) => setForm({ ...form, customerPhone: value })} required /><Field label="اسم الصنف" value={form.productName} onChange={(value) => setForm({ ...form, productName: value })} required /><Field label="كود الصنف (اختياري)" value={form.productCode} onChange={(value) => setForm({ ...form, productCode: value })} /><Field label="الكمية المطلوبة" value={form.requestedQuantity} inputMode="decimal" onChange={(value) => setForm({ ...form, requestedQuantity: value })} required /></div><label className="mt-3 block text-[10px] font-bold text-[#587168]">ملاحظة اختيارية<textarea value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} maxLength={3000} className="mt-1.5 min-h-20 w-full rounded-xl border border-[#d2e1d9] bg-[#fbfdfb] px-3 py-2.5 text-xs text-[#244d44] outline-none focus:border-[#159174]" placeholder="مثال: بديل غير مقبول للعميل" /></label><button disabled={!canUseRequests || createRequest.isPending} className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#123c37] px-4 py-2.5 text-xs font-bold text-white hover:bg-[#17574b] disabled:cursor-not-allowed disabled:bg-[#8ea69d]"><ClipboardPlus className="size-4" />{createRequest.isPending ? "جارٍ الحفظ…" : "حفظ طلب العميل"}</button></form>
+
+      <aside className="rounded-2xl border border-[#dbe9e2] bg-[#f8fbf8] p-4 sm:p-5"><div className="flex items-center gap-2"><ShieldCheck className="size-4 text-[#9c7628]" /><h3 className="text-sm font-bold text-[#274d43]">إدارة وصول الفريق</h3></div><p className="mt-1 text-[10px] leading-5 text-[#71867d]">ينشئ المدير رمزًا أحادي الاستخدام. بعد تسجيل دخول الزميل، يدخل الرمز ليحصل فقط على شاشة طلبات العملاء.</p>{canApproveSupply && <button type="button" onClick={() => workspaceId && createInvite.mutate({ workspaceId, expiresInHours: 24 })} disabled={createInvite.isPending} className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-xl border border-[#b7d8c9] bg-white px-3 py-2 text-xs font-bold text-[#276655] hover:bg-[#edf8f2]"><UserPlus className="size-4" />إنشاء رمز فريق لمدة 24 ساعة</button>}{newInviteCode && <div className="mt-3 rounded-xl border border-[#d6bd78] bg-[#fff8df] p-3"><p className="text-[10px] font-bold text-[#765b18]">رمز أحادي الاستخدام — يظهر الآن فقط</p><div className="mt-2 flex items-center justify-between gap-2"><code className="select-all text-sm font-bold tracking-wider text-[#554310]">{newInviteCode}</code><button type="button" onClick={() => { void navigator.clipboard?.writeText(newInviteCode); setNotice("نُسخ رمز الانضمام. شاركه عبر قناة آمنة."); }} className="rounded-lg bg-white px-2 py-1.5 text-[#6d5313] hover:bg-[#fffdf5]" aria-label="نسخ رمز الانضمام"><Copy className="size-3.5" /></button></div></div>}<div className="mt-5 border-t border-[#dce8e1] pt-4"><label className="text-[10px] font-bold text-[#59736a]">لديك رمز انضمام<input value={joinCode} onChange={(event) => setJoinCode(event.target.value.toUpperCase())} placeholder="XXXX-XXXX-XXXX" className="mt-1.5 w-full rounded-xl border border-[#ccdcd4] bg-white px-3 py-2.5 text-xs font-bold tracking-wider text-[#284d44] outline-none focus:border-[#159174]" /></label><button type="button" onClick={() => redeemInvite.mutate({ code: joinCode })} disabled={!joinCode.trim() || redeemInvite.isPending} className="mt-2 inline-flex min-h-10 items-center gap-2 rounded-xl border border-[#b7d8c9] bg-white px-3 py-2 text-xs font-bold text-[#276655] hover:bg-[#edf8f2] disabled:opacity-50"><RefreshCw className="size-3.5" />انضمام لفريق الطلبات</button></div></aside>
+    </section>
+
+    {notice && <div role="status" className="rounded-xl border border-[#c6dfd2] bg-[#eef9f2] px-4 py-3 text-xs font-bold leading-5 text-[#236553]">{notice}</div>}
+
+    {canApproveSupply && <section className="rounded-2xl border border-[#ead8a9] bg-[#fffdf5] p-4 sm:p-5"><div className="flex items-start gap-3"><PackageCheck className="mt-0.5 size-5 text-[#9e7826]" /><div><h3 className="text-sm font-bold text-[#634f18]">اعتماد إتاحة من توريد موثق</h3><p className="mt-1 text-[10px] leading-5 text-[#806d38]">هذه قائمة مقترحات من بنود فواتير اعتمدها المدير. لا تتغير حالة العميل إلا إذا اخترت كمية ثم اعتمدت تخصيصها صراحةً.</p></div></div><div className="mt-4 space-y-2">{supplyCandidates.isLoading && <p className="text-xs text-[#76662e]">جارٍ فحص بنود التوريد المعتمدة…</p>}{!supplyCandidates.isLoading && !(supplyCandidates.data?.length) && <p className="rounded-xl border border-dashed border-[#e5d9b3] bg-white/70 px-3 py-4 text-center text-xs text-[#786c49]">لا توجد مطابقة جاهزة بين توريد فاتورة معتمد وطلبات العملاء المفتوحة.</p>}{supplyCandidates.data?.map((candidate) => { const key = `${candidate.customerRequestId}-${candidate.settlementLineId}`; const quantity = allocationInputs[key] ?? String(Math.min(candidate.requestedRemaining, candidate.availableQuantity)); return <div key={key} className="grid gap-2 rounded-xl border border-[#eadfbf] bg-white p-3 sm:grid-cols-[1fr_auto_auto]"><div><p className="text-xs font-bold text-[#5b4e25]">{candidate.customerName} · {candidate.productName}</p><p className="mt-1 text-[10px] text-[#806f43]">المتبقي للعميل: {formatQuantity(candidate.requestedRemaining)} · المتاح من فاتورة معتمدة: {formatQuantity(candidate.availableQuantity)} · مطابقة {candidate.matchMethod === "code" ? "بالكود" : "بالاسم"}</p></div><input aria-label={`كمية تخصيص ${candidate.productName}`} value={quantity} inputMode="decimal" onChange={(event) => setAllocationInputs({ ...allocationInputs, [key]: event.target.value })} className="w-24 rounded-lg border border-[#d8d0b3] bg-[#fffcf4] px-2 py-2 text-center text-xs font-bold text-[#594e2c] outline-none" /><button type="button" onClick={() => workspaceId && approveSupply.mutate({ workspaceId, allocations: [{ customerRequestId: candidate.customerRequestId, settlementLineId: candidate.settlementLineId, allocatedQuantity: quantity }] })} disabled={approveSupply.isPending} className="rounded-lg bg-[#695924] px-3 py-2 text-xs font-bold text-white hover:bg-[#806c2b] disabled:opacity-50">اعتماد الإتاحة</button></div>; })}</div></section>}
+
+    <section className="rounded-2xl border border-[#dbe9e2] bg-white p-4 sm:p-5"><div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-sm font-bold text-[#244d44]">قائمة المتابعة</h3><p className="mt-1 text-[10px] text-[#71867d]">السجل يحفظ التغييرات التشغيلية. لم يُرسل WhatsApp من الأداة تلقائيًا.</p></div><span className="rounded-lg bg-[#eff7f1] px-2.5 py-1.5 text-[10px] font-bold text-[#2b6c58]">{activeRequests.length.toLocaleString("ar-EG")} طلب</span></div><div className="mt-4 grid gap-3 lg:grid-cols-2">{requests.isLoading && <p className="text-xs text-[#6c8178]">جارٍ تحميل طلبات العملاء…</p>}{!requests.isLoading && !activeRequests.length && <p className="rounded-xl border border-dashed border-[#d5e4dd] bg-[#fbfdfb] px-3 py-6 text-center text-xs text-[#71867d]">لا توجد طلبات عملاء في مساحة العمل المختارة بعد.</p>}{activeRequests.map((request) => { const meta = statusMeta[request.status as RequestStatus]; return <article key={request.id} className="rounded-2xl border border-[#e0ebe4] bg-[#fcfdfb] p-4"><div className="flex items-start justify-between gap-3"><div><p className="text-sm font-bold text-[#234c42]">{request.productName}</p><p className="mt-1 text-[10px] text-[#74887f]">{request.customerName} · {request.customerPhone}</p>{request.productCode && <p className="mt-1 font-mono text-[10px] text-[#6e847a]">{request.productCode}</p>}</div><span className={`rounded-lg border px-2 py-1 text-[10px] font-bold ${meta.className}`}>{meta.label}</span></div><div className="mt-3 flex items-center justify-between rounded-xl bg-[#f2f7f3] px-3 py-2 text-[10px] text-[#607970]"><span>مطلوب: <b>{formatQuantity(request.requestedQuantity)}</b></span><span>مخصّص: <b>{formatQuantity(request.allocatedQuantity)}</b></span></div>{request.note && <p className="mt-2 text-[10px] leading-5 text-[#6e8179]">{request.note}</p>}<div className="mt-3 flex flex-wrap gap-2">{request.status === "ready_to_contact" && <button type="button" onClick={() => openWhatsApp(request)} disabled={setStatus.isPending} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#197b5f] px-3 py-2 text-xs font-bold text-white hover:bg-[#12694f]"><MessageCircle className="size-4" />فتح WhatsApp وتسجيل التواصل<ExternalLink className="size-3" /></button>}{request.status === "contacted" && <button type="button" onClick={() => workspaceId && setStatus.mutate({ workspaceId, customerRequestId: request.id, status: "fulfilled", note: "أكد الموظف اكتمال تسليم طلب العميل." })} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-[#b6d7c8] bg-[#eef8f2] px-3 py-2 text-xs font-bold text-[#1f6b53]"><CheckCircle2 className="size-4" />تأكيد التسليم</button>}{["requested", "awaiting_supply", "ready_to_contact", "contacted"].includes(request.status) && <button type="button" onClick={() => { const reason = window.prompt("اكتب سبب الإلغاء ليُحفظ في سجل الطلب:"); if (reason && workspaceId) setStatus.mutate({ workspaceId, customerRequestId: request.id, status: "cancelled", closedReason: reason }); }} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-[#ead1cb] bg-white px-3 py-2 text-xs font-bold text-[#a24b40] hover:bg-[#fff4f2]"><XCircle className="size-4" />إلغاء بسبب</button>}</div></article>; })}</div></section>
+  </section>;
+}
+
+function Metric({ label, value, tone }: { label: string; value: string | number; tone: "amber" | "green" | "plain" }) {
+  const classes = tone === "amber" ? "border-[#e4c572]/30 bg-[#d8a345]/15 text-[#fff0c3]" : tone === "green" ? "border-[#94ceb8]/30 bg-[#5cae8b]/15 text-[#e4f7ed]" : "border-white/15 bg-white/8 text-[#e8f2ee]";
+  return <div className={`rounded-xl border px-3 py-2.5 ${classes}`}><p className="text-[9px] font-bold opacity-80">{label}</p><p className="mt-1 text-base font-bold">{typeof value === "number" ? value.toLocaleString("ar-EG") : value}</p></div>;
+}
+
+function Field({ label, value, onChange, required, inputMode }: { label: string; value: string; onChange: (value: string) => void; required?: boolean; inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"] }) {
+  return <label className="block text-[10px] font-bold text-[#59736a]">{label}{required && <span className="mr-1 text-[#a24b40]">*</span>}<input value={value} required={required} inputMode={inputMode} onChange={(event) => onChange(event.target.value)} className="mt-1.5 min-h-10 w-full rounded-xl border border-[#d2e1d9] bg-[#fbfdfb] px-3 py-2 text-xs font-bold text-[#244d44] outline-none focus:border-[#159174]" /></label>;
+}

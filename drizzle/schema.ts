@@ -43,7 +43,7 @@ export const workspaceMembers = mysqlTable("workspace_members", {
   id: int("id").autoincrement().primaryKey(),
   workspaceId: int("workspaceId").notNull().references(() => pharmacyWorkspaces.id),
   userId: int("userId").notNull().references(() => users.id),
-  accessRole: mysqlEnum("accessRole", ["owner", "manager", "operator", "reviewer"]).notNull(),
+  accessRole: mysqlEnum("accessRole", ["owner", "manager", "operator", "reviewer", "customer_requests"]).notNull(),
   status: mysqlEnum("membershipStatus", ["active", "suspended"]).default("active").notNull(),
   joinedAt: timestamp("joinedAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
@@ -170,6 +170,78 @@ export const invoiceSettlementLines = mysqlTable("invoice_settlement_lines", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 }, (table) => [
   index("invoice_settlement_line_settlement_idx").on(table.settlementId),
+]);
+
+/** طلب عميل تشغيلي؛ يحتفظ ببيانات التواصل اللازمة فقط، ولا يرتبط بملف Excel أو صورة فاتورة. */
+export const customerRequests = mysqlTable("customer_requests", {
+  id: int("id").autoincrement().primaryKey(),
+  workspaceId: int("workspaceId").notNull().references(() => pharmacyWorkspaces.id),
+  branchId: int("branchId").references(() => branches.id),
+  customerName: varchar("customerName", { length: 160 }).notNull(),
+  customerPhone: varchar("customerPhone", { length: 32 }).notNull(),
+  normalizedCustomerPhone: varchar("normalizedCustomerPhone", { length: 32 }).notNull(),
+  productCode: varchar("productCode", { length: 120 }),
+  productName: varchar("productName", { length: 255 }).notNull(),
+  normalizedProductName: varchar("normalizedProductName", { length: 255 }).notNull(),
+  requestedQuantity: decimal("requestedQuantity", { precision: 14, scale: 3 }).notNull(),
+  allocatedQuantity: decimal("allocatedQuantity", { precision: 14, scale: 3 }).default("0.000").notNull(),
+  status: mysqlEnum("customerRequestStatus", ["requested", "awaiting_supply", "ready_to_contact", "contacted", "fulfilled", "cancelled"]).default("requested").notNull(),
+  createdByUserId: int("createdByUserId").notNull().references(() => users.id),
+  lastUpdatedByUserId: int("lastUpdatedByUserId").notNull().references(() => users.id),
+  readyAt: timestamp("readyAt"),
+  contactedAt: timestamp("contactedAt"),
+  fulfilledAt: timestamp("fulfilledAt"),
+  closedReason: text("closedReason"),
+  note: text("note"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("customer_request_workspace_status_idx").on(table.workspaceId, table.status, table.updatedAt),
+  index("customer_request_match_idx").on(table.workspaceId, table.productCode, table.normalizedProductName, table.status),
+  index("customer_request_customer_idx").on(table.workspaceId, table.normalizedCustomerPhone, table.status),
+]);
+
+/** يربط كميات استلام فاتورة اعتمدها المدير بطلبات العملاء، ويمنع ادعاء الإتاحة بلا توريد موثق. */
+export const customerRequestSupplyAllocations = mysqlTable("customer_request_supply_allocations", {
+  id: int("id").autoincrement().primaryKey(),
+  workspaceId: int("workspaceId").notNull().references(() => pharmacyWorkspaces.id),
+  customerRequestId: int("customerRequestId").notNull().references(() => customerRequests.id),
+  settlementLineId: int("settlementLineId").notNull().references(() => invoiceSettlementLines.id),
+  allocatedQuantity: decimal("allocatedQuantity", { precision: 14, scale: 3 }).notNull(),
+  approvedByUserId: int("approvedByUserId").notNull().references(() => users.id),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => [
+  index("customer_supply_allocation_request_idx").on(table.customerRequestId),
+  index("customer_supply_allocation_settlement_line_idx").on(table.settlementLineId),
+]);
+
+/** سجل زمني كتابي لطلبات العملاء؛ لا يوفّر مسار API لتعديله أو حذفه. */
+export const customerRequestEvents = mysqlTable("customer_request_events", {
+  id: int("id").autoincrement().primaryKey(),
+  workspaceId: int("workspaceId").notNull().references(() => pharmacyWorkspaces.id),
+  customerRequestId: int("customerRequestId").notNull().references(() => customerRequests.id),
+  actorUserId: int("actorUserId").references(() => users.id),
+  eventType: varchar("eventType", { length: 100 }).notNull(),
+  note: text("note"),
+  metadata: json("metadata").$type<Record<string, unknown>>().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => [
+  index("customer_request_event_request_idx").on(table.customerRequestId, table.createdAt),
+]);
+
+/** رابط انضمام أحادي الاستخدام ومحدود حصراً بدور فريق طلبات العملاء. */
+export const customerRequestAccessInvites = mysqlTable("customer_request_access_invites", {
+  id: int("id").autoincrement().primaryKey(),
+  workspaceId: int("workspaceId").notNull().references(() => pharmacyWorkspaces.id),
+  tokenHash: varchar("tokenHash", { length: 128 }).notNull().unique(),
+  createdByUserId: int("createdByUserId").notNull().references(() => users.id),
+  redeemedByUserId: int("redeemedByUserId").references(() => users.id),
+  expiresAt: timestamp("expiresAt").notNull(),
+  redeemedAt: timestamp("redeemedAt"),
+  revokedAt: timestamp("revokedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => [
+  index("customer_request_invite_workspace_idx").on(table.workspaceId, table.expiresAt),
 ]);
 
 export const operationalAlerts = mysqlTable("operational_alerts", {

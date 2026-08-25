@@ -1,7 +1,7 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { createHash } from "node:crypto";
-import { approvedAnalysisSessions, auditEvents, invoiceSettlementLines, invoiceSettlements, openOrderLines, openOrders, operatingDecisions, operationalAlerts, pharmacyWorkspaces, supplierProfiles, users, workspaceMembers, workspaceRetentionPolicies, type InsertUser, type WorkspaceAccessRole } from "../drizzle/schema";
+import { createHash, randomBytes } from "node:crypto";
+import { approvedAnalysisSessions, auditEvents, customerRequestAccessInvites, customerRequestEvents, customerRequestSupplyAllocations, customerRequests, invoiceSettlementLines, invoiceSettlements, openOrderLines, openOrders, operatingDecisions, operationalAlerts, pharmacyWorkspaces, supplierProfiles, users, workspaceMembers, workspaceRetentionPolicies, type InsertUser, type WorkspaceAccessRole } from "../drizzle/schema";
 
 let instance: ReturnType<typeof drizzle> | null = null;
 
@@ -169,5 +169,180 @@ export async function saveApprovedOpenOrder(input: { workspaceId: number; create
     if (!order) throw new Error("Unable to create approved order");
     await tx.insert(openOrderLines).values(input.lines.map((line) => ({ orderId: order.id, productCode: line.productCode ?? null, productName: line.productName, requestedQuantity: line.requestedQuantity, unitLabel: line.unitLabel ?? null })));
     return order;
+  });
+}
+
+function normalizeOperationalText(value: string) {
+  return value.trim().toLocaleLowerCase("ar").replace(/[أإآ]/g, "ا").replace(/ى/g, "ي").replace(/ة/g, "ه").replace(/\s+/g, " ");
+}
+
+function normalizePhone(value: string) {
+  const arabicDigits = "٠١٢٣٤٥٦٧٨٩";
+  const western = value.replace(/[٠-٩]/g, (digit) => String(arabicDigits.indexOf(digit))).replace(/\D/g, "");
+  if (western.length < 7 || western.length > 15) throw new Error("رقم هاتف العميل غير صالح.");
+  return western;
+}
+
+export type CustomerRequestStatus = "requested" | "awaiting_supply" | "ready_to_contact" | "contacted" | "fulfilled" | "cancelled";
+
+export async function listCustomerRequests(workspaceId: number) {
+  const db = getDb();
+  if (!db) throw new Error("Database is not configured");
+  return db.select().from(customerRequests)
+    .where(eq(customerRequests.workspaceId, workspaceId))
+    .orderBy(desc(customerRequests.updatedAt), desc(customerRequests.id)).limit(200);
+}
+
+export async function listCustomerRequestEvents(workspaceId: number, customerRequestId: number) {
+  const db = getDb();
+  if (!db) throw new Error("Database is not configured");
+  return db.select().from(customerRequestEvents)
+    .where(and(eq(customerRequestEvents.workspaceId, workspaceId), eq(customerRequestEvents.customerRequestId, customerRequestId)))
+    .orderBy(desc(customerRequestEvents.createdAt), desc(customerRequestEvents.id)).limit(80);
+}
+
+export async function createCustomerRequest(input: {
+  workspaceId: number; createdByUserId: number; customerName: string; customerPhone: string; productCode?: string; productName: string; requestedQuantity: string; note?: string;
+}) {
+  const db = getDb();
+  if (!db) throw new Error("Database is not configured");
+  const normalizedPhone = normalizePhone(input.customerPhone);
+  const normalizedProductName = normalizeOperationalText(input.productName);
+  const activeStatuses: CustomerRequestStatus[] = ["requested", "awaiting_supply", "ready_to_contact", "contacted"];
+  const sameCustomer = await db.select().from(customerRequests).where(and(
+    eq(customerRequests.workspaceId, input.workspaceId),
+    eq(customerRequests.normalizedCustomerPhone, normalizedPhone),
+    inArray(customerRequests.status, activeStatuses),
+  )).limit(30);
+  const duplicate = sameCustomer.find((request) => {
+    const sameCode = Boolean(input.productCode && request.productCode && request.productCode === input.productCode);
+    return sameCode || request.normalizedProductName === normalizedProductName;
+  });
+  if (duplicate) return { request: duplicate, duplicate: true };
+
+  const result = await db.insert(customerRequests).values({
+    workspaceId: input.workspaceId,
+    customerName: input.customerName.trim(),
+    customerPhone: input.customerPhone.trim(),
+    normalizedCustomerPhone: normalizedPhone,
+    productCode: input.productCode?.trim() || null,
+    productName: input.productName.trim(),
+    normalizedProductName,
+    requestedQuantity: input.requestedQuantity,
+    createdByUserId: input.createdByUserId,
+    lastUpdatedByUserId: input.createdByUserId,
+    note: input.note?.trim() || null,
+  });
+  const requestId = Number(result[0].insertId);
+  const request = (await db.select().from(customerRequests).where(eq(customerRequests.id, requestId)).limit(1))[0];
+  if (!request) throw new Error("تعذر إنشاء طلب العميل.");
+  await db.insert(customerRequestEvents).values({ workspaceId: input.workspaceId, customerRequestId: request.id, actorUserId: input.createdByUserId, eventType: "customer_request.created", note: input.note?.trim() || null, metadata: { productCode: request.productCode, requestedQuantity: input.requestedQuantity } });
+  return { request, duplicate: false };
+}
+
+export async function updateCustomerRequestStatus(input: {
+  workspaceId: number; customerRequestId: number; userId: number; status: CustomerRequestStatus; note?: string; closedReason?: string;
+}) {
+  const db = getDb();
+  if (!db) throw new Error("Database is not configured");
+  return db.transaction(async (tx) => {
+    const request = (await tx.select().from(customerRequests).where(and(eq(customerRequests.workspaceId, input.workspaceId), eq(customerRequests.id, input.customerRequestId))).limit(1))[0];
+    if (!request) throw new Error("لم نعثر على طلب العميل.");
+    if (input.status === "contacted" && request.status !== "ready_to_contact") throw new Error("لا يمكن تسجيل تواصل قبل اعتماد إتاحة الصنف للعميل.");
+    if (input.status === "fulfilled" && !["ready_to_contact", "contacted"].includes(request.status)) throw new Error("لا يمكن إغلاق الطلب كمكتمل قبل إتاحة الصنف أو تسجيل التواصل.");
+    if (input.status === "cancelled" && !input.closedReason?.trim()) throw new Error("اكتب سبب إلغاء طلب العميل حفاظًا على السجل التشغيلي.");
+    const now = new Date();
+    await tx.update(customerRequests).set({
+      status: input.status,
+      lastUpdatedByUserId: input.userId,
+      contactedAt: input.status === "contacted" ? now : request.contactedAt,
+      fulfilledAt: input.status === "fulfilled" ? now : request.fulfilledAt,
+      closedReason: input.status === "cancelled" ? input.closedReason?.trim() || null : request.closedReason,
+      updatedAt: now,
+    }).where(eq(customerRequests.id, request.id));
+    await tx.insert(customerRequestEvents).values({ workspaceId: input.workspaceId, customerRequestId: request.id, actorUserId: input.userId, eventType: `customer_request.${input.status}`, note: input.note?.trim() || null, metadata: { from: request.status, to: input.status, closedReason: input.closedReason?.trim() || null } });
+    return (await tx.select().from(customerRequests).where(eq(customerRequests.id, request.id)).limit(1))[0];
+  });
+}
+
+export async function listSupplyCandidatesForCustomerRequests(workspaceId: number) {
+  const db = getDb();
+  if (!db) throw new Error("Database is not configured");
+  const [requests, settlementLines] = await Promise.all([
+    db.select().from(customerRequests).where(and(eq(customerRequests.workspaceId, workspaceId), inArray(customerRequests.status, ["requested", "awaiting_supply"]))).orderBy(desc(customerRequests.createdAt)).limit(150),
+    db.select({ line: invoiceSettlementLines, settlementId: invoiceSettlements.id, approvedAt: invoiceSettlements.approvedAt })
+      .from(invoiceSettlementLines).innerJoin(invoiceSettlements, eq(invoiceSettlementLines.settlementId, invoiceSettlements.id))
+      .where(and(eq(invoiceSettlements.workspaceId, workspaceId), eq(invoiceSettlements.decision, "approved"))).orderBy(desc(invoiceSettlements.createdAt)).limit(300),
+  ]);
+  const allocations = await db.select({ settlementLineId: customerRequestSupplyAllocations.settlementLineId, allocatedQuantity: customerRequestSupplyAllocations.allocatedQuantity })
+    .from(customerRequestSupplyAllocations).where(eq(customerRequestSupplyAllocations.workspaceId, workspaceId)).limit(500);
+  const allocatedByLine = new Map<number, number>();
+  allocations.forEach((allocation) => allocatedByLine.set(allocation.settlementLineId, (allocatedByLine.get(allocation.settlementLineId) ?? 0) + Number(allocation.allocatedQuantity)));
+  return requests.flatMap((request) => settlementLines.flatMap(({ line, settlementId, approvedAt }) => {
+    const sameCode = Boolean(request.productCode && line.productCode && request.productCode === line.productCode);
+    const sameName = normalizeOperationalText(request.productName) === normalizeOperationalText(line.productName);
+    if (!sameCode && !sameName) return [];
+    const remainingForRequest = Math.max(0, Number(request.requestedQuantity) - Number(request.allocatedQuantity));
+    const remainingForLine = Math.max(0, Number(line.acceptedQuantity) - (allocatedByLine.get(line.id) ?? 0));
+    if (!remainingForRequest || !remainingForLine) return [];
+    return [{ customerRequestId: request.id, customerName: request.customerName, productName: request.productName, productCode: request.productCode, requestedRemaining: remainingForRequest, settlementLineId: line.id, settlementId, availableQuantity: remainingForLine, matchMethod: sameCode ? "code" : "name", approvedAt }];
+  }));
+}
+
+export async function approveCustomerSupplyAllocations(input: {
+  workspaceId: number; approvedByUserId: number; allocations: Array<{ customerRequestId: number; settlementLineId: number; allocatedQuantity: string }>;
+}) {
+  const db = getDb();
+  if (!db) throw new Error("Database is not configured");
+  return db.transaction(async (tx) => {
+    const updated = [] as Array<typeof customerRequests.$inferSelect>;
+    for (const allocation of input.allocations) {
+      const request = (await tx.select().from(customerRequests).where(and(eq(customerRequests.workspaceId, input.workspaceId), eq(customerRequests.id, allocation.customerRequestId))).limit(1))[0];
+      const settlementLine = (await tx.select({ line: invoiceSettlementLines, settlement: invoiceSettlements }).from(invoiceSettlementLines).innerJoin(invoiceSettlements, eq(invoiceSettlementLines.settlementId, invoiceSettlements.id)).where(and(eq(invoiceSettlementLines.id, allocation.settlementLineId), eq(invoiceSettlements.workspaceId, input.workspaceId), eq(invoiceSettlements.decision, "approved"))).limit(1))[0];
+      if (!request || !settlementLine) throw new Error("تعذر التحقق من طلب العميل أو بند الفاتورة المعتمد.");
+      if (!( ["requested", "awaiting_supply"] as CustomerRequestStatus[]).includes(request.status as CustomerRequestStatus)) throw new Error("هذه الحالة لم تعد متاحة لتخصيص توريد جديد.");
+      const sameCode = Boolean(request.productCode && settlementLine.line.productCode && request.productCode === settlementLine.line.productCode);
+      const sameName = normalizeOperationalText(request.productName) === normalizeOperationalText(settlementLine.line.productName);
+      if (!sameCode && !sameName) throw new Error("لا يمكن تخصيص بند فاتورة لصنف لا يطابق طلب العميل.");
+      const amount = Number(allocation.allocatedQuantity);
+      const existingAllocations = await tx.select({ allocatedQuantity: customerRequestSupplyAllocations.allocatedQuantity }).from(customerRequestSupplyAllocations).where(eq(customerRequestSupplyAllocations.settlementLineId, settlementLine.line.id)).limit(500);
+      const usedFromLine = existingAllocations.reduce((total, item) => total + Number(item.allocatedQuantity), 0);
+      const requestRemaining = Number(request.requestedQuantity) - Number(request.allocatedQuantity);
+      const lineRemaining = Number(settlementLine.line.acceptedQuantity) - usedFromLine;
+      if (!Number.isFinite(amount) || amount <= 0 || amount > requestRemaining || amount > lineRemaining) throw new Error("كمية التخصيص تتجاوز المتاح من الفاتورة أو المتبقي للعميل.");
+      const allocatedQuantity = Number(request.allocatedQuantity) + amount;
+      const ready = allocatedQuantity >= Number(request.requestedQuantity);
+      const now = new Date();
+      await tx.insert(customerRequestSupplyAllocations).values({ workspaceId: input.workspaceId, customerRequestId: request.id, settlementLineId: settlementLine.line.id, allocatedQuantity: allocation.allocatedQuantity, approvedByUserId: input.approvedByUserId });
+      await tx.update(customerRequests).set({ allocatedQuantity: allocatedQuantity.toFixed(3), status: ready ? "ready_to_contact" : "awaiting_supply", readyAt: ready ? now : request.readyAt, lastUpdatedByUserId: input.approvedByUserId, updatedAt: now }).where(eq(customerRequests.id, request.id));
+      await tx.insert(customerRequestEvents).values({ workspaceId: input.workspaceId, customerRequestId: request.id, actorUserId: input.approvedByUserId, eventType: ready ? "customer_request.ready_to_contact" : "customer_request.partially_supplied", metadata: { settlementLineId: settlementLine.line.id, allocatedQuantity: allocation.allocatedQuantity, remainingQuantity: Math.max(0, Number(request.requestedQuantity) - allocatedQuantity) } });
+      const saved = (await tx.select().from(customerRequests).where(eq(customerRequests.id, request.id)).limit(1))[0];
+      if (saved) updated.push(saved);
+    }
+    return updated;
+  });
+}
+
+export async function createCustomerRequestAccessInvite(input: { workspaceId: number; createdByUserId: number; expiresInHours: number }) {
+  const db = getDb();
+  if (!db) throw new Error("Database is not configured");
+  const code = randomBytes(12).toString("hex").toUpperCase().match(/.{1,4}/g)?.join("-") ?? randomBytes(12).toString("hex");
+  const tokenHash = createHash("sha256").update(code).digest("hex");
+  const expiresAt = new Date(Date.now() + input.expiresInHours * 60 * 60 * 1000);
+  await db.insert(customerRequestAccessInvites).values({ workspaceId: input.workspaceId, tokenHash, createdByUserId: input.createdByUserId, expiresAt });
+  return { code, expiresAt };
+}
+
+export async function redeemCustomerRequestAccessInvite(input: { code: string; userId: number }) {
+  const db = getDb();
+  if (!db) throw new Error("Database is not configured");
+  const tokenHash = createHash("sha256").update(input.code.trim().toUpperCase()).digest("hex");
+  return db.transaction(async (tx) => {
+    const invite = (await tx.select().from(customerRequestAccessInvites).where(eq(customerRequestAccessInvites.tokenHash, tokenHash)).limit(1))[0];
+    if (!invite || invite.redeemedAt || invite.revokedAt || invite.expiresAt.getTime() <= Date.now()) throw new Error("رمز انضمام فريق الطلبات غير صالح أو انتهت صلاحيته.");
+    const existing = (await tx.select().from(workspaceMembers).where(and(eq(workspaceMembers.workspaceId, invite.workspaceId), eq(workspaceMembers.userId, input.userId))).limit(1))[0];
+    if (!existing) await tx.insert(workspaceMembers).values({ workspaceId: invite.workspaceId, userId: input.userId, accessRole: "customer_requests", status: "active" });
+    await tx.update(customerRequestAccessInvites).set({ redeemedByUserId: input.userId, redeemedAt: new Date() }).where(eq(customerRequestAccessInvites.id, invite.id));
+    return { workspaceId: invite.workspaceId, accessRole: existing?.accessRole ?? "customer_requests" };
   });
 }

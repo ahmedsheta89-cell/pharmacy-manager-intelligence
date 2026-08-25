@@ -33,6 +33,14 @@ describe("إجراءات الخادم المحمية", () => {
       caller.settlements.saveApproved({ workspaceId: 1, supplierName: "مورد", invoiceDate: "2026-08-23", lines: [{ productName: "صنف", invoiceQuantity: "1.000", acceptedQuantity: "1.000", matchMethod: "manual" }] }),
       caller.operating.list({ workspaceId: 1 }),
       caller.operating.save({ workspaceId: 1, clientDecisionKey: "priority-1", status: "open", priorityRank: 1, actionLabel: "راجع الصنف", reason: "دليل مراجع" }),
+      caller.customerRequests.list({ workspaceId: 1 }),
+      caller.customerRequests.events({ workspaceId: 1, customerRequestId: 1 }),
+      caller.customerRequests.create({ workspaceId: 1, customerName: "عميل اختبار", customerPhone: "01000000000", productName: "صنف اختبار", requestedQuantity: "1.000" }),
+      caller.customerRequests.setStatus({ workspaceId: 1, customerRequestId: 1, status: "contacted" }),
+      caller.customerRequests.supplyCandidates({ workspaceId: 1 }),
+      caller.customerRequests.approveSupply({ workspaceId: 1, allocations: [{ customerRequestId: 1, settlementLineId: 1, allocatedQuantity: "1.000" }] }),
+      caller.customerRequests.createTeamInvite({ workspaceId: 1, expiresInHours: 24 }),
+      caller.customerRequests.redeemTeamInvite({ code: "ABCD-EFGH-IJKL" }),
     ];
     for (const request of checks) await expect(request).rejects.toMatchObject({ code: "UNAUTHORIZED" });
   });
