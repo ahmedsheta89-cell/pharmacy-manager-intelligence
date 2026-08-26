@@ -180,7 +180,7 @@ try {
     await invoiceCenter.getByRole("button", { name: "تحويل النص إلى بنود قابلة للمراجعة" }).click();
     await invoiceCenter.locator('input[type="checkbox"]').check();
     await invoiceCenter.getByTestId("approve-invoice-settlement").click();
-    await invoiceCenter.getByText("اعتمدت تسوية", { exact: false }).waitFor({ timeout: 3_000 });
+    await invoiceCenter.getByTestId("approve-invoice-settlement").getByText("تم اعتماد قرار التوريد", { exact: true }).waitFor({ timeout: 10_000 });
   }
 
   console.log("VERIFY_EDITABLE_SHEET_UNDO_OK");

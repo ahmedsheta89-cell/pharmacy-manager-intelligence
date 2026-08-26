@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import { inspectPharmacyFile } from "./pharmacyEngine";
 import { analyzeProductMovement } from "./productMovementEngine";
+import { analyzeInventoryOperations } from "./inventoryEngine";
 import { approveAllSuggestions } from "./importReview";
 
 describe("ملف الصيدلية المرسل 6-8.xlsx", () => {
@@ -10,6 +11,7 @@ describe("ملف الصيدلية المرسل 6-8.xlsx", () => {
     const inspection = approveAllSuggestions(await inspectPharmacyFile(new File([bytes], "6-8.xlsx", { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })));
     const sheet = inspection.sheets[0];
     const movement = analyzeProductMovement(inspection.sheets);
+    const inventory = analyzeInventoryOperations(inspection.sheets);
 
     expect(inspection.sheets).toHaveLength(1);
     expect(sheet.headerDataOffset).toBe(1);
@@ -54,6 +56,10 @@ describe("ملف الصيدلية المرسل 6-8.xlsx", () => {
     expect(movement.metrics.zeroBalanceRecordCount).toBe(442);
     expect(movement.metrics.zeroBalanceRawRecordCount).toBe(442);
     expect(movement.metrics.zeroBalanceUnidentifiedRecordCount).toBe(0);
+    expect(inventory.available).toBe(true);
+    expect(inventory.items.filter((item) => item.stock === 0)).toHaveLength(441);
+    expect(inventory.items.filter((item) => item.stock === 0 && item.unitSalePrice !== undefined)).toHaveLength(441);
+    expect(inventory.items.filter((item) => item.stock === 0 && item.unitCost !== undefined)).toHaveLength(0);
     expect(movement.periods).toHaveLength(0);
   });
 });
