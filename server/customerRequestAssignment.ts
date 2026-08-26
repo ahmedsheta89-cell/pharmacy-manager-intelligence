@@ -24,3 +24,8 @@ export function resolveRecordedByUserId(input: {
 export function isCustomerRequestRecordedBy(input: { createdByUserId: number; recordedByUserId?: number | null }, userId: number) {
   return input.recordedByUserId === userId || (!input.recordedByUserId && input.createdByUserId === userId);
 }
+
+/** يُنسب حدث الإنشاء للزميل المسجّل باسمه؛ بقية الأحداث تبقى لمن نفّذها فعليًا. */
+export function customerRequestPerformanceUserId(input: { eventType: string; actorUserId: number; recordedByUserId?: number | null }) {
+  return input.eventType === "customer_request.created" && input.recordedByUserId ? input.recordedByUserId : input.actorUserId;
+}

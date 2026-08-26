@@ -2,6 +2,7 @@ import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { createHash, randomBytes } from "node:crypto";
 import { approvedAnalysisSessions, auditEvents, customerRequestAccessInvites, customerRequestEvents, customerRequestMessageTemplates, customerRequestSupplyAllocations, customerRequests, invoiceSettlementLines, invoiceSettlements, openOrderLines, openOrders, operatingDecisions, operationalAlerts, pharmacyWorkspaces, supplierArrivalSchedules, supplierProfiles, users, workspaceMembers, workspaceRetentionPolicies, type InsertUser, type WorkspaceAccessRole } from "../drizzle/schema";
+import { customerRequestPerformanceUserId } from "./customerRequestAssignment";
 
 let instance: ReturnType<typeof drizzle> | null = null;
 
@@ -565,19 +566,25 @@ export async function listCustomerRequestTeamPerformance(input: { workspaceId: n
   const db = getDb();
   if (!db) throw new Error("Database is not configured");
   const since = new Date(Date.now() - input.sinceDays * 24 * 60 * 60 * 1000);
-  const rows = await db.select({ event: customerRequestEvents, request: customerRequests, employeeCode: workspaceMembers.employeeCode, name: users.name })
+  const [rows, team] = await Promise.all([
+    db.select({ event: customerRequestEvents, request: customerRequests, employeeCode: workspaceMembers.employeeCode, name: users.name })
     .from(customerRequestEvents)
     .innerJoin(customerRequests, eq(customerRequestEvents.customerRequestId, customerRequests.id))
     .leftJoin(workspaceMembers, and(eq(workspaceMembers.workspaceId, input.workspaceId), eq(workspaceMembers.userId, customerRequestEvents.actorUserId)))
     .leftJoin(users, eq(users.id, customerRequestEvents.actorUserId))
     .where(and(eq(customerRequestEvents.workspaceId, input.workspaceId), sql`${customerRequestEvents.createdAt} >= ${since}`))
-    .orderBy(desc(customerRequestEvents.createdAt)).limit(1500);
+    .orderBy(desc(customerRequestEvents.createdAt)).limit(1500),
+    listWorkspaceTeamMembers(input.workspaceId),
+  ]);
+  const teamByUserId = new Map(team.map((member) => [member.userId, member]));
   type PerformanceRow = { userId: number; name: string; employeeCode: string | null; createdCount: number; contactedCount: number; fulfilledCount: number; cancelledCount: number; contactDurations: number[]; lastActivityAt: Date | null };
   const performance = new Map<number, PerformanceRow>();
   for (const row of rows) {
     const actorUserId = row.event.actorUserId;
     if (!actorUserId) continue;
-    const current: PerformanceRow = performance.get(actorUserId) ?? { userId: actorUserId, name: row.name?.trim() || "موظف غير مسمى", employeeCode: row.employeeCode ?? null, createdCount: 0, contactedCount: 0, fulfilledCount: 0, cancelledCount: 0, contactDurations: [], lastActivityAt: null };
+    const performanceUserId = customerRequestPerformanceUserId({ eventType: row.event.eventType, actorUserId, recordedByUserId: row.request.recordedByUserId });
+    const attributedMember = teamByUserId.get(performanceUserId);
+    const current: PerformanceRow = performance.get(performanceUserId) ?? { userId: performanceUserId, name: attributedMember?.name?.trim() || row.name?.trim() || "موظف غير مسمى", employeeCode: attributedMember?.employeeCode ?? row.employeeCode ?? null, createdCount: 0, contactedCount: 0, fulfilledCount: 0, cancelledCount: 0, contactDurations: [], lastActivityAt: null };
     if (row.event.eventType === "customer_request.created") current.createdCount += 1;
     if (row.event.eventType === "customer_request.contacted") {
       current.contactedCount += 1;
@@ -586,7 +593,7 @@ export async function listCustomerRequestTeamPerformance(input: { workspaceId: n
     if (row.event.eventType === "customer_request.fulfilled") current.fulfilledCount += 1;
     if (row.event.eventType === "customer_request.cancelled") current.cancelledCount += 1;
     if (!current.lastActivityAt || row.event.createdAt > current.lastActivityAt) current.lastActivityAt = row.event.createdAt;
-    performance.set(actorUserId, current);
+    performance.set(performanceUserId, current);
   }
   return Array.from(performance.values()).map((item) => ({ ...item, averageMinutesToContact: item.contactDurations.length ? item.contactDurations.reduce((sum: number, value: number) => sum + value, 0) / item.contactDurations.length : null, contactDurations: undefined })).sort((a, b) => b.contactedCount - a.contactedCount || b.fulfilledCount - a.fulfilledCount);
 }
