@@ -50,6 +50,13 @@
       "when": 1787687812801,
       "tag": "0006_wise_thunderbolt",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1787760361281,
+      "tag": "0007_aberrant_shockwave",
+      "breakpoints": true
     }
   ]
 }

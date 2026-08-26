@@ -48,6 +48,7 @@ describe("إجراءات الخادم المحمية", () => {
       caller.customerRequests.approveSupply({ workspaceId: 1, allocations: [{ customerRequestId: 1, settlementLineId: 1, allocatedQuantity: "1.000" }] }),
       caller.customerRequests.teamPerformance({ workspaceId: 1, sinceDays: 30 }),
       caller.customerRequests.teamMembers({ workspaceId: 1 }),
+      caller.customerRequests.recordingColleagues({ workspaceId: 1 }),
       caller.customerRequests.setEmployeeCode({ workspaceId: 1, userId: 1, employeeCode: "EMP-01" }),
       caller.supplierArrivals.list({ workspaceId: 1 }),
       caller.supplierArrivals.create({ workspaceId: 1, supplierName: "مورد تجريبي", expectedAt: new Date("2026-08-25T10:00:00.000Z") }),

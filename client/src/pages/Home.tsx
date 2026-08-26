@@ -85,6 +85,7 @@ const InvoiceReconciliationCenter = lazy(() => import("@/components/InvoiceRecon
 const OperationsCenter = lazy(() => import("@/components/OperationsCenter").then(({ OperationsCenter: component }) => ({ default: component })));
 const ImportReviewCenter = lazy(() => import("@/components/ImportReviewCenter").then(({ ImportReviewCenter: component }) => ({ default: component })));
 const CustomerRequestsCenter = lazy(() => import("@/components/CustomerRequestsCenter").then(({ CustomerRequestsCenter: component }) => ({ default: component })));
+const CustomerRequestEntryScreen = lazy(() => import("@/components/CustomerRequestEntryScreen").then(({ CustomerRequestEntryScreen: component }) => ({ default: component })));
 
 function DeferredPanel({ children }: { children: React.ReactNode }) {
   return <Suspense fallback={<div className="rounded-2xl border border-[#d9e8e0] bg-[#fcfdf9] px-5 py-10 text-center text-sm font-bold text-[#41685d]"><LoaderCircle className="mx-auto mb-3 size-5 animate-spin text-[#0b6b5b]" />يتم تجهيز مساحة العمل المطلوبة…</div>}>{children}</Suspense>;
@@ -182,6 +183,7 @@ function ColumnMapMismatchWarning({ compatibility, onContinue, onCancel }: { com
 export default function Home() {
   const [stage, setStage] = useState<Stage>("welcome");
   const [customerRequestPortal, setCustomerRequestPortal] = useState(false);
+  const [managerCustomerRequestPortal, setManagerCustomerRequestPortal] = useState(false);
   const [inspection, setInspection] = useState<ImportInspection | null>(null);
   const [workbookStructure, setWorkbookStructure] = useState<WorkbookStructureReview | null>(null);
   const [priceInspection, setPriceInspection] = useState<ImportInspection | null>(null);
@@ -419,8 +421,9 @@ export default function Home() {
   function clearReportPasscode() { setReportLock(removeLocalReportPasscode()); }
 
   if (stage === "column-map-warning" && columnMapMismatch) return <ColumnMapMismatchWarning compatibility={columnMapMismatch} onContinue={() => { setMismatchAcknowledged(true); setStage("review"); }} onCancel={importNewFile} />;
-  if (customerRequestsOnly) return <main className="app-canvas min-h-screen px-4 py-5 sm:p-7"><DeferredPanel><CustomerRequestsCenter /></DeferredPanel></main>;
-  if (customerRequestPortal) return <main className="app-canvas min-h-screen px-4 py-5 sm:p-7"><DeferredPanel><CustomerRequestsCenter onClose={() => setCustomerRequestPortal(false)} /></DeferredPanel></main>;
+  if (customerRequestsOnly) return <main className="app-canvas min-h-screen px-4 py-5 sm:p-7"><DeferredPanel><CustomerRequestEntryScreen /></DeferredPanel></main>;
+  if (managerCustomerRequestPortal) return <main className="app-canvas min-h-screen px-4 py-5 sm:p-7"><DeferredPanel><CustomerRequestsCenter onClose={() => setManagerCustomerRequestPortal(false)} /></DeferredPanel></main>;
+  if (customerRequestPortal) return <main className="app-canvas min-h-screen px-4 py-5 sm:p-7"><DeferredPanel><CustomerRequestEntryScreen onOpenManager={() => { setCustomerRequestPortal(false); setManagerCustomerRequestPortal(true); }} /></DeferredPanel></main>;
   if (stage === "welcome") return <WelcomeScreen dragging={dragging} processing={processing} error={error} fileInput={fileInput} monthlyFilesInput={monthlyFilesInput} sessions={savedSessions} monthlyDraft={monthlyDraft} importTemplates={importTemplates} templateName={templateName} onTemplateName={setTemplateName} onApplyTemplate={applyImportTemplate} onDeleteTemplate={removeImportTemplate} onSaveTemplate={saveCurrentImportTemplate} onChangeDraftMonth={changeDraftMonth} onRestore={restoreAnalysisSession} onDeleteSession={removeAnalysisSession} onUpdateTags={updateSessionTags} onExportBackup={exportBackupWithRecord} onImportBackup={importBackup} onDrop={onDrop} onDragOver={(event) => { event.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onChange={onFileChange} onMonthlyFilesChange={(event) => { selectMonthlyFiles(event.target.files); event.target.value = ""; }} onStartMonthly={() => { void beginMonthlyFiles(); }} onOpen={() => fileInput.current?.click()} onOpenMonthly={() => monthlyFilesInput.current?.click()} onOpenCustomerRequests={() => setCustomerRequestPortal(true)} />;
   if (stage === "review" && inspection && selectedSheet) {
     const activeInspection = reviewSource === "price" ? priceInspection : inspection;

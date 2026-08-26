@@ -8,8 +8,9 @@ const page = await browser.newPage({ viewport, locale: "ar-EG" });
 try {
   await page.goto(baseUrl, { waitUntil: "networkidle", timeout: 30_000 });
   await page.getByRole("button", { name: "طلبات العملاء وفريق التواصل" }).click();
-  await page.getByRole("heading", { name: "سجّل الدخول لحفظ طلبات العملاء" }).waitFor({ timeout: 15_000 });
+  await page.getByRole("heading", { name: "تسجيل طلب عميل" }).waitFor({ timeout: 15_000 });
   await page.getByRole("button", { name: "تسجيل الدخول الآمن" }).waitFor({ timeout: 15_000 });
+  await page.getByText("سجّل الدخول للوصول إلى شاشة التسجيل الآمنة فقط.").waitFor({ timeout: 15_000 });
   if (process.env.CAPTURE_CUSTOMER_REQUESTS_SCREEN === "1") await page.screenshot({ path: "/home/ubuntu/pharmacy-manager-customer-requests.png", fullPage: true });
   console.log("VERIFY_CUSTOMER_REQUESTS_PORTAL_OK");
 } finally {

@@ -4,6 +4,7 @@ import { COOKIE_NAME } from "../shared/const";
 import * as db from "./db";
 import { canApproveCustomerSupply, canManageCustomerRequests, canManageOperations } from "./accessControl";
 import { presentCustomerRequestForRole } from "./customerContactPrivacy";
+import { isCustomerRequestRecordedBy, resolveRecordedByUserId } from "./customerRequestAssignment";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 
@@ -115,14 +116,14 @@ export const appRouter = router({
     list: protectedProcedure.input(z.object({ workspaceId: z.number().int().positive() })).query(async ({ ctx, input }) => {
       const membership = await db.getWorkspaceMembership(input.workspaceId, ctx.user.id);
       if (!membership || !canManageCustomerRequests(membership.accessRole)) throw new TRPCError({ code: "FORBIDDEN", message: "لا تملك صلاحية الوصول إلى طلبات العملاء." });
-      const requests = await db.listCustomerRequests(input.workspaceId);
+      const requests = await db.listCustomerRequests(input.workspaceId, membership.accessRole === "customer_requests" ? ctx.user.id : undefined);
       return requests.map((request) => presentCustomerRequestForRole(request, membership.accessRole === "customer_requests"));
     }),
     revealPhone: protectedProcedure.input(z.object({ workspaceId: z.number().int().positive(), customerRequestId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
       const membership = await db.getWorkspaceMembership(input.workspaceId, ctx.user.id);
       if (!membership || !canManageCustomerRequests(membership.accessRole)) throw new TRPCError({ code: "FORBIDDEN", message: "لا تملك صلاحية الاطلاع على رقم العميل." });
       const request = await db.getCustomerRequestById(input.workspaceId, input.customerRequestId);
-      if (!request || (membership.accessRole === "customer_requests" && request.createdByUserId !== ctx.user.id)) throw new TRPCError({ code: "FORBIDDEN", message: "لا تملك صلاحية الاطلاع على رقم هذا الطلب." });
+      if (!request || (membership.accessRole === "customer_requests" && !isCustomerRequestRecordedBy(request, ctx.user.id))) throw new TRPCError({ code: "FORBIDDEN", message: "لا تملك صلاحية الاطلاع على رقم هذا الطلب." });
       await db.appendAuditEvent({ workspaceId: input.workspaceId, actorUserId: ctx.user.id, action: "customer_request.phone_revealed_for_contact", entityType: "customer_request", entityId: String(request.id), metadata: { purpose: "manual_whatsapp_review" } });
       return { customerPhone: request.customerPhone };
     }),
@@ -139,7 +140,7 @@ export const appRouter = router({
     dailyWorkQueue: protectedProcedure.input(z.object({ workspaceId: z.number().int().positive() })).query(async ({ ctx, input }) => {
       const membership = await db.getWorkspaceMembership(input.workspaceId, ctx.user.id);
       if (!membership || !canManageCustomerRequests(membership.accessRole)) throw new TRPCError({ code: "FORBIDDEN", message: "لا تملك صلاحية الوصول إلى قائمة عمل اليوم." });
-      return db.listCustomerRequestDailyWorkQueue({ workspaceId: input.workspaceId, createdByUserId: membership.accessRole === "customer_requests" ? ctx.user.id : undefined });
+      return db.listCustomerRequestDailyWorkQueue({ workspaceId: input.workspaceId, recordedByUserId: membership.accessRole === "customer_requests" ? ctx.user.id : undefined });
     }),
     saveMessageTemplate: protectedProcedure.input(z.object({
       workspaceId: z.number().int().positive(), id: z.number().int().positive().optional(), name: z.string().trim().min(2).max(120), body: z.string().trim().min(5).max(2000), isDefault: z.boolean(), isActive: z.boolean(),
@@ -155,17 +156,21 @@ export const appRouter = router({
       if (!membership || !canManageCustomerRequests(membership.accessRole)) throw new TRPCError({ code: "FORBIDDEN", message: "لا تملك صلاحية الوصول إلى سجل طلب العميل." });
       if (membership.accessRole === "customer_requests") {
         const request = await db.getCustomerRequestById(input.workspaceId, input.customerRequestId);
-        if (!request || request.createdByUserId !== ctx.user.id) throw new TRPCError({ code: "FORBIDDEN", message: "لا تملك صلاحية الوصول إلى سجل هذا الطلب." });
+        if (!request || !isCustomerRequestRecordedBy(request, ctx.user.id)) throw new TRPCError({ code: "FORBIDDEN", message: "لا تملك صلاحية الوصول إلى سجل هذا الطلب." });
       }
       return db.listCustomerRequestEvents(input.workspaceId, input.customerRequestId);
     }),
     create: protectedProcedure.input(z.object({
-      workspaceId: z.number().int().positive(), customerName: z.string().trim().min(2).max(160), customerPhone: z.string().trim().min(7).max(32), productCode: z.string().trim().max(120).optional(), productName: z.string().trim().min(2).max(255), requestedQuantity: z.string().regex(/^\d+(\.\d{1,3})?$/), note: z.string().trim().max(3000).optional(),
+      workspaceId: z.number().int().positive(), customerName: z.string().trim().min(2).max(160), customerPhone: z.string().trim().min(7).max(32), productCode: z.string().trim().max(120).optional(), productName: z.string().trim().min(2).max(255), requestedQuantity: z.string().regex(/^\d+(\.\d{1,3})?$/), note: z.string().trim().max(3000).optional(), recordedByUserId: z.number().int().positive().optional(),
     })).mutation(async ({ ctx, input }) => {
       const membership = await db.getWorkspaceMembership(input.workspaceId, ctx.user.id);
       if (!membership || !canManageCustomerRequests(membership.accessRole)) throw new TRPCError({ code: "FORBIDDEN", message: "لا تملك صلاحية إنشاء طلب عميل." });
-      const result = await db.createCustomerRequest({ ...input, createdByUserId: ctx.user.id });
-      if (!result.duplicate) await db.appendAuditEvent({ workspaceId: input.workspaceId, actorUserId: ctx.user.id, action: "customer_request.created", entityType: "customer_request", entityId: String(result.request.id), metadata: { productCode: result.request.productCode, requestedQuantity: input.requestedQuantity } });
+      let recordedByUserId: number;
+      try { recordedByUserId = resolveRecordedByUserId({ actorUserId: ctx.user.id, accessRole: membership.accessRole, requestedRecordedByUserId: input.recordedByUserId }); }
+      catch (error) { throw new TRPCError({ code: membership.accessRole === "customer_requests" ? "FORBIDDEN" : "BAD_REQUEST", message: error instanceof Error ? error.message : "تعذر تحديد الزميل المسجّل." }); }
+      if (canApproveCustomerSupply(membership.accessRole) && !(await db.isActiveCustomerRequestColleague(input.workspaceId, recordedByUserId))) throw new TRPCError({ code: "BAD_REQUEST", message: "اختر زميلاً نشطًا من فريق طلبات العملاء داخل مساحة العمل." });
+      const result = await db.createCustomerRequest({ ...input, createdByUserId: ctx.user.id, recordedByUserId });
+      if (!result.duplicate) await db.appendAuditEvent({ workspaceId: input.workspaceId, actorUserId: ctx.user.id, action: "customer_request.created", entityType: "customer_request", entityId: String(result.request.id), metadata: { productCode: result.request.productCode, requestedQuantity: input.requestedQuantity, recordedByUserId } });
       return { ...result, request: presentCustomerRequestForRole(result.request, membership.accessRole === "customer_requests") };
     }),
     updateDetails: protectedProcedure.input(z.object({
@@ -185,7 +190,7 @@ export const appRouter = router({
       if (membership.accessRole === "customer_requests" && ["requested", "awaiting_supply", "ready_to_contact", "unavailable"].includes(input.status)) throw new TRPCError({ code: "FORBIDDEN", message: "فريق الطلبات لا يعتمد التوريد أو الإتاحة أو قرار عدم التوفر؛ يمكنه تسجيل التواصل أو الإغلاق بعد قرار المدير." });
       if (membership.accessRole === "customer_requests") {
         const existing = await db.getCustomerRequestById(input.workspaceId, input.customerRequestId);
-        if (!existing || existing.createdByUserId !== ctx.user.id) throw new TRPCError({ code: "FORBIDDEN", message: "لا تملك صلاحية تحديث طلب لم تنشئه." });
+        if (!existing || !isCustomerRequestRecordedBy(existing, ctx.user.id)) throw new TRPCError({ code: "FORBIDDEN", message: "لا تملك صلاحية تحديث طلب غير مسجّل باسمك." });
       }
       const request = await db.updateCustomerRequestStatus({ ...input, userId: ctx.user.id });
       await db.appendAuditEvent({ workspaceId: input.workspaceId, actorUserId: ctx.user.id, action: `customer_request.${input.status}`, entityType: "customer_request", entityId: String(input.customerRequestId), metadata: { note: input.note ?? null, closedReason: input.closedReason ?? null } });
@@ -221,6 +226,11 @@ export const appRouter = router({
       const membership = await db.getWorkspaceMembership(input.workspaceId, ctx.user.id);
       if (!membership || !canApproveCustomerSupply(membership.accessRole)) throw new TRPCError({ code: "FORBIDDEN", message: "إدارة أكواد الموظفين متاحة للمدير فقط." });
       return db.listWorkspaceTeamMembers(input.workspaceId);
+    }),
+    recordingColleagues: protectedProcedure.input(z.object({ workspaceId: z.number().int().positive() })).query(async ({ ctx, input }) => {
+      const membership = await db.getWorkspaceMembership(input.workspaceId, ctx.user.id);
+      if (!membership || !canApproveCustomerSupply(membership.accessRole)) throw new TRPCError({ code: "FORBIDDEN", message: "اختيار الزميل المسجّل متاح للمدير فقط." });
+      return db.listActiveCustomerRequestColleagues(input.workspaceId);
     }),
     setEmployeeCode: protectedProcedure.input(z.object({ workspaceId: z.number().int().positive(), userId: z.number().int().positive(), employeeCode: z.string().trim().min(3).max(40) })).mutation(async ({ ctx, input }) => {
       const membership = await db.getWorkspaceMembership(input.workspaceId, ctx.user.id);

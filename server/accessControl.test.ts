@@ -21,4 +21,12 @@ describe("سياسة وصول فريق طلبات العملاء", () => {
     expect(canApproveCustomerSupply("owner")).toBe(true);
     expect(canApproveCustomerSupply("manager")).toBe(true);
   });
+
+  it("يجمع للمدير التحكم التشغيلي واعتماد التوريد من دون منحه لموظف الطلبات", () => {
+    expect(canManageOperations("manager")).toBe(true);
+    expect(canManageCustomerRequests("manager")).toBe(true);
+    expect(canApproveCustomerSupply("manager")).toBe(true);
+    expect(canManageOperations("customer_requests")).toBe(false);
+    expect(canApproveCustomerSupply("customer_requests")).toBe(false);
+  });
 });

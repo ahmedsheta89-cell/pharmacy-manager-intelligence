@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { createHash, randomBytes } from "node:crypto";
 import { approvedAnalysisSessions, auditEvents, customerRequestAccessInvites, customerRequestEvents, customerRequestMessageTemplates, customerRequestSupplyAllocations, customerRequests, invoiceSettlementLines, invoiceSettlements, openOrderLines, openOrders, operatingDecisions, operationalAlerts, pharmacyWorkspaces, supplierArrivalSchedules, supplierProfiles, users, workspaceMembers, workspaceRetentionPolicies, type InsertUser, type WorkspaceAccessRole } from "../drizzle/schema";
@@ -238,11 +238,13 @@ function normalizePhone(value: string) {
 
 export type CustomerRequestStatus = "requested" | "awaiting_supply" | "ready_to_contact" | "contacted" | "fulfilled" | "unavailable" | "cancelled";
 
-export async function listCustomerRequests(workspaceId: number) {
+export async function listCustomerRequests(workspaceId: number, recordedByUserId?: number) {
   const db = getDb();
   if (!db) throw new Error("Database is not configured");
+  const conditions = [eq(customerRequests.workspaceId, workspaceId)];
+  if (recordedByUserId) conditions.push(or(eq(customerRequests.recordedByUserId, recordedByUserId), and(sql`${customerRequests.recordedByUserId} IS NULL`, eq(customerRequests.createdByUserId, recordedByUserId)))!);
   return db.select().from(customerRequests)
-    .where(eq(customerRequests.workspaceId, workspaceId))
+    .where(and(...conditions))
     .orderBy(desc(customerRequests.updatedAt), desc(customerRequests.id)).limit(200);
 }
 
@@ -261,7 +263,7 @@ export async function getCustomerRequestById(workspaceId: number, customerReques
 }
 
 export async function createCustomerRequest(input: {
-  workspaceId: number; createdByUserId: number; customerName: string; customerPhone: string; productCode?: string; productName: string; requestedQuantity: string; note?: string;
+  workspaceId: number; createdByUserId: number; recordedByUserId: number; customerName: string; customerPhone: string; productCode?: string; productName: string; requestedQuantity: string; note?: string;
 }) {
   const db = getDb();
   if (!db) throw new Error("Database is not configured");
@@ -289,13 +291,14 @@ export async function createCustomerRequest(input: {
     normalizedProductName,
     requestedQuantity: input.requestedQuantity,
     createdByUserId: input.createdByUserId,
+    recordedByUserId: input.recordedByUserId,
     lastUpdatedByUserId: input.createdByUserId,
     note: input.note?.trim() || null,
   });
   const requestId = Number(result[0].insertId);
   const request = (await db.select().from(customerRequests).where(eq(customerRequests.id, requestId)).limit(1))[0];
   if (!request) throw new Error("تعذر إنشاء طلب العميل.");
-  await db.insert(customerRequestEvents).values({ workspaceId: input.workspaceId, customerRequestId: request.id, actorUserId: input.createdByUserId, eventType: "customer_request.created", note: input.note?.trim() || null, metadata: { productCode: request.productCode, requestedQuantity: input.requestedQuantity } });
+  await db.insert(customerRequestEvents).values({ workspaceId: input.workspaceId, customerRequestId: request.id, actorUserId: input.createdByUserId, eventType: "customer_request.created", note: input.note?.trim() || null, metadata: { productCode: request.productCode, requestedQuantity: input.requestedQuantity, recordedByUserId: input.recordedByUserId } });
   return { request, duplicate: false };
 }
 
@@ -504,12 +507,12 @@ export async function listCustomerRequestResponseMetrics(workspaceId: number) {
   };
 }
 
-export async function listCustomerRequestDailyWorkQueue(input: { workspaceId: number; createdByUserId?: number }) {
+export async function listCustomerRequestDailyWorkQueue(input: { workspaceId: number; recordedByUserId?: number }) {
   const db = getDb();
   if (!db) throw new Error("Database is not configured");
   const activeStatuses: CustomerRequestStatus[] = ["requested", "awaiting_supply", "ready_to_contact", "contacted"];
   const conditions = [eq(customerRequests.workspaceId, input.workspaceId), inArray(customerRequests.status, activeStatuses)];
-  if (input.createdByUserId) conditions.push(eq(customerRequests.createdByUserId, input.createdByUserId));
+  if (input.recordedByUserId) conditions.push(or(eq(customerRequests.recordedByUserId, input.recordedByUserId), and(sql`${customerRequests.recordedByUserId} IS NULL`, eq(customerRequests.createdByUserId, input.recordedByUserId)))!);
   const rows = await db.select().from(customerRequests).where(and(...conditions)).limit(300);
   const now = Date.now();
   const weight: Record<CustomerRequestStatus, number> = { ready_to_contact: 1, contacted: 2, requested: 3, awaiting_supply: 4, fulfilled: 5, unavailable: 6, cancelled: 7 };
@@ -526,6 +529,23 @@ export async function listWorkspaceTeamMembers(workspaceId: number) {
   return db.select({ userId: workspaceMembers.userId, employeeCode: workspaceMembers.employeeCode, accessRole: workspaceMembers.accessRole, status: workspaceMembers.status, joinedAt: workspaceMembers.joinedAt, name: users.name, email: users.email })
     .from(workspaceMembers).innerJoin(users, eq(workspaceMembers.userId, users.id))
     .where(eq(workspaceMembers.workspaceId, workspaceId)).orderBy(desc(workspaceMembers.joinedAt)).limit(200);
+}
+
+/** قائمة خفيفة للمدير لاختيار زميل نشط من فريق طلبات العملاء فقط. */
+export async function listActiveCustomerRequestColleagues(workspaceId: number) {
+  const db = getDb();
+  if (!db) throw new Error("Database is not configured");
+  return db.select({ userId: workspaceMembers.userId, name: users.name, employeeCode: workspaceMembers.employeeCode })
+    .from(workspaceMembers)
+    .innerJoin(users, eq(workspaceMembers.userId, users.id))
+    .where(and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.status, "active"), eq(workspaceMembers.accessRole, "customer_requests")))
+    .orderBy(users.name)
+    .limit(200);
+}
+
+export async function isActiveCustomerRequestColleague(workspaceId: number, userId: number) {
+  const colleagues = await listActiveCustomerRequestColleagues(workspaceId);
+  return colleagues.some((colleague) => colleague.userId === userId);
 }
 
 export async function setWorkspaceMemberEmployeeCode(input: { workspaceId: number; userId: number; employeeCode: string }) {

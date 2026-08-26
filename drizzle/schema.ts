@@ -211,6 +211,8 @@ export const customerRequests = mysqlTable("customer_requests", {
   allocatedQuantity: decimal("allocatedQuantity", { precision: 14, scale: 3 }).default("0.000").notNull(),
   status: mysqlEnum("customerRequestStatus", ["requested", "awaiting_supply", "ready_to_contact", "contacted", "fulfilled", "unavailable", "cancelled"]).default("requested").notNull(),
   createdByUserId: int("createdByUserId").notNull().references(() => users.id),
+  /** الزميل الذي سُجّل الطلب باسمه؛ يظل createdByUserId هو منفذ العملية الفعلي لأثر التدقيق. */
+  recordedByUserId: int("recordedByUserId").references(() => users.id),
   lastUpdatedByUserId: int("lastUpdatedByUserId").notNull().references(() => users.id),
   readyAt: timestamp("readyAt"),
   contactedAt: timestamp("contactedAt"),
@@ -221,6 +223,7 @@ export const customerRequests = mysqlTable("customer_requests", {
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (table) => [
   index("customer_request_workspace_status_idx").on(table.workspaceId, table.status, table.updatedAt),
+  index("customer_request_workspace_recorded_by_idx").on(table.workspaceId, table.recordedByUserId, table.updatedAt),
   index("customer_request_match_idx").on(table.workspaceId, table.productCode, table.normalizedProductName, table.status),
   index("customer_request_customer_idx").on(table.workspaceId, table.normalizedCustomerPhone, table.status),
 ]);
