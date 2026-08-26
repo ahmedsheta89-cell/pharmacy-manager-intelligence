@@ -3,7 +3,8 @@
  * يولّد ملف Excel محليًا من النتائج الحالية فقط ولا يرسل أي بيانات للخارج.
  */
 import * as XLSX from "xlsx";
-import type { InventoryOperations } from "./inventoryEngine";
+import type { InventoryItem, InventoryOperations } from "./inventoryEngine";
+import type { ProductExplorerFilters } from "./productExplorer";
 import type { ReorderRules } from "./reorderRules";
 
 function fitColumns(rows: Record<string, unknown>[]) {
@@ -66,4 +67,39 @@ export function buildInventoryOperationsWorkbook(operations: InventoryOperations
 export function exportInventoryOperationsWorkbook(operations: InventoryOperations, rules: ReorderRules) {
   const book = buildInventoryOperationsWorkbook(operations, rules);
   XLSX.writeFile(book, `عمليات_المخزون_والطلبات_${new Date().toISOString().slice(0, 10)}.xlsx`);
+}
+
+export function buildProductExplorerWorkbook(items: InventoryItem[], filters: ProductExplorerFilters) {
+  const book = XLSX.utils.book_new();
+  appendSheet(book, "نتائج المستكشف", items.map((item) => ({
+    "الصنف": item.itemName,
+    "الكود": item.itemCode ?? "",
+    "الشركة": item.company ?? "",
+    "الرصيد": item.stock ?? "غير متاح",
+    "سعر البيع المحسوب": item.unitSalePrice ?? "غير متاح",
+    "سعر الشراء": item.unitCost ?? "غير متاح",
+    "قيمة الرصيد بسعر البيع": item.stockSaleValue ?? "غير متاح",
+    "قيمة الرصيد بالتكلفة": item.stockCostValue ?? "غير متاح",
+    "كمية الصرف": item.salesQuantity ?? "غير متاح",
+    "إجمالي البيع": item.sales ?? "غير متاح",
+    "الربح": item.profit ?? "غير متاح",
+    "هامش الربح %": item.profitMargin ?? "غير متاح",
+    "حالة المخزون": item.status,
+    "سبب القرار": item.note,
+  })));
+  appendSheet(book, "الفلاتر المطبقة", [
+    { "المؤشر": "البحث", "القيمة": filters.query || "لا يوجد" },
+    { "المؤشر": "حالة الرصيد", "القيمة": filters.stock },
+    { "المؤشر": "سعر البيع المحسوب من", "القيمة": filters.minSalePrice ?? "غير محدد" },
+    { "المؤشر": "سعر الشراء من", "القيمة": filters.minCost ?? "غير محدد" },
+    { "المؤشر": "هامش الربح من", "القيمة": filters.minMargin ?? "غير محدد" },
+    { "المؤشر": "كمية الصرف من", "القيمة": filters.minSalesQuantity ?? "غير محدد" },
+    { "المؤشر": "ترتيب النتائج", "القيمة": `${filters.sort} · ${filters.descending ? "تنازلي" : "تصاعدي"}` },
+    { "المؤشر": "حدود البيانات", "القيمة": "غير متاح تعني أن المصدر لا يحتوي القيمة أو أنها غير معتمدة؛ لا تعني صفرًا." },
+  ]);
+  return book;
+}
+
+export function exportProductExplorerWorkbook(items: InventoryItem[], filters: ProductExplorerFilters) {
+  XLSX.writeFile(buildProductExplorerWorkbook(items, filters), `مستكشف_الأصناف_${new Date().toISOString().slice(0, 10)}.xlsx`);
 }

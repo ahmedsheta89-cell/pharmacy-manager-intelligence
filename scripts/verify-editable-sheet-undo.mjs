@@ -157,6 +157,16 @@ try {
   if (process.env.VERIFICATION_VIEWPORT === "mobile") {
     await page.getByRole("button", { name: "فتح أقسام التحليل", exact: true }).click();
   }
+  await page.getByRole("button", { name: "الطلبات والمخزون", exact: true }).click();
+  await page.getByText("أصناف رصيدها صفر", { exact: true }).first().waitFor({ timeout: 10_000 });
+  const [explorerDownload] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByRole("button", { name: "تصدير نتائج المستكشف الحالية", exact: true }).click(),
+  ]);
+  if (!explorerDownload.suggestedFilename().startsWith("مستكشف_الأصناف_")) throw new Error("تعذر تنزيل نتائج مستكشف الأصناف.");
+  if (process.env.VERIFICATION_VIEWPORT === "mobile") {
+    await page.getByRole("button", { name: "فتح أقسام التحليل", exact: true }).click();
+  }
   await page.getByRole("button", { name: "غرفة عمليات اليوم", exact: true }).click();
   const operationsCenter = page.getByTestId("operations-center");
   await operationsCenter.waitFor({ state: "visible", timeout: 10_000 });
