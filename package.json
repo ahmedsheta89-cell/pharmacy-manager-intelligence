@@ -12,6 +12,7 @@
     "analyze:bundle": "NODE_ENV=production ANALYZE_BUNDLE=true vite build",
     "measure:startup": "node scripts/measure-startup.mjs",
     "start": "NODE_ENV=production node dist/index.js",
+    "db:push:external": "drizzle-kit push",
     "check": "tsc --noEmit",
     "test": "vitest run",
     "format": "prettier --write ."
