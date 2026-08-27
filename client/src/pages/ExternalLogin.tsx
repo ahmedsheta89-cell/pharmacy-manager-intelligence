@@ -1,6 +1,20 @@
 import { FormEvent, useState } from "react";
-import { ArrowRight, LockKeyhole, Mail, ShieldCheck } from "lucide-react";
+import { ArrowRight, CheckCircle2, KeyRound, LockKeyhole, Mail, ShieldCheck, UserRoundCheck } from "lucide-react";
 import { getExternalAuthConfiguration, isExternalAuthEnabled, signInWithExternalPassword, signUpExternalUser } from "@/lib/supabaseAuth";
+
+type LoginMode = "sign-in" | "sign-up";
+
+const accessNotes = [
+  { icon: ShieldCheck, title: "المدير", description: "لوحة الإدارة، التحليل، الاعتمادات وإدارة الفريق." },
+  { icon: UserRoundCheck, title: "زميل الطلبات", description: "شاشة واحدة لتسجيل طلب العميل باسمك فقط." },
+] as const;
+
+function friendlyAuthMessage(error: unknown, mode: LoginMode) {
+  if (mode === "sign-in") return "تعذر التحقق من بيانات الدخول. راجع البريد وكلمة المرور وحاول مرة أخرى.";
+  return error instanceof Error && error.message.includes("already")
+    ? "هذا البريد مسجل بالفعل. استخدم تسجيل الدخول بعد تأكيد البريد."
+    : "تعذر إنشاء الحساب الآن. تأكد من البريد وكلمة المرور وحاول مرة أخرى.";
+}
 
 export default function ExternalLogin() {
   const [email, setEmail] = useState("");
@@ -10,20 +24,29 @@ export default function ExternalLogin() {
   const bootstrapSignup = import.meta.env.VITE_SUPABASE_ALLOW_BOOTSTRAP_SIGNUP === "true";
   const configured = isExternalAuthEnabled() && getExternalAuthConfiguration();
 
-  async function submit(event: FormEvent<HTMLFormElement>, mode: "sign-in" | "sign-up") {
+  async function submit(event: FormEvent<HTMLFormElement>, mode: LoginMode) {
     event.preventDefault();
-    setBusy(true); setMessage("");
+    setBusy(true);
+    setMessage("");
     try {
-      if (mode === "sign-in") await signInWithExternalPassword(email, password);
-      else await signUpExternalUser(email, password);
-      if (mode === "sign-in") window.location.assign("/");
-      else setMessage("تم إرسال خطوة تأكيد إلى البريد. أكمل التأكيد ثم سجّل الدخول.");
+      const normalizedEmail = email.trim().toLocaleLowerCase();
+      if (mode === "sign-in") {
+        await signInWithExternalPassword(normalizedEmail, password);
+        window.location.assign("/");
+      } else {
+        await signUpExternalUser(normalizedEmail, password);
+        setMessage("أرسلنا رسالة تأكيد إلى بريد المدير. افتحها أولًا، ثم عد لتسجيل الدخول.");
+      }
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "تعذر إتمام الدخول الآمن. راجع بياناتك وحاول مرة أخرى.");
-    } finally { setBusy(false); }
+      setMessage(friendlyAuthMessage(error, mode));
+    } finally {
+      setBusy(false);
+    }
   }
 
-  if (!configured) return <main dir="rtl" className="mx-auto flex min-h-screen max-w-2xl items-center p-5"><section className="w-full rounded-[2rem] border border-amber-200 bg-amber-50 p-7 text-center shadow-sm"><ShieldCheck className="mx-auto size-10 text-amber-700" /><h1 className="display-font mt-4 text-2xl font-semibold text-[#244a41]">الدخول الخارجي لم يُهيّأ بعد</h1><p className="mt-3 text-sm leading-7 text-[#627c73]">توقف هذا المسار بأمان إلى أن تُضاف إعدادات Supabase العامة من لوحة Render. لا تدخل أي بيانات هنا الآن.</p></section></main>;
+  if (!configured) {
+    return <main dir="rtl" className="grid min-h-screen place-items-center bg-[#f5faf7] p-5"><section className="w-full max-w-xl rounded-[2rem] border border-amber-200 bg-white p-8 text-center shadow-[0_20px_60px_rgba(42,81,65,.1)]"><ShieldCheck className="mx-auto size-11 text-amber-700" /><h1 className="display-font mt-4 text-2xl font-semibold text-[#244a41]">تجهيز الدخول الآمن جارٍ</h1><p className="mt-3 text-sm leading-7 text-[#627c73]">لن نطلب منك بيانات دخول قبل اكتمال إعداد الهوية. يبقى التطبيق محميًا إلى أن يعتمد المدير إعدادات بيئة العمل الخارجية.</p></section></main>;
+  }
 
-  return <main dir="rtl" className="min-h-screen bg-[radial-gradient(circle_at_top_right,#d8efe4,transparent_40%),linear-gradient(135deg,#f9fcfa,#eef6f1)] px-4 py-8"><section className="mx-auto grid max-w-4xl overflow-hidden rounded-[2rem] border border-[#cfe2d8] bg-white shadow-[0_28px_70px_rgba(27,78,64,.14)] md:grid-cols-[.9fr_1.1fr]"><aside className="bg-[linear-gradient(155deg,#103c35,#1c6757)] p-7 text-white sm:p-10"><div className="inline-flex size-12 items-center justify-center rounded-2xl bg-[#ecd17e] text-[#16453c]"><ShieldCheck className="size-6" /></div><p className="mt-9 text-xs font-bold tracking-[.18em] text-[#efd994]">ذكاء مدير الصيدلية</p><h1 className="display-font mt-3 text-3xl leading-tight">دخول مستقل، وصلاحيات لا تُمنح تلقائيًا.</h1><p className="mt-5 text-sm leading-7 text-[#d7ebe3]">أي حساب جديد لا يرى بيانات الصيدلية ولا ينشئ مساحة عمل. المدير المعتمد وحده يضيف الزملاء ويمنحهم دورهم.</p></aside><form className="p-7 sm:p-10" onSubmit={(event) => void submit(event, "sign-in")}><button type="button" onClick={() => window.location.assign("/")} className="inline-flex items-center gap-2 text-xs font-bold text-[#477367]"><ArrowRight className="size-4" />العودة إلى الأداة</button><h2 className="display-font mt-8 text-2xl font-semibold text-[#214b41]">تسجيل الدخول</h2><p className="mt-2 text-xs leading-6 text-[#71867d]">استخدم الحساب الذي وافق عليه مدير الصيدلية. لا تحفظ الأداة كلمة المرور.</p><label className="mt-6 block text-xs font-bold text-[#386357]">البريد الإلكتروني<input value={email} onChange={(event) => setEmail(event.target.value)} type="email" autoComplete="email" required className="mt-2 block w-full rounded-xl border border-[#cfe0d8] px-3 py-3 text-sm outline-none transition focus:border-[#1b725c] focus:ring-2 focus:ring-[#bfe2d3]" /></label><label className="mt-4 block text-xs font-bold text-[#386357]">كلمة المرور<input value={password} onChange={(event) => setPassword(event.target.value)} type="password" autoComplete="current-password" minLength={8} required className="mt-2 block w-full rounded-xl border border-[#cfe0d8] px-3 py-3 text-sm outline-none transition focus:border-[#1b725c] focus:ring-2 focus:ring-[#bfe2d3]" /></label>{message && <p className="mt-4 rounded-xl bg-[#f4f8f5] px-3 py-2 text-xs leading-6 text-[#42695e]">{message}</p>}<button disabled={busy} className="mt-6 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#164b40] px-4 text-sm font-bold text-white transition hover:bg-[#1c6656] active:scale-[.98] disabled:opacity-60"><LockKeyhole className="size-4" />{busy ? "جارٍ التحقق…" : "دخول آمن"}</button>{bootstrapSignup && <button type="button" disabled={busy} onClick={(event) => { const form = event.currentTarget.form; if (form?.reportValidity()) void submit({ preventDefault: () => undefined } as FormEvent<HTMLFormElement>, "sign-up"); }} className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-[#a8d2c1] px-4 text-xs font-bold text-[#246450] hover:bg-[#f0f8f4] disabled:opacity-60"><Mail className="size-4" />إنشاء حساب التمهيد المؤقت</button>}</form></section></main>;
+  return <main dir="rtl" className="min-h-screen bg-[radial-gradient(circle_at_92%_8%,#d9eee2,transparent_31%),linear-gradient(135deg,#f8fbf8,#edf5f0)] px-4 py-6 sm:py-10"><section className="mx-auto grid max-w-5xl overflow-hidden rounded-[2rem] border border-[#cfe2d8] bg-white shadow-[0_28px_70px_rgba(27,78,64,.14)] lg:grid-cols-[.92fr_1.08fr]"><aside className="bg-[linear-gradient(155deg,#103c35,#1c6757)] p-7 text-white sm:p-10"><div className="flex items-center gap-3"><span className="inline-flex size-12 items-center justify-center rounded-2xl bg-[#ecd17e] text-[#16453c]"><ShieldCheck className="size-6" /></span><div><p className="text-xs font-bold tracking-[.16em] text-[#efd994]">ذكاء مدير الصيدلية</p><p className="mt-1 text-xs text-[#d7ebe3]">وصول منظم وآمن</p></div></div><h1 className="display-font mt-10 max-w-md text-3xl leading-tight">ادخل بحسابك، وسنفتح لك ما تحتاجه فقط.</h1><p className="mt-4 max-w-md text-sm leading-7 text-[#d7ebe3]">لا تختار دورك من الشاشة. يحدده المدير من داخل النظام بعد دعوتك، لحماية بيانات الصيدلية من الوصول غير المصرح به.</p><div className="mt-8 space-y-3">{accessNotes.map(({ icon: Icon, title, description }) => <div key={title} className="rounded-2xl border border-white/15 bg-white/10 p-4"><div className="flex items-center gap-2 text-sm font-bold"><Icon className="size-4 text-[#efd994]" />{title}</div><p className="mt-2 pr-6 text-xs leading-6 text-[#d7ebe3]">{description}</p></div>)}</div><p className="mt-7 flex items-center gap-2 text-xs leading-6 text-[#c8dfd6]"><CheckCircle2 className="size-4 shrink-0 text-[#efd994]" />كلمة المرور لا تُخزن داخل تطبيق الصيدلية.</p></aside><form className="p-7 sm:p-10" onSubmit={(event) => void submit(event, "sign-in")}><button type="button" onClick={() => window.location.assign("/")} className="inline-flex items-center gap-2 text-xs font-bold text-[#477367] transition hover:text-[#1c6757]"><ArrowRight className="size-4" />العودة إلى الأداة</button><div className="mt-8"><p className="text-xs font-bold tracking-[.14em] text-[#5e8a7b]">مرحلة واحدة</p><h2 className="display-font mt-2 text-3xl font-semibold text-[#214b41]">تسجيل الدخول</h2><p className="mt-2 text-sm leading-7 text-[#71867d]">استخدم البريد وكلمة المرور اللذين منحك إياهما مدير الصيدلية.</p></div><label className="mt-7 block text-xs font-bold text-[#386357]"><span className="flex items-center gap-2"><Mail className="size-4 text-[#5d8a7a]" />البريد الإلكتروني</span><input value={email} onChange={(event) => setEmail(event.target.value)} type="email" autoComplete="email" inputMode="email" required className="mt-2 block min-h-12 w-full rounded-xl border border-[#cfe0d8] bg-white px-3 text-sm text-[#214b41] outline-none transition focus:border-[#1b725c] focus:ring-2 focus:ring-[#bfe2d3]" /></label><label className="mt-4 block text-xs font-bold text-[#386357]"><span className="flex items-center gap-2"><KeyRound className="size-4 text-[#5d8a7a]" />كلمة المرور</span><input value={password} onChange={(event) => setPassword(event.target.value)} type="password" autoComplete="current-password" minLength={8} required className="mt-2 block min-h-12 w-full rounded-xl border border-[#cfe0d8] bg-white px-3 text-sm text-[#214b41] outline-none transition focus:border-[#1b725c] focus:ring-2 focus:ring-[#bfe2d3]" /></label><p className="mt-3 text-xs leading-6 text-[#71867d]">إذا لم يكن لديك حساب أو دعوة، تواصل مع مدير الصيدلية. لا تمنح الحسابات الجديدة وصولًا تلقائيًا.</p>{message && <p role="status" aria-live="polite" className="mt-4 rounded-xl border border-[#d5e8dd] bg-[#f4f8f5] px-3 py-3 text-xs leading-6 text-[#42695e]">{message}</p>}<button disabled={busy} className="mt-6 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#164b40] px-4 text-sm font-bold text-white transition duration-200 hover:bg-[#1c6656] active:scale-[.98] disabled:cursor-not-allowed disabled:opacity-60"><LockKeyhole className="size-4" />{busy ? "جارٍ التحقق…" : "دخول آمن"}</button>{bootstrapSignup && <button type="button" disabled={busy} onClick={(event) => { const form = event.currentTarget.form; if (form?.reportValidity()) void submit({ preventDefault: () => undefined } as FormEvent<HTMLFormElement>, "sign-up"); }} className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-[#a8d2c1] px-4 text-xs font-bold text-[#246450] transition hover:bg-[#f0f8f4] disabled:opacity-60"><Mail className="size-4" />إنشاء حساب المدير الأول</button>}</form></section></main>;
 }

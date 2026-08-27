@@ -29,4 +29,12 @@ describe("سياسة وصول فريق طلبات العملاء", () => {
     expect(canManageOperations("customer_requests")).toBe(false);
     expect(canApproveCustomerSupply("customer_requests")).toBe(false);
   });
+
+  it("لا يمنح المراجع أو دور طلبات العملاء قرارات تشغيلية أو اعتماد توريد", () => {
+    expect(canManageOperations("reviewer")).toBe(false);
+    expect(canManageCustomerRequests("reviewer")).toBe(false);
+    expect(canApproveCustomerSupply("reviewer")).toBe(false);
+    expect(canManageOperations("customer_requests")).toBe(false);
+    expect(canApproveCustomerSupply("customer_requests")).toBe(false);
+  });
 });
