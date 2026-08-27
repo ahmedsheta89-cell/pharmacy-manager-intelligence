@@ -5,6 +5,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { registerOAuthRoutes } from "./oauth";
 import { serveStatic, setupVite } from "./vite";
+import { getExternalHostingReadiness } from "../../shared/deploymentTarget";
 
 let activeServer: ReturnType<typeof createServer> | undefined;
 let isShuttingDown = false;
@@ -42,6 +43,12 @@ process.once("SIGTERM", () => shutdown("SIGTERM"));
 process.once("SIGINT", () => shutdown("SIGINT"));
 
 async function startServer() {
+  const hostingReadiness = getExternalHostingReadiness(process.env);
+  if (!hostingReadiness.canStart) {
+    reportProcessEvent("external_hosting_blocked", hostingReadiness);
+    throw new Error(hostingReadiness.message);
+  }
+
   const app = express();
   const server = createServer(app);
   activeServer = server;

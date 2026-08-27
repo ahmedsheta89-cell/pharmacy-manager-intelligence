@@ -4,24 +4,18 @@ services:
   - type: web
     name: pharmacy-manager-intelligence
     runtime: node
+    region: frankfurt
     plan: free
     buildCommand: pnpm install --frozen-lockfile && pnpm build
     startCommand: pnpm start
     healthCheckPath: /healthz
     maxShutdownDelaySeconds: 30
-    autoDeployTrigger: commit
+    autoDeployTrigger: 'off'
     envVars:
       - key: NODE_ENV
         value: production
-      - key: JWT_SECRET
-        generateValue: true
-      - key: DATABASE_URL
-        sync: false
-      - key: VITE_APP_ID
-        sync: false
-      - key: OAUTH_SERVER_URL
-        sync: false
-      - key: VITE_OAUTH_PORTAL_URL
-        sync: false
-      - key: OWNER_OPEN_ID
-        sync: false
+      # يمنع بدء خدمة عامة قبل اعتماد هوية خارجية حقيقية.
+      - key: DEPLOYMENT_TARGET
+        value: external
+      - key: VITE_DEPLOYMENT_TARGET
+        value: external

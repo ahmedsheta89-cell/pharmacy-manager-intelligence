@@ -45,6 +45,7 @@ import {
 import type { ImportInspection, SheetInspection } from "@/lib/pharmacyEngine";
 import { fieldArabicName } from "@/lib/fieldLabels";
 import { formatEGP, formatNumber } from "@/lib/displayFormat";
+import { PORTABLE_ASSETS } from "@/lib/portableAssets";
 import {
   analyzePharmacyData,
   answerDataQuestion,
@@ -100,11 +101,7 @@ const MONTH_OPTIONS = [
   [7, "يوليو"], [8, "أغسطس"], [9, "سبتمبر"], [10, "أكتوبر"], [11, "نوفمبر"], [12, "ديسمبر"],
 ] as const;
 
-const ASSET = {
-  logo: "/manus-storage/pharmacy-intelligence-symbol_005d34fa.png",
-  abstract: "/manus-storage/pharmacy-executive-abstract_dddbd3fc.png",
-  orb: "/manus-storage/pharmacy-insight-orb_c1ac46a1.png",
-};
+const ASSET = PORTABLE_ASSETS;
 
 const levelMeta: Record<AlertLevel, { label: string; icon: string; className: string }> = {
   urgent: { label: "عاجل", icon: "●", className: "status-urgent" },

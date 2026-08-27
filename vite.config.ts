@@ -6,6 +6,7 @@ import path from "node:path";
 import { visualizer } from "rollup-plugin-visualizer";
 import { defineConfig, type Plugin, type ViteDevServer } from "vite";
 import { vitePluginManusRuntime } from "vite-plugin-manus-runtime";
+import { getDeploymentTarget } from "./shared/deploymentTarget";
 
 // =============================================================================
 // Manus Debug Collector - Vite Plugin
@@ -208,9 +209,8 @@ const plugins = [
   react(),
   tailwindcss(),
   jsxLocPlugin(),
-  vitePluginManusRuntime(),
   vitePluginManusDebugCollector(),
-  vitePluginStorageProxy(),
+  ...(getDeploymentTarget(process.env) === "manus" ? [vitePluginManusRuntime(), vitePluginStorageProxy()] : []),
   ...(process.env.ANALYZE_BUNDLE === "true"
     ? [visualizer({ filename: "../bundle-stats.json", template: "raw-data", gzipSize: true, brotliSize: true })]
     : []),
