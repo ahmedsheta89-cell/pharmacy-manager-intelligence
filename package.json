@@ -13,6 +13,7 @@
     "measure:startup": "node scripts/measure-startup.mjs",
     "start": "NODE_ENV=production node dist/index.js",
     "db:push:external": "drizzle-kit push",
+    "db:bootstrap:external": "tsx scripts/bootstrap-external-tidb.ts",
     "check": "tsc --noEmit",
     "test": "vitest run",
     "format": "prettier --write ."

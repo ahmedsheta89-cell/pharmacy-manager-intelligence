@@ -1,0 +1,51 @@
+name: External TiDB Bootstrap
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "verify يقرأ المخطط فقط، apply يضيف القيود والفهارس الناقصة إلى test فقط"
+        required: true
+        default: verify
+        type: choice
+        options: [verify, apply]
+      confirmation:
+        description: "للتطبيق اكتب APPLY_TIDB_TEST_SCHEMA_V1 حرفيًا"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    environment: external-test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: pnpm
+      - name: Enable Corepack
+        run: corepack enable
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Verify external TiDB test schema
+        if: inputs.mode == 'verify'
+        env:
+          DATABASE_URL_TIDB_TEST: ${{ secrets.TIDB_TEST_DATABASE_URL }}
+          EXTERNAL_DB_EXPECTED_SCHEMA: test
+        run: pnpm db:bootstrap:external -- --verify
+      - name: Apply reviewed external TiDB constraints and indexes
+        if: inputs.mode == 'apply' && inputs.confirmation == 'APPLY_TIDB_TEST_SCHEMA_V1'
+        env:
+          DATABASE_URL_TIDB_TEST: ${{ secrets.TIDB_TEST_DATABASE_URL }}
+          EXTERNAL_DB_EXPECTED_SCHEMA: test
+          EXTERNAL_DB_APPLY_CONFIRMATION: ${{ inputs.confirmation }}
+        run: pnpm db:bootstrap:external -- --apply
+      - name: Reject unconfirmed apply
+        if: inputs.mode == 'apply' && inputs.confirmation != 'APPLY_TIDB_TEST_SCHEMA_V1'
+        run: |
+          echo "A literal confirmation is required for an external schema apply."
+          exit 1
