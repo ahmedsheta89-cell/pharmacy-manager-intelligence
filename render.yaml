@@ -10,7 +10,7 @@ services:
     startCommand: pnpm start
     healthCheckPath: /healthz
     maxShutdownDelaySeconds: 30
-    autoDeployTrigger: 'off'
+    autoDeployTrigger: "off"
     envVars:
       - key: NODE_ENV
         value: production
@@ -19,3 +19,16 @@ services:
         value: external
       - key: VITE_DEPLOYMENT_TARGET
         value: external
+      # تُدخل من لوحة Render الآمنة بعد تحقق TiDB وSupabase؛ لا توجد قيم في المستودع.
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      - key: AUTH_BOOTSTRAP_ADMIN_EMAIL
+        sync: false
