@@ -18,7 +18,10 @@ export const appRouter = router({
   }),
   workspace: router({
     list: protectedProcedure.query(({ ctx }) => db.listWorkspacesForUser(ctx.user.id)),
-    ensure: protectedProcedure.mutation(({ ctx }) => db.ensureOwnerWorkspace(ctx.user)),
+    ensure: protectedProcedure.mutation(({ ctx }) => {
+      if (ctx.user.role !== "admin") throw new TRPCError({ code: "FORBIDDEN", message: "لا يستطيع إنشاء مساحة مالك إلا حساب المدير المعتمد." });
+      return db.ensureOwnerWorkspace(ctx.user);
+    }),
   }),
   sessions: router({
     saveApproved: protectedProcedure.input(z.object({

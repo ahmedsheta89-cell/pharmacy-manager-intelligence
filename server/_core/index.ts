@@ -6,6 +6,7 @@ import { createContext } from "./context";
 import { registerOAuthRoutes } from "./oauth";
 import { serveStatic, setupVite } from "./vite";
 import { getExternalHostingReadiness } from "../../shared/deploymentTarget";
+import { isExternalIdentityTarget } from "../../shared/externalAuth";
 
 let activeServer: ReturnType<typeof createServer> | undefined;
 let isShuttingDown = false;
@@ -55,7 +56,7 @@ async function startServer() {
   app.use(express.json({ limit: "2mb" }));
   app.use(express.urlencoded({ limit: "2mb", extended: true }));
   app.get("/healthz", (_req, res) => res.status(200).json({ service: "pharmacy-manager-intelligence", status: "ok", pid: process.pid, uptimeSeconds: Math.floor(process.uptime()) }));
-  registerOAuthRoutes(app);
+  if (!isExternalIdentityTarget(process.env)) registerOAuthRoutes(app);
   app.use("/api/trpc", createExpressMiddleware({ router: appRouter, createContext }));
   if (process.env.NODE_ENV === "development") await setupVite(app, server);
   else serveStatic(app);

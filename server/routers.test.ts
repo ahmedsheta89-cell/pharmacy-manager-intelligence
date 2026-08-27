@@ -21,6 +21,14 @@ describe("إجراءات الخادم المحمية", () => {
     expect(calls[0]).toMatchObject({ name: "app_session_id", options: { maxAge: -1, httpOnly: true, secure: true, sameSite: "none", path: "/" } });
   });
 
+  it("لا يسمح بحساب عادي أن ينشئ مساحة مالك عند استخدام هوية مستقلة", async () => {
+    const caller = appRouter.createCaller({
+      ...anonymousContext,
+      user: { id: 77, openId: "supabase:ordinary-user", name: "عضو فريق", email: "team@example.com", loginMethod: "supabase", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() },
+    } as never);
+    await expect(caller.workspace.ensure()).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
   it("يحجب كل مسارات التشغيل الدائمة عن المتصفح غير الموثق", async () => {
     const caller = appRouter.createCaller(anonymousContext);
     const checks = [

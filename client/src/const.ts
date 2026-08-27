@@ -1,8 +1,13 @@
 export { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 
 import { OAUTH_STATE_COOKIE, encodeOAuthState } from "@shared/const";
+import { isExternalAuthEnabled } from "@/lib/supabaseAuth";
 
 export const startLogin = () => {
+  if (isExternalAuthEnabled()) {
+    window.location.assign("/auth/login");
+    return;
+  }
   const oauthPortalUrl = import.meta.env.VITE_OAUTH_PORTAL_URL;
   const appId = import.meta.env.VITE_APP_ID;
   const redirectUri = `${window.location.origin}/api/oauth/callback`;

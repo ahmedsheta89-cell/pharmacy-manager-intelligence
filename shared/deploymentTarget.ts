@@ -11,8 +11,21 @@ export function getDeploymentTarget(environment: Environment = process.env): Dep
   return requested?.trim().toLowerCase() === "external" ? "external" : "manus";
 }
 
+export function hasExternalSupabaseConfiguration(environment: Environment = process.env) {
+  const url = (environment.SUPABASE_URL ?? environment.VITE_SUPABASE_URL ?? "").trim().replace(/\/+$/, "");
+  const publishableKey = (environment.SUPABASE_PUBLISHABLE_KEY ?? environment.VITE_SUPABASE_PUBLISHABLE_KEY ?? "").trim();
+  const bootstrapAdminEmail = environment.AUTH_BOOTSTRAP_ADMIN_EMAIL?.trim() ?? "";
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "https:" && parsed.hostname.endsWith(".supabase.co") && Boolean(publishableKey) && bootstrapAdminEmail.includes("@");
+  } catch {
+    return false;
+  }
+}
+
 export type ExternalHostingReadiness =
   | { target: "manus"; canStart: true }
+  | { target: "external"; canStart: true }
   | { target: "external"; canStart: false; code: "EXTERNAL_AUTH_NOT_READY"; message: string };
 
 /**
@@ -24,10 +37,13 @@ export function getExternalHostingReadiness(environment: Environment = process.e
     return { target: "manus", canStart: true };
   }
 
-  return {
-    target: "external",
-    canStart: false,
-    code: "EXTERNAL_AUTH_NOT_READY",
-    message: "النشر الخارجي موقوف: يلزم اعتماد عنوان callback خارجي أو إعداد مزود هوية مستقل قبل تشغيل الخدمة.",
-  };
+  const configured = hasExternalSupabaseConfiguration(environment);
+  return configured
+    ? { target: "external", canStart: true }
+    : {
+        target: "external",
+        canStart: false,
+        code: "EXTERNAL_AUTH_NOT_READY",
+        message: "النشر الخارجي موقوف: يلزم إعداد Supabase URL والمفتاح العام وبريد تمهيد المدير في لوحة الإعداد الآمنة قبل تشغيل الخدمة.",
+      };
 }
