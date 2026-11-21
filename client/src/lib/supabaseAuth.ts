@@ -46,6 +46,30 @@ export async function signUpExternalUser(email: string, password: string) {
   if (error) throw error;
 }
 
+/** يرسل رمز دخول مؤقتًا إلى بريد المدير (بدون إنشاء حساب جديد) — مسار استعادة كلمة المرور. */
+export async function sendExternalRecoveryCode(email: string) {
+  const client = getSupabaseAuthClient();
+  if (!client) throw new Error("إعداد الدخول الخارجي غير مكتمل بعد.");
+  const { error } = await client.auth.signInWithOtp({ email, options: { shouldCreateUser: false } });
+  if (error) throw error;
+}
+
+/** يتحقق من رمز الدخول المؤقت ويفتح جلسة تسمح بتعيين كلمة مرور جديدة. */
+export async function verifyExternalRecoveryCode(email: string, token: string) {
+  const client = getSupabaseAuthClient();
+  if (!client) throw new Error("إعداد الدخول الخارجي غير مكتمل بعد.");
+  const { error } = await client.auth.verifyOtp({ email, token, type: "email" });
+  if (error) throw error;
+}
+
+/** يعيّن كلمة مرور جديدة للجلسة الحالية (بعد تحقق الرمز). */
+export async function updateExternalPassword(newPassword: string) {
+  const client = getSupabaseAuthClient();
+  if (!client) throw new Error("إعداد الدخول الخارجي غير مكتمل بعد.");
+  const { error } = await client.auth.updateUser({ password: newPassword });
+  if (error) throw error;
+}
+
 export async function signOutExternalUser() {
   const client = getSupabaseAuthClient();
   if (!client) return;
