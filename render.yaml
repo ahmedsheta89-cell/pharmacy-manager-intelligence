@@ -11,16 +11,21 @@ services:
     healthCheckPath: /healthz
     maxShutdownDelaySeconds: 30
     autoDeployTrigger: checksPass
+    initialDeployHook: pnpm exec drizzle-kit migrate; pnpm db:bootstrap:external -- --apply
     envVars:
       - key: NODE_ENV
         value: production
-      # يمنع بدء خدمة عامة قبل اعتماد هوية خارجية حقيقية.
       - key: DEPLOYMENT_TARGET
         value: external
       - key: VITE_DEPLOYMENT_TARGET
         value: external
-      # تُدخل من لوحة Render الآمنة بعد تحقق TiDB وSupabase؛ لا توجد قيم في المستودع.
+      - key: EXTERNAL_DB_EXPECTED_SCHEMA
+        value: test
+      - key: EXTERNAL_DB_APPLY_CONFIRMATION
+        value: APPLY_TIDB_TEST_SCHEMA_V1
       - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_URL_TIDB_TEST
         sync: false
       - key: SUPABASE_URL
         sync: false
