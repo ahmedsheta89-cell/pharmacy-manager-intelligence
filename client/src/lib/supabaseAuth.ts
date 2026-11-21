@@ -46,20 +46,30 @@ export async function signUpExternalUser(email: string, password: string) {
   if (error) throw error;
 }
 
-/** يرسل رمز دخول مؤقتًا إلى بريد المدير (بدون إنشاء حساب جديد) — مسار استعادة كلمة المرور. */
+/** Uses the provider's existing link email without requiring dashboard template changes. */
 export async function sendExternalRecoveryCode(email: string) {
   const client = getSupabaseAuthClient();
   if (!client) throw new Error("إعداد الدخول الخارجي غير مكتمل بعد.");
-  const { error } = await client.auth.signInWithOtp({ email, options: { shouldCreateUser: false } });
+  const { error } = await client.auth.signInWithOtp({ email, options: { shouldCreateUser: false, emailRedirectTo: `${window.location.origin}/auth/login` } });
   if (error) throw error;
 }
 
-/** يتحقق من رمز الدخول المؤقت ويفتح جلسة تسمح بتعيين كلمة مرور جديدة. */
-export async function verifyExternalRecoveryCode(email: string, token: string) {
+/** Only accepts the real project's verification link; never follows arbitrary URLs. */
+export async function verifyExternalRecoveryCode(email: string, value: string) {
   const client = getSupabaseAuthClient();
-  if (!client) throw new Error("إعداد الدخول الخارجي غير مكتمل بعد.");
-  const { error } = await client.auth.verifyOtp({ email, token, type: "email" });
+  const config = getExternalAuthConfiguration();
+  if (!client || !config) throw new Error("إعداد الدخول الخارجي غير مكتمل بعد.");
+  const link = new URL(value.trim());
+  const project = new URL(config.url);
+  const token_hash = link.searchParams.get("token") || link.searchParams.get("token_hash");
+  const type = link.searchParams.get("type");
+  if (link.protocol!=="https:" || link.origin!==project.origin || link.pathname!=="/auth/v1/verify" || !token_hash || !["magiclink","email","recovery"].includes(type || "")) throw new Error("invalid-recovery-link");
+  const { data, error } = await client.auth.verifyOtp({ token_hash, type: type as "magiclink" | "email" | "recovery" });
   if (error) throw error;
+  if (data.user?.email?.toLowerCase()!==email.toLowerCase()) {
+    await client.auth.signOut({scope:"local"});
+    throw new Error("email-mismatch");
+  }
 }
 
 /** يعيّن كلمة مرور جديدة للجلسة الحالية (بعد تحقق الرمز). */
@@ -73,6 +83,6 @@ export async function updateExternalPassword(newPassword: string) {
 export async function signOutExternalUser() {
   const client = getSupabaseAuthClient();
   if (!client) return;
-  const { error } = await client.auth.signOut();
+  const { error } = await client.auth.signOut({ scope: "local" });
   if (error) throw error;
 }
