@@ -9,7 +9,6 @@ services:
     buildCommand: pnpm install --frozen-lockfile && pnpm build
     startCommand: node dist/index.js
     healthCheckPath: /healthz
-    maxShutdownDelaySeconds: 30
     autoDeployTrigger: checksPass
     initialDeployHook: pnpm exec drizzle-kit migrate; pnpm db:bootstrap:external -- --apply
     envVars:
