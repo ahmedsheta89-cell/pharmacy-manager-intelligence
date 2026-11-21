@@ -10,7 +10,7 @@ services:
     startCommand: pnpm start
     healthCheckPath: /healthz
     maxShutdownDelaySeconds: 30
-    autoDeployTrigger: "off"
+    autoDeployTrigger: checksPass
     envVars:
       - key: NODE_ENV
         value: production
